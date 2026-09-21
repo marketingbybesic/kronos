@@ -67,7 +67,13 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
                                                 name: UserDefaults.didChangeNotification, object: nil)
     }
 
-    @objc private func focusChanged() { render() }
+    /// A selector observer runs on whatever thread posted. `UserDefaults.didChangeNotification` is
+    /// posted on the WRITING thread, and a background AI call writes a has-key flag: rendering
+    /// from there read SwiftData off the main thread and took the whole app down (segfault while
+    /// tasks were being created over MCP). Always render on main.
+    @objc private func focusChanged() {
+        if Thread.isMainThread { render() } else { DispatchQueue.main.async { [weak self] in self?.render() } }
+    }
 
     @objc private func meetingCaptureRequested() {
         showPopover(focusCapture: true)

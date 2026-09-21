@@ -182,8 +182,15 @@ struct TaskListScreen: View {
     @ViewBuilder
     private func body(_ ctx: ListContext) -> some View {
         if ctx.rows.isEmpty && model.searchText.isEmpty && ctx.activeRuleCount == 0 {
-            KEmptyState(icon: emptyIcon, title: emptyTitle)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // An empty list still starts with the same "New task" row every other list has:
+            // without it an empty area or project offered no visible way to add the first task.
+            VStack(alignment: .leading, spacing: 0) {
+                ListInlineNewTaskRow(model: model, scope: model.scope)
+                    .padding(.horizontal, Space.x3)
+                    .padding(.vertical, Space.x2)
+                KEmptyState(icon: emptyIcon, title: emptyTitle)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else {
             GeometryReader { geo in
                 // ColumnMode is computed ONCE here from the measured list width and handed

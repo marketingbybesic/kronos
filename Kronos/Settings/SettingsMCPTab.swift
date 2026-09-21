@@ -110,7 +110,11 @@ struct SettingsMCPTab: View {
         // Only runs while this tab is open (a user action, not launch): reading the
         // app-owned token here is fine, same as any other Settings field showing its
         // current stored value.
-        isHermetic ? "0123456789abcdef0123456789abcdef" : (MCPKeychain.loadToken() ?? "")
+        // `token()`, not `loadToken()`: the server creates the token lazily on its first
+        // request, so right after MCP was switched on there was none yet and Copy produced
+        // "Authorization: Bearer " with nothing after it. While MCP is off, nothing is created.
+        if isHermetic { return "0123456789abcdef0123456789abcdef" }
+        return (MCPSettingsKeys.isEnabled ? MCPKeychain.token() : MCPKeychain.loadToken()) ?? ""
     }
 
     private var realGenericSnippet: String { MCPSettingsSnippet.genericJSON(token: displayToken, port: status.port ?? 47311) }
