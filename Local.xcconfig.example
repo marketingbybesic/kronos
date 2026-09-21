@@ -1,0 +1,8 @@
+// Local.xcconfig.example — copy to Local.xcconfig (untracked, .gitignore) to sign a Release
+// build with your own identity instead of the default ad hoc signing ("-"). project.yml's
+// Release config includes this file only if it exists (`#include?`), so a fresh checkout
+// builds and runs with no setup, and only whoever holds that identity can produce a build
+// that carries it.
+//
+// CODE_SIGN_IDENTITY = Developer ID Application: Your Name (TEAMID)
+// DEVELOPMENT_TEAM =

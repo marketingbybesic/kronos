@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Not part of the build target today. There is no Apple Developer Program
+  team yet, so none of these entitlements can be provisioned: adding this
+  file to the app target now would just fail every build. It exists so that
+  turning CloudKit sync on later is a config change, not a rewrite — copy
+  this to Kronos/Kronos.entitlements, fill in the team id, add it to the
+  target's CODE_SIGN_ENTITLEMENTS setting, and flip
+  KronosStore.cloudKitDatabaseSetting away from `.none`.
+-->
+<plist version="1.0">
+<dict>
+	<!--
+	  Grants the app access to one CloudKit container. The container id below
+	  mirrors the bundle id by convention; it does not have to, but Apple's own
+	  tooling assumes it does unless told otherwise. Replace TEAMID with the
+	  real 10-character Apple Developer team id once one exists.
+	-->
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.besic.kronos</string>
+	</array>
+
+	<!--
+	  Which CloudKit environment this build talks to. "Development" while
+	  iterating; Xcode/App Store Connect switches this to "Production" for a
+	  distributed build — do not hardcode "Production" here by hand.
+	-->
+	<key>com.apple.developer.icloud-container-environment</key>
+	<string>Development</string>
+
+	<!--
+	  Which of the granted containers NSPersistentCloudKitContainer (what
+	  SwiftData's CloudKitDatabase option uses under the hood) is allowed to
+	  mirror the store into. Must list the same container as the identifiers
+	  array above.
+	-->
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+
+	<!--
+	  CloudKit sync is push-driven: a change on one device wakes the others
+	  through a silent push. Without this entitlement the container still
+	  syncs, but only when the app happens to be foregrounded and polls.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+
+	<!--
+	  A keychain access group shared by every target on this Apple ID (the
+	  planned iOS/watchOS/visionOS apps) so a secret written on one device is
+	  readable — not synced, just addressable under the same group — by the
+	  others once they exist. $(AppIdentifierPrefix) is filled in by Xcode
+	  from the team id at build time; do not hardcode the prefix.
+	-->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.besic.kronos.shared</string>
+	</array>
+
+	<!--
+	  App Sandbox stays OFF here on purpose: AppleScript automation, a local
+	  TCP listener, and a few other call sites are not sandbox-safe yet.
+	  Turning CloudKit on does not require sandboxing; they are separate,
+	  independently-timed decisions. If sandboxing is ever adopted, this key
+	  simply moves to YES and the container/service keys above are unaffected.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>

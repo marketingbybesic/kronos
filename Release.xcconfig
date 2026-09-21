@@ -1,0 +1,8 @@
+// Release.xcconfig — tracked. The only thing this file does is pull in an untracked, optional
+// signing override: `?` makes the include optional, so a fresh checkout with no Local.xcconfig
+// builds Release exactly as project.yml declares it (ad hoc signed). Copy Local.xcconfig.example
+// to Local.xcconfig to sign with your own identity instead; see that file's header.
+// Defaults first, include last: a later assignment wins, so Local.xcconfig can replace them.
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"

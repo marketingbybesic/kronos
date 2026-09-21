@@ -1,0 +1,14 @@
+Kronos
+Copyright 2026 Marketing by Bešić
+
+This product includes software developed by third parties:
+
+KeyboardShortcuts (https://github.com/sindresorhus/KeyboardShortcuts)
+  Copyright (c) Sindre Sorhus. MIT License.
+
+swift-markdown-ui (https://github.com/gonzalezreal/swift-markdown-ui)
+  Copyright (c) 2020 Guillermo Gonzalez. MIT License.
+  Bundles cmark-gfm (https://github.com/github/cmark-gfm), BSD 2-Clause License.
+
+NetworkImage (https://github.com/gonzalezreal/NetworkImage)
+  Copyright (c) 2020 Guille Gonzalez. MIT License.

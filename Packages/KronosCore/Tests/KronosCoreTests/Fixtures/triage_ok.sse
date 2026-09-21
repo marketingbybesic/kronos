@@ -1,0 +1,11 @@
+data: {"model":"claude-sonnet-5","choices":[{"delta":{"content":"{\"project\":null,"}}]}
+
+data: {"model":"claude-sonnet-5","choices":[{"delta":{"content":"\"priority\":2,\"due\":null,\"depth\":\"shallow\","}}]}
+
+data: {"model":"claude-sonnet-5","choices":[{"delta":{"content":"\"estimateMinutes\":15,\"energyKind\":\"admin\","}}]}
+
+data: {"model":"claude-sonnet-5","choices":[{"delta":{"content":"\"firstMove\":\"Open the invoice folder and find September.\","}}]}
+
+data: {"model":"claude-sonnet-5","choices":[{"delta":{"content":"\"labels\":[],\"rationale\":\"One document and one email, no preparation needed.\"}"},"finish_reason":"stop"}]}
+
+data: [DONE]
