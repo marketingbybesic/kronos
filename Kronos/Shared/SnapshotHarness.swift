@@ -94,7 +94,8 @@ enum SnapshotHarness {
                       QuickAddSnapshots.screens(model: model),
                       PermissionsSnapshots.screens(model: model),
                       TriageSnapshots.screens(model: model),
-                      TimeBlocksSnapshots.screens(model: model)] {
+                      TimeBlocksSnapshots.screens(model: model),
+                      WelcomeSnapshots.screens(model: model)] {
             screens.merge(extra) { _, new in new }
         }
         guard let view = screens[screen] else {

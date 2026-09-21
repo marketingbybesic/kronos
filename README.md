@@ -4,7 +4,9 @@
 
 ![Kronos main window: the Now card with a first move, the task list and the inspector](docs/screenshots/hero.png)
 
-[Download the latest build](https://github.com/marketingbybesic/kronos/releases/latest) · macOS 14 or later · Apple silicon and Intel · Apache-2.0
+[Download Beta 1.0](https://github.com/marketingbybesic/kronos/releases/latest) · macOS 14 or later · Apple silicon and Intel · Apache-2.0 · Mac only for now
+
+**Beta.** It is stable enough for daily use (the author runs his work on it), but expect rough edges. The app does not update itself yet: new builds appear under Releases, and your data stays in place when you replace the app. Found something? [Open an issue](https://github.com/marketingbybesic/kronos/issues).
 
 ---
 
@@ -51,7 +53,7 @@ AI is optional and **bring-your-own-key**. With AI off, nothing leaves your Mac.
 ## Install
 
 1. Download `Kronos-<version>.dmg` from [Releases](https://github.com/marketingbybesic/kronos/releases/latest), open it and drag **Kronos** to **Applications**.
-2. **First launch.** This build is not notarised by Apple yet (that needs a paid Developer ID, which is on the roadmap), so macOS will refuse to open it the first time. Open **System Settings > Privacy & Security**, scroll to the message about Kronos and click **Open Anyway**. You only do this once per version. If you prefer the terminal: `xattr -dr com.apple.quarantine /Applications/Kronos.app`.
+2. **First launch.** This build is not notarised by Apple yet (that needs a paid Developer ID, which is on the roadmap), so macOS will refuse to open it the first time with a dialog that only offers **Move to Trash** or **Done**. Click **Done**, open **System Settings > Privacy & Security**, scroll down to the message about Kronos and click **Open Anyway**, then confirm. You only do this once per version. If you prefer the terminal: `xattr -dr com.apple.quarantine /Applications/Kronos.app`.
 3. Kronos asks for a permission only when you first use the feature that needs it (Calendar for time blocks, Automation for Apple Notes).
 
 If you would rather not run an unnotarised binary, build it yourself: it takes two commands.

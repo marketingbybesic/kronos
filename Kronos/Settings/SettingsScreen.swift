@@ -270,7 +270,9 @@ struct SettingsGeneralTab: View {
     /// "1.0" in a snapshot run (no real bundle) so the row is never blank while gated; the
     /// real app always has a `CFBundleShortVersionString` from Info.plist.
     private static var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        // The marketing version stays numeric for macOS; people read the channel name.
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        return v.hasPrefix("1.0") ? "Beta 1.0" : v
     }
 
     /// Short build hash (scripts/write-build-id.sh writes `KronosBuildID` into Info.plist at

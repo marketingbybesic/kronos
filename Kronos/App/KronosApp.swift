@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import KronosCore
 
 @main
@@ -14,7 +15,19 @@ struct KronosApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact(showsTitle: false))
-        .commands { KronosCommands(model: appDelegate.model) }
+        .commands {
+            KronosCommands(model: appDelegate.model)
+            CommandGroup(replacing: .help) {
+                Button(String(localized: "welcome.menu.show")) {
+                    WelcomeWindowController.show()
+                }
+                Button(String(localized: "welcome.menu.github")) {
+                    guard ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] == nil,
+                          let url = URL(string: "https://github.com/marketingbybesic/kronos") else { return }
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        }
 
         Settings {
             SettingsScreen(model: appDelegate.model)

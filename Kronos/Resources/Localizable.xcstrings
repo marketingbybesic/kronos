@@ -2360,6 +2360,24 @@
         }
       }
     },
+    "common.next": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalje"
+          }
+        }
+      }
+    },
     "common.rename": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -2392,6 +2410,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spremi"
+          }
+        }
+      }
+    },
+    "common.skip": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči"
           }
         }
       }
@@ -16702,6 +16738,636 @@
           "stringUnit": {
             "state": "translated",
             "value": "da"
+          }
+        }
+      }
+    },
+    "welcome.eyebrow": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld/%2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "welcome.menu.github": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos on GitHub"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos na GitHubu"
+          }
+        }
+      }
+    },
+    "welcome.menu.show": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Kronos…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dobrodošli u Kronos…"
+          }
+        }
+      }
+    },
+    "welcome.page1.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a task and its details together: project, label, priority, effort, a date, and Kronos sorts them out."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upiši zadatak i sve detalje odjednom: projekt, oznaku, prioritet, trud, datum, Kronos ih sam razvrsta."
+          }
+        }
+      }
+    },
+    "welcome.page1.example.after": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~m tomorrow"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "~m tomorrow"
+          }
+        }
+      }
+    },
+    "welcome.page1.example.before": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send the proposal #acme @finance"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pošalji ponudu #acme @financije"
+          }
+        }
+      }
+    },
+    "welcome.page1.hint.anywhere": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "quick add, anywhere"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brzi unos, bilo gdje"
+          }
+        }
+      }
+    },
+    "welcome.page1.hint.here": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "new task, here"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "novi zadatak, ovdje"
+          }
+        }
+      }
+    },
+    "welcome.page1.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a task in one line"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj zadatak u jednom retku"
+          }
+        }
+      }
+    },
+    "welcome.page2.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go through new tasks one at a time: set priority, effort, and a deadline without touching the mouse."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prođi nove zadatke jedan po jedan: postavi prioritet, trud i rok bez dodira miša."
+          }
+        }
+      }
+    },
+    "welcome.page2.hint.accept": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "accept"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "prihvati"
+          }
+        }
+      }
+    },
+    "welcome.page2.hint.deadline": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "deadline"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rok"
+          }
+        }
+      }
+    },
+    "welcome.page2.hint.effort": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "effort"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "trud"
+          }
+        }
+      }
+    },
+    "welcome.page2.hint.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "open Triage"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "otvori triažu"
+          }
+        }
+      }
+    },
+    "welcome.page2.hint.priority": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "priority"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "prioritet"
+          }
+        }
+      }
+    },
+    "welcome.page2.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triage clears your inbox"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triaža čisti inbox"
+          }
+        }
+      }
+    },
+    "welcome.page3.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One task, one first move, a timer. Pick your energy."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedan zadatak, jedan prvi korak, tajmer. Odaberi svoju energiju."
+          }
+        }
+      }
+    },
+    "welcome.page3.hint.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "open Impuls"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "otvori Impuls"
+          }
+        }
+      }
+    },
+    "welcome.page3.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls picks your first move"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls bira prvi korak"
+          }
+        }
+      }
+    },
+    "welcome.page4.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste in notes, pull from Apple Notes, or use AI to break a big task into steps."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zalijepi bilješke, povuci iz Apple Notesa ili koristi AI da razbiješ veliki zadatak na korake."
+          }
+        }
+      }
+    },
+    "welcome.page4.hint.anywhere": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capture a meeting, anywhere"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "snimi sastanak, bilo gdje"
+          }
+        }
+      }
+    },
+    "welcome.page4.hint.here": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "open Capture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "otvori Capture"
+          }
+        }
+      }
+    },
+    "welcome.page4.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture turns notes into tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture pretvara bilješke u zadatke"
+          }
+        }
+      }
+    },
+    "welcome.page5.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The menu bar shows the one task that is next, and Calendar blocks protect the time for it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traka izbornika pokazuje jedan sljedeći zadatak, a blokovi u kalendaru čuvaju vrijeme za njega."
+          }
+        }
+      }
+    },
+    "welcome.page5.hint.blocks": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendar blocks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blokovi u kalendaru"
+          }
+        }
+      }
+    },
+    "welcome.page5.hint.show": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "show Ordo"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "prikaži Ordo"
+          }
+        }
+      }
+    },
+    "welcome.page5.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordo shows what's next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordo pokazuje što je sljedeće"
+          }
+        }
+      }
+    },
+    "welcome.page6.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jump to anything with the command palette, or reach Kronos through Siri, Shortcuts, Spotlight, and AI assistants."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skoči na bilo što s paletom naredbi, ili dosegni Kronos kroz Siri, Shortcuts, Spotlight i AI asistente."
+          }
+        }
+      }
+    },
+    "welcome.page6.hint.palette": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "command palette"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "paleta naredbi"
+          }
+        }
+      }
+    },
+    "welcome.page6.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos is everywhere"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos je posvuda"
+          }
+        }
+      }
+    },
+    "welcome.page7.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos is local-first with no account. Back up and export any time in Settings. Beta 1.0, Mac only for now."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos je local-first, bez računa. Sigurnosna kopija i izvoz u svakom trenutku u Postavkama. Beta 1.0, zasad samo za Mac."
+          }
+        }
+      }
+    },
+    "welcome.page7.github": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos on GitHub"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos na GitHubu"
+          }
+        }
+      }
+    },
+    "welcome.page7.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your data stays yours"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvoji podaci ostaju tvoji"
+          }
+        }
+      }
+    },
+    "welcome.start": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Počni"
+          }
+        }
+      }
+    },
+    "welcome.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Kronos"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dobrodošli u Kronos"
           }
         }
       }

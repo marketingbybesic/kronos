@@ -110,8 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         menuBarOrdo.install()
         LaunchTrace.mark("menuBarOrdo.install")
-        offerPermissionsOnce()
-        LaunchTrace.mark("offerPermissionsOnce")
+        offerWelcomeOnce()
+        LaunchTrace.mark("offerWelcomeOnce")
         quickAdd.start()
         LaunchTrace.mark("quickAdd.start")
         AIWiring.configure(model)
@@ -167,16 +167,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// The classic "what Kronos may use" window, shown once. It only LISTS: every system prompt
-    /// still needs the user's own click inside it.
-    private func offerPermissionsOnce() {
+    /// First-run tour, shown once, before Permissions. An existing user who already saw
+    /// Permissions (its own `kronos.permissions.shownOnce` flag already true) still sees the
+    /// tour once — it is new to them — but does not see Permissions a second time.
+    private func offerWelcomeOnce() {
         let env = ProcessInfo.processInfo.environment
-        guard env["KRONOS_SNAPSHOT"] == nil, env["KRONOS_STORE_DIR"] == nil, env["KRONOS_SELFTEST"] == nil else { return }
-        let key = "kronos.permissions.shownOnce"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [model] in
-            PermissionsWindowController.show(model: model, mcpStatus: self.mcpLive)
+        let welcomeKey = "kronos.welcome.shownOnce"
+        let permissionsKey = "kronos.permissions.shownOnce"
+        let decision = WelcomeGate.decide(env: env,
+                                           welcomeShown: UserDefaults.standard.bool(forKey: welcomeKey),
+                                           permissionsShown: UserDefaults.standard.bool(forKey: permissionsKey))
+        guard decision.showWelcome else { return }
+        UserDefaults.standard.set(true, forKey: welcomeKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [model, mcpLive] in
+            WelcomeWindowController.show(onFinish: {
+                UserDefaults.standard.set(true, forKey: permissionsKey)
+                guard decision.showPermissionsAfter else { return }
+                PermissionsWindowController.show(model: model, mcpStatus: mcpLive)
+            })
         }
     }
 
