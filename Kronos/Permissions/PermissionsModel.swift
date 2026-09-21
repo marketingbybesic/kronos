@@ -71,6 +71,10 @@ enum NotesPermissionReader {
         switch Int(status) {
         case 0: return .granted            // noErr
         case -1744: return .notDetermined  // errAEEventWouldRequireUserConsent
+        // procNotFound: Notes is not running, so the system cannot answer yet. Reading that as
+        // "denied" hid the Allow button behind "Open System Settings", where a never-asked app
+        // has no row to switch on. Allow launches Notes and the real answer follows.
+        case -600: return .notDetermined
         default: return .denied            // errAEEventNotPermitted (-1743) and anything else
         }
     }
