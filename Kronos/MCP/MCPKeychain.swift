@@ -9,6 +9,11 @@
 // launch signed with the same certificate. The old `kronos_mcp_token` item is left alone
 // (never read, never deleted) — a fresh install has no such item to worry about, and nothing
 // else in the app still points at it.
+//
+// The token lives in a user-only file (`FileSecretStore`), not the Keychain: without an Apple
+// team id every new build is a stranger to a Keychain item the previous build wrote, and the
+// login-password dialog returned after each update. The token only keeps other local processes
+// off the loopback server; see FileSecretStore.swift for why a 0600 file is the honest trade.
 import Foundation
 import KronosCore
 
@@ -25,7 +30,7 @@ public enum MCPKeychain {
 
     /// The stored bearer token, or nil if none has been generated yet. Reads through
     /// `store`, so a test can inject `FakeSecretStore` and never touch the real Keychain.
-    public static func loadToken(store: any SecretStoring = KeychainSecretStore()) -> String? {
+    public static func loadToken(store: any SecretStoring = FileSecretStore()) -> String? {
         store.read(name)
     }
 
@@ -42,7 +47,7 @@ public enum MCPKeychain {
     /// leave the loopback server open to any local process, which is worse than having no
     /// server at all.
     @discardableResult
-    public static func generateAndStoreToken(store: any SecretStoring = KeychainSecretStore()) -> String? {
+    public static func generateAndStoreToken(store: any SecretStoring = FileSecretStore()) -> String? {
         var bytes = [UInt8](repeating: 0, count: 32)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else { return nil }
@@ -54,13 +59,13 @@ public enum MCPKeychain {
     /// The token to serve requests with: the stored one, or a freshly generated one when
     /// this is the first time MCP is enabled.  Nil means MCP cannot be secured and must stay
     /// disabled — the caller reports it, and does not start the server.
-    public static func token(store: any SecretStoring = KeychainSecretStore()) -> String? {
+    public static func token(store: any SecretStoring = FileSecretStore()) -> String? {
         loadToken(store: store) ?? generateAndStoreToken(store: store)
     }
 
     /// Non-secret: true once a token has been generated. Never reads the Keychain
     /// (`SecretStoring.hasValue`) — used by "has key" style UI checks.
-    public static func hasToken(store: any SecretStoring = KeychainSecretStore()) -> Bool {
+    public static func hasToken(store: any SecretStoring = FileSecretStore()) -> Bool {
         store.hasValue(name)
     }
 
