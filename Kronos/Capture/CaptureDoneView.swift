@@ -8,6 +8,8 @@ import KronosCore
 struct CaptureDoneView: View {
     let model: AppModel
     let count: Int
+    /// Duplicates folded into existing tasks instead of created (`DuplicateChoice.merge`).
+    var mergedCount = 0
     let onFinished: () -> Void
 
     var body: some View {
@@ -16,9 +18,17 @@ struct CaptureDoneView: View {
                 Icon("check-square", size: Metrics.iconXL + 12)
                     .foregroundStyle(Tok.textSecondary)
                 VStack(spacing: Space.x1) {
-                    Text(String(format: String(localized: "capture.done.message"), count))
+                    // Only merges: say "merged", never "Tasks added: 0".
+                    Text(count == 0 && mergedCount > 0
+                         ? String(format: String(localized: "capture.done.merged_title"), mergedCount)
+                         : String(format: String(localized: "capture.done.message"), count))
                         .font(Typo.title)
                         .foregroundStyle(Tok.textPrimary)
+                    if count > 0, mergedCount > 0 {
+                        Text(String(format: String(localized: "capture.done.merged_also"), mergedCount))
+                            .font(Typo.body)
+                            .foregroundStyle(Tok.textSecondary)
+                    }
                     Text(String(localized: "capture.done.subtitle"))
                         .font(Typo.body)
                         .foregroundStyle(Tok.textTertiary)
@@ -31,5 +41,6 @@ struct CaptureDoneView: View {
             .frame(width: 320)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .uiTestAnchor("capture.done")
     }
 }

@@ -61,6 +61,36 @@ public struct MCPTaskFull: Codable, Sendable {
     /// w22e: ids this task waits on (absent when none) and `blocked: true` while any is open.
     public let waitsOn: [UUID]?
     public let blocked: Bool?
+    public let areaID: UUID?
+    public let energyKind: MCPEnergyKind?
+}
+
+public struct MCPProjectDTO: Codable, Sendable {
+    public let id: UUID
+    public let name: String
+    public let areaID: UUID?
+    public let areaName: String?
+    public let icon: String?
+    public let emoji: String?
+    public let colorHex: String
+    public let isArchived: Bool
+    public let sortIndex: Double
+    public let openTaskCount: Int
+    public let totalTaskCount: Int
+}
+
+public struct MCPAreaDTO: Codable, Sendable {
+    public struct ProjectRef: Codable, Sendable {
+        public let id: UUID
+        public let name: String
+    }
+    public let id: UUID
+    public let name: String
+    public let colorHex: String
+    public let icon: String
+    public let sortIndex: Double
+    public let projects: [ProjectRef]
+    public let openTaskCount: Int
 }
 
 public struct MCPSubtaskDTO: Codable, Sendable {
@@ -141,6 +171,8 @@ extension MCPTaskFull {
         deletedAt = t.deletedAt
         waitsOn = t.waitsOnIDs.isEmpty ? nil : t.waitsOn
         blocked = isBlocked ? true : nil
+        areaID = t.areaID
+        energyKind = t.energyKind.map(MCPEnergyKind.init)
     }
 }
 

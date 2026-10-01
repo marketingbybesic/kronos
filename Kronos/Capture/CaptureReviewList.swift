@@ -23,6 +23,7 @@ struct CaptureReviewList: View {
             footer
         }
         .onAppear { selectedID = capture.rows.first?.id; isListFocused = true }
+        .uiTestAnchor("capture.review")
         .focusable(true)
         .focusEffectDisabled()
         .focused($isListFocused)
@@ -75,8 +76,16 @@ struct CaptureReviewList: View {
     /// (`tickedSubtaskCount`, not `subtaskCount`: an unticked row's subtasks are never created
     /// either).
     private var createButtonLabel: String {
-        let count = Self.pluralCountLine(tasks: capture.tickedCount, subtasks: capture.tickedSubtaskCount)
-        return "\(String(localized: "capture.action.create_label")) \(count)"
+        let merges = capture.mergeCount
+        let creates = capture.newTaskCount
+        if merges > 0, creates == 0 {
+            // Only duplicates are ticked: the action IS the merge, named as such.
+            return "\(String(localized: "capture.action.merge_label")) \(Self.pluralCountLine(tasks: merges, subtasks: 0))"
+        }
+        let count = Self.pluralCountLine(tasks: creates, subtasks: capture.newSubtaskCount)
+        let base = "\(String(localized: "capture.action.create_label")) \(count)"
+        guard merges > 0 else { return base }
+        return base + " · " + String(format: String(localized: "capture.action.merge_suffix"), merges)
     }
 
     /// Shared by the header count and the create button, so both count what will actually be
@@ -210,6 +219,10 @@ struct CaptureReviewList: View {
                         },
                         onEditNotes: { notes in
                             capture.update(row.id) { $0.notes = notes.isEmpty ? nil : notes }
+                        },
+                        onChooseDuplicate: { choice in
+                            selectedID = row.id
+                            capture.chooseDuplicate(row.id, choice)
                         })
                     .id(row.id)
                 }

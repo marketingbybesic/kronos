@@ -38,6 +38,9 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     case ordoSet       = "ordo_set"
     case rulesList     = "rules_list"
     case rulesAdd      = "rules_add"
+    // Added after the alpha cut (read-only lookups, so a client can discover valid ids).
+    case listProjects  = "list_projects"
+    case listAreas     = "list_areas"
 
     /// The wire name, as it appears in `tools/list` and `tools/call`.
     public var name: String { rawValue }
@@ -71,6 +74,10 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
             return "List the active house rules used by triage and Impuls."
         case .rulesAdd:
             return "Add one house rule. A rule names a class of tasks, not a single task."
+        case .listProjects:
+            return "List projects (id, name, areaID, areaName, icon, colorHex, isArchived, open/total task counts). Optional areaID filter; archived projects only with includeArchived."
+        case .listAreas:
+            return "List areas (id, name, colorHex, icon) with the ids and names of the projects each holds and open task counts."
         }
     }
 
@@ -86,7 +93,14 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
             return #"""
             {"type":"object","additionalProperties":false,
              "properties":{
-               "view":{"type":"string","enum":["inbox","today","upcoming","anytime","someday","project","label","ordo","search"],"default":"today"},
+               "view":{"type":"string","enum":["inbox","today","upcoming","anytime","someday","project","label","ordo","search","all"],"default":"today"},
+               "status":{"type":"string","enum":["todo","inProgress","waiting","someday","done","canceled"]},
+               "areaID":{"type":"string","format":"uuid"},
+               "priority":{"type":"string","enum":["none","low","medium","high","urgent"]},
+               "energyKind":{"type":"string","enum":["deepWork","admin","creative","people","physical"]},
+               "due":{"type":"string","format":"date"},
+               "dueFrom":{"type":"string","format":"date"},
+               "dueTo":{"type":"string","format":"date"},
                "projectID":{"type":"string","format":"uuid"},
                "labelID":{"type":"string","format":"uuid"},
                "query":{"type":"string","maxLength":200},
@@ -116,7 +130,8 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
                "subtasks":{"type":"array","items":{"type":"string","maxLength":120},"maxItems":20},
                "depth":{"type":"string","enum":["unknown","shallow","deep"]},
                "estimateMinutes":{"type":"integer","minimum":1,"maximum":480},
-               "triage":{"type":"boolean","default":false}}}
+               "triage":{"type":"boolean","default":false},
+               "strictLabels":{"type":"boolean","default":false}}}
             """#
         case .updateTask:
             return #"""
@@ -134,7 +149,8 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
                "labels":{"type":"array","items":{"type":"string"},"maxItems":10},
                "depth":{"type":"string","enum":["unknown","shallow","deep"]},
                "estimateMinutes":{"type":["integer","null"],"minimum":1,"maximum":480},
-               "waitsOn":{"type":"array","items":{"type":"string","format":"uuid"},"maxItems":20}}}
+               "waitsOn":{"type":"array","items":{"type":"string","format":"uuid"},"maxItems":20},
+               "strictLabels":{"type":"boolean","default":false}}}
             """#
         case .completeTask:
             return #"""
@@ -193,6 +209,16 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
              "properties":{"text":{"type":"string","minLength":8,"maxLength":160},
                            "scope":{"type":"string","enum":["all","triage","impuls","ordo"],"default":"all"}}}
             """#
+        case .listProjects:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "properties":{"areaID":{"type":"string","format":"uuid"},
+                           "includeArchived":{"type":"boolean","default":false}}}
+            """#
+        case .listAreas:
+            return #"""
+            {"type":"object","additionalProperties":false,"properties":{}}
+            """#
         }
     }
 
@@ -201,7 +227,7 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     /// cannot bury the user's own undo history under its edits (build-14).
     public var isMutating: Bool {
         switch self {
-        case .listTasks, .getTask, .ordoGet, .rulesList: return false
+        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas: return false
         default: return true
         }
     }

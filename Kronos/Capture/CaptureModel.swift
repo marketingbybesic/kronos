@@ -22,6 +22,8 @@ final class CaptureModel {
     private(set) var droppedLineCount = 0
     private(set) var isDeterministic = true
     private(set) var createdCount = 0
+    /// How many ticked duplicate rows were folded into existing tasks by the last `create()`.
+    private(set) var mergedCount = 0
     /// Quiet one-line status while an AI upgrade is in flight. Never a spinner.
     private(set) var isUpgrading = false
     /// WHY `isDeterministic` is what it is, or which model answered — the status line must
@@ -50,6 +52,10 @@ final class CaptureModel {
     }
 
     var tickedCount: Int { rows.filter(\.isTicked).count }
+    /// Ticked rows that fold into an existing task (`DuplicateChoice.merge`), and the rest.
+    var mergeCount: Int { rows.filter(\.isMerge).count }
+    var newTaskCount: Int { rows.filter { $0.isTicked && !$0.isMerge }.count }
+    var newSubtaskCount: Int { rows.filter { $0.isTicked && !$0.isMerge }.reduce(0) { $0 + $1.subtasks.count } }
 
     /// The create button must count what it will ACTUALLY create, same as the header counts
     /// what was found — only ticked rows' subtasks, since an unticked row's subtasks are never
@@ -181,6 +187,9 @@ final class CaptureModel {
             var row = CaptureRow(id: $0.id, proposal: $0.proposal, subtasks: $0.subtasks)
             row.isTicked = $0.isTicked
             row.isEdited = $0.isEdited
+            // The AI merge leaves a new duplicate row unticked; an untouched one folds into the
+            // existing task like every other duplicate row (never a dead end).
+            if row.proposal.isDuplicateOfOpenTask, !row.isEdited { row.isTicked = true }
             return row
         }
     }
@@ -222,7 +231,21 @@ final class CaptureModel {
 
     func update(_ id: UUID, _ mutate: (inout ProposedTask) -> Void) {
         guard let i = rows.firstIndex(where: { $0.id == id }) else { return }
+        let titleBefore = rows[i].proposal.title
         mutate(&rows[i].proposal)
+        rows[i].isEdited = true
+        // A renamed row is a duplicate (or stops being one) by its NEW title.
+        if rows[i].proposal.title != titleBefore {
+            rows[i].proposal.isDuplicateOfOpenTask = model.store.openTask(matchingTitle: rows[i].proposal.title) != nil
+        }
+    }
+
+    /// A duplicate row's two actions: "Merge tasks" folds it into the existing task, "Create
+    /// anyway" makes a second one. Either choice ticks the row.
+    func chooseDuplicate(_ id: UUID, _ choice: DuplicateChoice) {
+        guard let i = rows.firstIndex(where: { $0.id == id }) else { return }
+        rows[i].duplicateChoice = choice
+        rows[i].isTicked = true
         rows[i].isEdited = true
     }
 
@@ -269,21 +292,49 @@ final class CaptureModel {
             guard case .project(let id) = model.scope else { return nil }
             return model.store.allProjects(includeArchived: true).first { $0.id == id }
         }()
+        var created = 0
+        var merged = 0
         model.store.groupedUndo(String(localized: "undo.capture.create")) {
-            let created = model.store.createMany(acceptedRows.map(\.proposal), defaultProject: defaultProject)
+            // Rows that fold into an existing task: found again NOW (the task may have been
+            // completed or deleted since the review opened; then the row becomes a new task, so
+            // nothing the person typed is lost).
+            var newRows: [CaptureRow] = []
+            for row in acceptedRows {
+                if row.isMerge, let target = model.store.openTask(matchingTitle: row.proposal.title),
+                   model.store.mergeProposal(row.proposal, subtasks: row.subtasks, into: target.id, defaultProject: defaultProject) != nil {
+                    merged += 1
+                } else {
+                    newRows.append(row)
+                }
+            }
+            let made = model.store.createMany(newRows.map(\.proposal), defaultProject: defaultProject)
             // `createMany` returns tasks in the same order as its input (Store/TaskStore+Capture.swift
             // iterates `for proposal in proposals { ... created.append(task) }`), so zipping by
-            // index pairs each accepted row with the task made from its own proposal.
-            for (row, task) in zip(acceptedRows, created) where !row.subtasks.isEmpty {
+            // index pairs each new row with the task made from its own proposal.
+            for (row, task) in zip(newRows, made) where !row.subtasks.isEmpty {
                 model.store.addSubtasks(row.subtasks, to: task.id)
             }
+            created = made.count
         }
         model.didMutate()
-        createdCount = acceptedRows.count
+        createdCount = created
+        mergedCount = merged
         step = .done
     }
 
+    /// False once the screen that owns this model is gone. The done step's undo pill fires its
+    /// `onExpire` (= `close()`) five seconds after it APPEARED, even when the screen was dismissed
+    /// sooner; reopening Capture inside that window used to have the stale callback shut the NEW
+    /// Capture a few seconds after it opened, which read as "Shift-Cmd-N does not work reliably".
+    private var isLive = true
+
+    func retire() {
+        isLive = false
+        extractTask?.cancel()
+    }
+
     func close() {
+        guard isLive else { return }
         extractTask?.cancel()
         model.isCaptureOpen = false
     }

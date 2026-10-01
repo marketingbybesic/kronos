@@ -37,7 +37,7 @@ struct CaptureReviewRow: View {
     /// The notes `NoteSplitter`/the AI extract prompt already attach to `row.proposal.notes`
     /// must be visible and editable before creation, same principle as subtasks below.
     let onEditNotes: (String) -> Void
-
+    let onChooseDuplicate: (DuplicateChoice) -> Void
     @State private var titleText: String
     @State private var notesText: String
     @State private var newSubtaskText = ""
@@ -62,7 +62,7 @@ struct CaptureReviewRow: View {
          onPickProject: @escaping (String?) -> Void, onPickPriority: @escaping (KPriority) -> Void,
          onPickEffort: @escaping (KEffort) -> Void,
          onAddSubtask: @escaping (String) -> Void, onRemoveSubtask: @escaping (Int) -> Void,
-         onEditNotes: @escaping (String) -> Void) {
+         onEditNotes: @escaping (String) -> Void, onChooseDuplicate: @escaping (DuplicateChoice) -> Void) {
         self.row = row
         self.isSelected = isSelected
         self.projectNames = projectNames
@@ -75,6 +75,7 @@ struct CaptureReviewRow: View {
         self.onAddSubtask = onAddSubtask
         self.onRemoveSubtask = onRemoveSubtask
         self.onEditNotes = onEditNotes
+        self.onChooseDuplicate = onChooseDuplicate
         self._titleText = State(initialValue: row.proposal.title)
         self._notesText = State(initialValue: row.proposal.notes ?? "")
     }
@@ -159,6 +160,7 @@ struct CaptureReviewRow: View {
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                     .lineLimit(1)
+                CaptureDuplicateChoices(row: row, onChoose: onChooseDuplicate)
             } else {
                 projectColumn
                 priorityColumn

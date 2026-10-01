@@ -101,7 +101,7 @@ public final class MCPDispatcher {
               let call = try? JSONDecoder().decode(ToolCallEnvelope.self, from: request.paramsData),
               let tool = MCPTool(rawValue: call.name) else { return false }
         switch tool {
-        case .listTasks, .getTask, .ordoGet, .rulesList: return false
+        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas: return false
         default: return true
         }
     }

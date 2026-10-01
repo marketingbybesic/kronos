@@ -63,6 +63,7 @@ enum LiveUITest {
             await paletteFits(model)
             await paletteTypingAndKeymap(model)
             await hotkeyChordStep(model)
+            await fix3Step(model)
             finish(path, fatal: nil)
         }
     }

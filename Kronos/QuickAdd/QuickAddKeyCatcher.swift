@@ -38,11 +38,16 @@ struct QuickAddKeyCatcher: NSViewRepresentable {
                 textView.selectAll(nil)
             }
         }
-        DispatchQueue.main.async {
-            context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        DispatchQueue.main.async { [weak view] in
+            guard let view else { return }
+            context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view] event in
                 let isReturn = event.keyCode == 36 || event.keyCode == 76
                 let plainReturn = isReturn && event.modifierFlags.isDisjoint(with: [.option, .shift])
-                guard plainReturn else { return event }
+                // ROOT CAUSE of "Cmd-Return (and plain Return) does nothing in the main window after
+                // quick add was used once": closing the panel only hides it, so its hosting view, and
+                // this monitor, lived on and swallowed every Return in the whole app, calling `submit`
+                // of a hidden panel. Act only for events delivered to the panel's own window.
+                guard plainReturn, let window = view?.window, event.window === window, window.isKeyWindow else { return event }
                 onReturn()
                 return nil
             }

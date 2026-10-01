@@ -46,12 +46,16 @@ struct CaptureScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onKeyPress(.escape) { handleEscape(); return .handled }
+        // Cmd-Return: the monitor works whichever control has focus (a text view never forwards the
+        // chord to `.onKeyPress`); the key press below stays as the fallback it always was.
+        .background(CommandReturnMonitor(action: handlePrimaryAction))
         .onKeyPress(.return, phases: .down) { press in
             guard press.modifiers.contains(.command) else { return .ignored }
             handlePrimaryAction()
             return .handled
         }
         .onAppear { applyPreload(); consumePendingCaptureText() }
+        .onDisappear { capture.retire() }
         .onReceive(NotificationCenter.default.publisher(for: .kronosCaptureFromFolderRequested)) { note in
             handleFolderRequest(note)
         }
@@ -165,7 +169,7 @@ struct CaptureScreen: View {
         case .review:
             CaptureReviewList(capture: capture)
         case .done:
-            CaptureDoneView(model: model, count: capture.createdCount, onFinished: capture.close)
+            CaptureDoneView(model: model, count: capture.createdCount, mergedCount: capture.mergedCount, onFinished: capture.close)
         }
     }
 

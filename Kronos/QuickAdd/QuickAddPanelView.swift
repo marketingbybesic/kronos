@@ -193,6 +193,7 @@ struct QuickAddPanelView: View {
                     // inset, so a one-line entry lines up with the old TextField exactly.
                     .padding(.horizontal, -Space.x1)
                     .background(QuickAddKeyCatcher(onReturn: submit, selectAllOnAppear: isDraft))
+                    .addFieldBehaviour(marker: true)
                     .uiTestAnchor("quickadd.field")
             }
             if isDraft {

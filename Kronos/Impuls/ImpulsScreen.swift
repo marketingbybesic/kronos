@@ -235,6 +235,7 @@ struct ImpulsScreen: View {
 
     private func start() {
         guard let current else { return }
+        KronosSounds.play(.impuls)   // the one "go" cue; honours Settings > General > Sounds
         mentor?.lock()
         model.store.setStatus(current.task.id, .inProgress)
         model.selectedTaskID = current.task.id

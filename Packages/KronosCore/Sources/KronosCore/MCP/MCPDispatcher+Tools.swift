@@ -22,6 +22,8 @@ extension MCPDispatcher {
         case .ordoSet:       return ordoSet(arguments)
         case .rulesList:     return rulesList(arguments)
         case .rulesAdd:      return rulesAdd(arguments)
+        case .listProjects:  return listProjects(arguments)
+        case .listAreas:     return listAreas(arguments)
         }
     }
 
@@ -35,12 +37,43 @@ extension MCPDispatcher {
             return .error(v, message: "invalid list_tasks arguments for view \(params.view.rawValue)")
         }
 
+        // Validate filter inputs against the store so a typo is an error, not an empty list.
+        if let pid = params.projectID,
+           !store.allProjects(includeArchived: true).contains(where: { $0.id == pid }) {
+            return .error(.notFound, message: "no project \(pid)", data: ["projectID": pid.uuidString])
+        }
+        if let aid = params.areaID, !store.allAreas().contains(where: { $0.id == aid }) {
+            return .error(.notFound, message: "no area \(aid)", data: ["areaID": aid.uuidString])
+        }
+        var dueExact: Int?, dueFrom: Int?, dueTo: Int?
+        for (name, raw) in [("due", params.due), ("dueFrom", params.dueFrom), ("dueTo", params.dueTo)] {
+            guard let raw else { continue }
+            guard let parsed = Day.parseISO(raw) else {
+                return .error(.invalidParams, message: "\(name) is not a valid date (yyyy-MM-dd): \(raw)")
+            }
+            switch name {
+            case "due": dueExact = parsed
+            case "dueFrom": dueFrom = parsed
+            default: dueTo = parsed
+            }
+        }
+
         let day = today()
         var pool = store.allTasks()
         pool = applyView(params.view, to: pool, params: params, today: day)
-        if !params.includeDone {
+        if let status = params.status {
+            pool = pool.filter { $0.status == status.kStatus }
+        } else if !params.includeDone {
             pool = pool.filter { KStatus.closed.contains($0.status) == false }
         }
+        if let aid = params.areaID {
+            pool = pool.filter { $0.areaID == aid || $0.project?.area?.id == aid }
+        }
+        if let p = params.priority { pool = pool.filter { $0.priority == p.kPriority } }
+        if let e = params.energyKind { pool = pool.filter { $0.energyKind == e.kEnergyKind } }
+        if let d = dueExact { pool = pool.filter { $0.dueDay == d } }
+        if let from = dueFrom { pool = pool.filter { ($0.dueDay ?? Int.min) >= from } }
+        if let to = dueTo { pool = pool.filter { $0.dueDay.map { $0 <= to } ?? false } }
         if params.view == .search, let q = params.query {
             let needle = KTextFold.fold(q)
             pool = pool.filter { KTextFold.fold($0.title).contains(needle) || KTextFold.fold($0.notes).contains(needle) }
@@ -131,7 +164,7 @@ extension MCPDispatcher {
             return pool
         case .ordo:
             return pool.filter { $0.isInOrdo }
-        case .search:
+        case .search, .all:
             return pool
         }
     }
@@ -141,7 +174,9 @@ extension MCPDispatcher {
     /// rather than silently paginating through the wrong result set.
     private func cursorSignature(_ p: MCPParams.ListTasks) -> String {
         "\(p.view.rawValue)|\(p.projectID?.uuidString ?? "-")|\(p.labelID?.uuidString ?? "-")|" +
-        "\(p.query ?? "-")|\(p.includeDone)|\(p.limit)|\(p.fields.rawValue)"
+        "\(p.query ?? "-")|\(p.includeDone)|\(p.limit)|\(p.fields.rawValue)|" +
+        "\(p.status?.rawValue ?? "-")|\(p.areaID?.uuidString ?? "-")|\(p.priority?.rawValue ?? "-")|" +
+        "\(p.energyKind?.rawValue ?? "-")|\(p.due ?? "-")|\(p.dueFrom ?? "-")|\(p.dueTo ?? "-")"
     }
 
     private func encodeCursor(offset: Int, signature: String) -> String {
@@ -191,6 +226,11 @@ extension MCPDispatcher {
                 return .error(.notFound, message: "no project matching \(name)", data: ["value": name])
             }
             project = found
+        }
+
+        if params.strictLabels, let names = params.labels {
+            let missing = unknownLabels(in: names)
+            if !missing.isEmpty { return unknownLabelsError(missing) }
         }
 
         let due = params.due.flatMap(Day.parseISO)
@@ -274,6 +314,11 @@ extension MCPDispatcher {
         }
         if let title = params.title, title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .error(.invalidParams, message: "title must not be empty")
+        }
+
+        if params.strictLabels, let names = params.labels {
+            let missing = unknownLabels(in: names)
+            if !missing.isEmpty { return unknownLabelsError(missing) }
         }
 
         var resolvedProject: KProject??

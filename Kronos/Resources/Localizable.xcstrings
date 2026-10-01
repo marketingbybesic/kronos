@@ -1298,6 +1298,42 @@
         }
       }
     },
+    "capture.action.merge_label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spoji"
+          }
+        }
+      }
+    },
+    "capture.action.merge_suffix": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spoji %1$lld"
+          }
+        }
+      }
+    },
     "capture.ai.improve": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -1402,6 +1438,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Koristi AI (%@)"
+          }
+        }
+      }
+    },
+    "capture.done.merged_also": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merged into existing: %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spojeno s postojećima: %1$lld"
+          }
+        }
+      }
+    },
+    "capture.done.merged_title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tasks merged: %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spojeno zadataka: %1$lld"
           }
         }
       }
@@ -1982,6 +2054,24 @@
         }
       }
     },
+    "capture.row.create_anyway": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create anyway"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ipak stvori"
+          }
+        }
+      }
+    },
     "capture.row.duplicate": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -1996,6 +2086,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Već je na tvom popisu"
+          }
+        }
+      }
+    },
+    "capture.row.merge": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merge tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spoji zadatke"
           }
         }
       }
@@ -10720,6 +10828,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "#projekt"
+          }
+        }
+      }
+    },
+    "quickadd.marker_added": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtask marker added. Type its name."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Znak podzadatka dodan. Upiši naziv."
           }
         }
       }

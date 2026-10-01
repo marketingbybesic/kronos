@@ -153,6 +153,8 @@ private struct KronosCommands: Commands {
             .hotkey("window.triage")
 
             Button(String(localized: "menu.task.capture")) {
+                // Inside an add field the same chord inserts the subtask marker instead.
+                if SubtaskMarkerShortcut.insertIntoFocusedField() { return }
                 model.isCaptureOpen = true
             }
             .hotkey("window.capture")

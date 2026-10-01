@@ -5,6 +5,10 @@
 import Foundation
 import KronosCore
 
+/// What a row that duplicates an open task does when it is ticked: fold into the existing task
+/// (the default: nothing is lost, one undo step) or make a second task anyway.
+enum DuplicateChoice: Equatable { case merge, createAnyway }
+
 struct CaptureRow: Identifiable, Equatable {
     let id: UUID
     var proposal: ProposedTask
@@ -19,6 +23,12 @@ struct CaptureRow: Identifiable, Equatable {
     /// reasoning as `isTicked`/`isEdited`. Editable in the review list before creation; created
     /// via `TaskStoring.addSubtasks` in the same undo step as the task itself.
     var subtasks: [String] = []
+    /// Only read while `proposal.isDuplicateOfOpenTask`. Merge is the default so a duplicate is
+    /// never a dead end: Cmd-Return folds it into the existing task, "Create anyway" is one click.
+    var duplicateChoice: DuplicateChoice = .merge
+
+    /// True when ticking this row folds it into an existing task instead of creating a new one.
+    var isMerge: Bool { isTicked && proposal.isDuplicateOfOpenTask && duplicateChoice == .merge }
 
     /// `subtasks` defaults to the proposal's OWN subtasks (set only by the AI extract path)
     /// rather than always starting empty — a caller that also has outline-derived subtasks
@@ -35,7 +45,8 @@ struct CaptureRow: Identifiable, Equatable {
     init(id: UUID? = nil, proposal: ProposedTask, subtasks: [String]? = nil) {
         self.id = id ?? proposal.id
         self.proposal = proposal
-        self.isTicked = !proposal.isDuplicateOfOpenTask
+        // A duplicate starts ticked as a MERGE into the task it duplicates (see `duplicateChoice`).
+        self.isTicked = true
         self.subtasks = subtasks ?? proposal.subtasks
     }
 

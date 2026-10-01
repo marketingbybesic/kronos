@@ -28,8 +28,10 @@ struct CapturePasteView: View {
             // the lower `minHeight` (still comfortably more than one line) keeps it from
             // collapsing to nothing.
             KTextArea(String(localized: "capture.paste.placeholder.examples"), text: $capture.noteText, minHeight: 120)
+                .addFieldBehaviour(marker: true, onCommandReturn: { capture.findTasks() })
                 .frame(maxHeight: .infinity)
                 .focused($isFieldFocused)
+                .uiTestAnchor("capture.paste")
             if let notesError {
                 NotesAccessDeniedInline(error: notesError) { isPickingNotes = true }
             }

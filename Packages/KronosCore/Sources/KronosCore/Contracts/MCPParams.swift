@@ -73,11 +73,37 @@ public enum MCPDepth: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Wire spelling of the energy kind (what kind of effort a task needs).
+public enum MCPEnergyKind: String, Codable, CaseIterable, Sendable {
+    case deepWork, admin, creative, people, physical
+
+    public var kEnergyKind: KEnergyKind {
+        switch self {
+        case .deepWork: return .deepWork
+        case .admin:    return .admin
+        case .creative: return .creative
+        case .people:   return .people
+        case .physical: return .physical
+        }
+    }
+
+    public init(_ k: KEnergyKind) {
+        switch k {
+        case .deepWork: self = .deepWork
+        case .admin:    self = .admin
+        case .creative: self = .creative
+        case .people:   self = .people
+        case .physical: self = .physical
+        }
+    }
+}
+
 public enum MCPParams {
 
     public struct ListTasks: Codable, Equatable, Sendable {
         public enum View: String, Codable, CaseIterable, Sendable {
-            case inbox, today, upcoming, anytime, someday, project, label, ordo, search
+            /// `all` = no view restriction (every live task); combine with the filters below.
+            case inbox, today, upcoming, anytime, someday, project, label, ordo, search, all
         }
         public enum Fields: String, Codable, CaseIterable, Sendable { case compact, full }
 
@@ -89,6 +115,17 @@ public enum MCPParams {
         public var limit: Int
         public var cursor: String?
         public var fields: Fields
+        /// Extra AND filters, applied on top of `view`. A `status` of done/canceled
+        /// implies includeDone for that query.
+        public var status: MCPStatus?
+        public var areaID: UUID?
+        public var priority: MCPPriority?
+        public var energyKind: MCPEnergyKind?
+        /// ISO dates (yyyy-MM-dd). `due` = exactly that day; `dueFrom`/`dueTo` inclusive range.
+        /// A task without a due date never matches a due filter.
+        public var due: String?
+        public var dueFrom: String?
+        public var dueTo: String?
 
         public init(view: View = .today,
                     projectID: UUID? = nil,
@@ -97,7 +134,14 @@ public enum MCPParams {
                     includeDone: Bool = false,
                     limit: Int = 50,
                     cursor: String? = nil,
-                    fields: Fields = .compact) {
+                    fields: Fields = .compact,
+                    status: MCPStatus? = nil,
+                    areaID: UUID? = nil,
+                    priority: MCPPriority? = nil,
+                    energyKind: MCPEnergyKind? = nil,
+                    due: String? = nil,
+                    dueFrom: String? = nil,
+                    dueTo: String? = nil) {
             self.view        = view
             self.projectID   = projectID
             self.labelID     = labelID
@@ -106,6 +150,13 @@ public enum MCPParams {
             self.limit       = limit
             self.cursor      = cursor
             self.fields      = fields
+            self.status      = status
+            self.areaID      = areaID
+            self.priority    = priority
+            self.energyKind  = energyKind
+            self.due         = due
+            self.dueFrom     = dueFrom
+            self.dueTo       = dueTo
         }
 
         public init(from decoder: any Decoder) throws {
@@ -118,6 +169,13 @@ public enum MCPParams {
             limit       = try c.decodeIfPresent(Int.self, forKey: .limit) ?? 50
             cursor      = try c.decodeIfPresent(String.self, forKey: .cursor)
             fields      = try c.decodeIfPresent(Fields.self, forKey: .fields) ?? .compact
+            status      = try c.decodeIfPresent(MCPStatus.self, forKey: .status)
+            areaID      = try c.decodeIfPresent(UUID.self, forKey: .areaID)
+            priority    = try c.decodeIfPresent(MCPPriority.self, forKey: .priority)
+            energyKind  = try c.decodeIfPresent(MCPEnergyKind.self, forKey: .energyKind)
+            due         = try c.decodeIfPresent(String.self, forKey: .due)
+            dueFrom     = try c.decodeIfPresent(String.self, forKey: .dueFrom)
+            dueTo       = try c.decodeIfPresent(String.self, forKey: .dueTo)
         }
 
         /// `view: .project` without a `projectID` is INVALID_PARAMS, not an
@@ -129,6 +187,20 @@ public enum MCPParams {
             if view == .label && labelID == nil { return .invalidParams }
             if view == .search && (query ?? "").isEmpty { return .invalidParams }
             return nil
+        }
+    }
+
+    public struct ListProjects: Codable, Equatable, Sendable {
+        public var areaID: UUID?
+        public var includeArchived: Bool
+        public init(areaID: UUID? = nil, includeArchived: Bool = false) {
+            self.areaID = areaID
+            self.includeArchived = includeArchived
+        }
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            areaID          = try c.decodeIfPresent(UUID.self, forKey: .areaID)
+            includeArchived = try c.decodeIfPresent(Bool.self, forKey: .includeArchived) ?? false
         }
     }
 
@@ -152,6 +224,9 @@ public enum MCPParams {
         /// better first moves than the app-side triage did in testing
         /// (scope-12), so the app does not re-triage behind its back.
         public var triage: Bool
+        /// When true, every name in `labels` must already exist (NOT_FOUND otherwise)
+        /// instead of being created on the fly. Default false keeps the old behaviour.
+        public var strictLabels: Bool
 
         public init(title: String,
                     notes: String? = nil,
@@ -163,7 +238,9 @@ public enum MCPParams {
                     subtasks: [String]? = nil,
                     depth: MCPDepth? = nil,
                     estimateMinutes: Int? = nil,
-                    triage: Bool = false) {
+                    triage: Bool = false,
+                    strictLabels: Bool = false) {
+            self.strictLabels    = strictLabels
             self.title           = title
             self.notes           = notes
             self.firstMove       = firstMove
@@ -190,6 +267,7 @@ public enum MCPParams {
             depth           = try c.decodeIfPresent(MCPDepth.self, forKey: .depth)
             estimateMinutes = try c.decodeIfPresent(Int.self, forKey: .estimateMinutes)
             triage          = try c.decodeIfPresent(Bool.self, forKey: .triage) ?? false
+            strictLabels    = try c.decodeIfPresent(Bool.self, forKey: .strictLabels) ?? false
         }
 
         /// Field names the client set explicitly. Triage may never overwrite
@@ -226,10 +304,12 @@ public enum MCPParams {
         public var estimateMinutes: Int??
         /// w22e: ids this task waits on; [] clears, omitted leaves alone.
         public var waitsOn: [UUID]?
+        /// See `CreateTask.strictLabels`.
+        public var strictLabels: Bool
 
         enum CodingKeys: String, CodingKey {
             case id, title, notes, firstMove, project, priority
-            case status, due, labels, depth, estimateMinutes, waitsOn
+            case status, due, labels, depth, estimateMinutes, waitsOn, strictLabels
         }
 
         public init(id: UUID,
@@ -243,7 +323,9 @@ public enum MCPParams {
                     labels: [String]? = nil,
                     depth: MCPDepth? = nil,
                     estimateMinutes: Int?? = nil,
-                    waitsOn: [UUID]? = nil) {
+                    waitsOn: [UUID]? = nil,
+                    strictLabels: Bool = false) {
+            self.strictLabels    = strictLabels
             self.waitsOn         = waitsOn
             self.id              = id
             self.title           = title
@@ -268,6 +350,7 @@ public enum MCPParams {
             labels   = try c.decodeIfPresent([String].self, forKey: .labels)
             depth    = try c.decodeIfPresent(MCPDepth.self, forKey: .depth)
             waitsOn  = try c.decodeIfPresent([UUID].self, forKey: .waitsOn)
+            strictLabels = try c.decodeIfPresent(Bool.self, forKey: .strictLabels) ?? false
             // Present-but-null must survive as .some(nil) so "clear the due
             // date" is not silently read as "do not touch the due date".
             firstMove = c.contains(.firstMove)
@@ -290,7 +373,8 @@ public enum MCPParams {
             try c.encodeIfPresent(labels, forKey: .labels)
             try c.encodeIfPresent(depth, forKey: .depth)
             try c.encodeIfPresent(waitsOn, forKey: .waitsOn)
-            if let v = firstMove       { try c.encode(v, forKey: .firstMove) }
+            if strictLabels { try c.encode(strictLabels, forKey: .strictLabels) }
+            if let v = firstMove      { try c.encode(v, forKey: .firstMove) }
             if let v = project         { try c.encode(v, forKey: .project) }
             if let v = due             { try c.encode(v, forKey: .due) }
             if let v = estimateMinutes { try c.encode(v, forKey: .estimateMinutes) }

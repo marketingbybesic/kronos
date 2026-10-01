@@ -6,16 +6,17 @@ import Foundation
 /// be unique, and the params structs must decode what the schema advertises.
 struct MCPToolTests {
 
-    @Test func thirteenAlphaToolsWithUniqueNames() {
-        #expect(MCPTool.allCases.count == 13)
+    @Test func fifteenToolsWithUniqueNames() {
+        #expect(MCPTool.allCases.count == 15)
         let names = MCPTool.allCases.map(\.name)
-        #expect(Set(names).count == 13)
-        // scope-12's exact alpha set.
+        #expect(Set(names).count == 15)
+        // scope-12 alpha set plus list_projects and list_areas.
         #expect(Set(names) == Set([
             "list_tasks", "get_task", "create_task", "update_task",
             "complete_task", "delete_task", "restore_task",
             "add_subtask", "toggle_subtask",
-            "ordo_get", "ordo_set", "rules_list", "rules_add"
+            "ordo_get", "ordo_set", "rules_list", "rules_add",
+            "list_projects", "list_areas"
         ]))
     }
 
