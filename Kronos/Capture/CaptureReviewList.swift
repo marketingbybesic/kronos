@@ -102,7 +102,11 @@ struct CaptureReviewList: View {
     // (not `isDeterministic` alone) now drives every branch.
     @ViewBuilder
     private var statusLine: some View {
-        if capture.isUpgrading {
+        if capture.fromReminders {
+            Text(String(localized: "capture.reminders.status"))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textTertiary)
+        } else if capture.isUpgrading {
             // A progress state that survives the 15-20 s a real call can take — this text just
             // stays up for as long as `isUpgrading` is true, no timeout of its own, no spinner
             // theatre (matches InspectorBreakdownPreview's own "Thinking…").

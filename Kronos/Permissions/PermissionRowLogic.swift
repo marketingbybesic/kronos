@@ -32,17 +32,18 @@ enum PermissionRowAction: Equatable {
     case none
 }
 
-/// The panes this window ever sends someone to — the only two panes the app's features need.
+/// The panes this window ever sends someone to — the only panes the app's features need.
 enum PermissionsPane {
     static let privacyCalendars = "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
     static let privacyAutomation = "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+    static let privacyReminders = "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
 }
 
 /// Pure decision table. scripts/permissions-selftest.swift compiles THIS file (no mirrored copy).
 enum PermissionRowLogic {
     static func action(for status: PermissionStatus, kind: PermissionKind) -> PermissionRowAction {
         switch kind {
-        case .calendar, .notes:
+        case .calendar, .notes, .reminders:
             switch status {
             case .granted, .notNeeded: return .none
             case .denied: return .openSystemSettings(pane: kind.settingsPane ?? "")
@@ -69,6 +70,7 @@ enum PermissionRowLogic {
 /// grant/deny state; everything else is informational (no permission to hold).
 enum PermissionKind: String, CaseIterable, Identifiable {
     case calendar
+    case reminders
     case notes
     case launchAtLogin
     case siriShortcuts
@@ -80,6 +82,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     var settingsPane: String? {
         switch self {
         case .calendar: return PermissionsPane.privacyCalendars
+        case .reminders: return PermissionsPane.privacyReminders
         case .notes: return PermissionsPane.privacyAutomation
         default: return nil
         }
@@ -88,6 +91,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .calendar: return "calendar"
+        case .reminders: return "check-square"
         case .notes: return "receipt"
         case .launchAtLogin: return "play"
         case .siriShortcuts: return "sparkles"
@@ -99,6 +103,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     var titleKey: String {
         switch self {
         case .calendar: return "permissions.row.calendar.title"
+        case .reminders: return "permissions.row.reminders.title"
         case .notes: return "permissions.row.notes.title"
         case .launchAtLogin: return "permissions.row.launch.title"
         case .siriShortcuts: return "permissions.row.siri.title"
@@ -110,6 +115,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     var reasonKey: String {
         switch self {
         case .calendar: return "permissions.row.calendar.reason"
+        case .reminders: return "permissions.row.reminders.reason"
         case .notes: return "permissions.row.notes.reason"
         case .launchAtLogin: return "permissions.row.launch.reason"
         case .siriShortcuts: return "permissions.row.siri.reason"

@@ -139,13 +139,13 @@ struct MCPDispatcherTests {
 
     // MARK: - Required: unknownToolReturnsMethodNotFound
 
-    @Test func unknownToolReturnsMethodNotFound() throws {
+    @Test func unknownToolReturnsInvalidParams() throws {
         let (_, d) = try makeDispatcher()
         let envelope: [String: Any] = ["name": "delete_everything", "arguments": [String: Any]()]
         let paramsData = try JSONSerialization.data(withJSONObject: envelope)
         let request = MCPRequest(id: .number(7), method: "tools/call", paramsData: paramsData)
         let response = d.handle(request)!
-        #expect(response.error?.code == MCPTransportError.methodNotFound.rawValue)
+        #expect(response.error?.code == MCPTransportError.invalidParams.rawValue)
     }
 
     // MARK: - Required: malformedJSONReturnsParseError

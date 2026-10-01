@@ -143,6 +143,8 @@ public struct SeedTask: Codable {
     public var needsTriage: Bool?
     public var recurrenceRule: String?
     public var seriesID: UUID?
+    /// w22e: ids of tasks this one waits on (optional; older seeds omit it).
+    public var waitsOn: [UUID]?
 
     public init(id: UUID? = nil, externalID: String? = nil, source: String? = nil,
                 title: String, notes: String? = nil, firstMove: String? = nil,
@@ -156,7 +158,9 @@ public struct SeedTask: Codable {
                 createdAt: Date? = nil, updatedAt: Date? = nil,
                 ordoIndex: Double? = nil, sortIndex: Double? = nil,
                 deletedAt: Date? = nil, needsTriage: Bool? = nil,
-                recurrenceRule: String? = nil, seriesID: UUID? = nil) {
+                recurrenceRule: String? = nil, seriesID: UUID? = nil,
+                waitsOn: [UUID]? = nil) {
+        self.waitsOn = waitsOn
         self.id = id; self.externalID = externalID; self.source = source
         self.title = title; self.notes = notes; self.firstMove = firstMove
         self.firstMoveURL = firstMoveURL; self.priority = priority; self.status = status

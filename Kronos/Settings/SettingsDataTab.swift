@@ -47,6 +47,8 @@ struct SettingsDataTab: View {
             }
         }
 
+        TemplatesSettingsSection(store: TemplateStore.shared)
+
         SettingsSection(title: String(localized: "settings.data.backup")) {
             // The row must not repeat the section title verbatim —
             // "settings.data.backup.label" was added to the catalog for this, styled after
@@ -73,6 +75,8 @@ struct SettingsDataTab: View {
             }
         }
 
+        RestoreFromBackupSection(model: model)   // SettingsDataTab+Restore.swift
+
         SettingsSection(title: String(localized: "settings.data.section.storage")) {
             // A nested KPanel here (border inside the section's own border) put this row's
             // text button ~14pt further right than every other trailing text button in
@@ -98,16 +102,20 @@ struct SettingsDataTab: View {
 
     private func exportBackup() {
         guard !isHermetic else { lastActionNote = String(localized: "settings.data.export.done"); return }
-        let envelope = JSONExporter(store: model.store).makeEnvelope()
+        var envelope = JSONExporter(store: model.store).makeEnvelope()
+        // Templates live in their own JSON file (TemplateStore); older builds ignore this key.
+        let templates = TemplateStore.shared.templates
+        if !templates.isEmpty { envelope.templates = templates }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "kronos-backup.json"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try BackupFile.write(envelope, to: url)
-            lastActionNote = String(localized: "settings.data.export.done")
-        } catch {
-            lastActionNote = String(localized: "settings.data.export.failed")
+        panel.presentOnKeyWindow { url in
+            do {
+                try BackupFile.write(envelope, to: url)
+                lastActionNote = String(localized: "settings.data.export.done")
+            } catch {
+                lastActionNote = String(localized: "settings.data.export.failed")
+            }
         }
     }
 
@@ -118,13 +126,14 @@ struct SettingsDataTab: View {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let envelope = try BackupFile.read(from: url)
-            importSummary = ImportSummary(envelope: envelope, url: url)
-            replaceConfirmText = ""
-        } catch {
-            lastActionNote = String(localized: "settings.data.import.failed")
+        panel.presentOnKeyWindow { url in
+            do {
+                let envelope = try BackupFile.read(from: url)
+                importSummary = ImportSummary(envelope: envelope, url: url)
+                replaceConfirmText = ""
+            } catch {
+                lastActionNote = String(localized: "settings.data.import.failed")
+            }
         }
     }
 
@@ -175,6 +184,9 @@ struct SettingsDataTab: View {
         do {
             let data = try KronosExportCodec.makeEncoder().encode(summary.envelope)
             _ = try KronosImporter(store: model.store).importData(data, mode: mode)
+            if let incoming = summary.envelope.templates {
+                TemplateStore.shared.importTemplates(incoming, replace: mode == .replace)
+            }
             model.didMutate()
             importSummary = nil
             lastActionNote = String(localized: "settings.data.import.done")

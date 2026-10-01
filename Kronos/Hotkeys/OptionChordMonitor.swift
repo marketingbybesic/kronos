@@ -42,7 +42,8 @@ enum OptionChordMonitor {
         let kind: KeyWindowKind = (NSApp.keyWindow.map { !( $0 is NSPanel) && $0.title == "Kronos" } ?? false) ? .kronosMain : .other
 
         switch OptionChordDecider.decide(keyCode: event.keyCode, modifierFlags: event.modifierFlags,
-                                           bindings: bindings, isRecording: isRecording, keyWindowKind: kind) {
+                                           bindings: bindings, isRecording: isRecording, keyWindowKind: kind,
+                                           characters: event.charactersIgnoringModifiers) {
         case .pass:
             return false
         case .standDown(let reason):
@@ -50,7 +51,7 @@ enum OptionChordMonitor {
             return false
         case .fire(let registryID):
             guard let binding = HotkeyRegistry.current(for: registryID),
-                  let item = findMenuItem(matching: binding) else {
+                  let item = findMenuItem(matching: binding) ?? findMenuItem(titled: registryID) else {
                 log(id: registryID, outcome: .itemMissing)
                 return false
             }
@@ -64,8 +65,24 @@ enum OptionChordMonitor {
         }
     }
 
+    /// Fallback for symbol keys: SwiftUI may translate the item's key equivalent per layout, so
+    /// the registry entry's own (localized) title finds the item whatever it ended up carrying.
+    private static func findMenuItem(titled id: String) -> NSMenuItem? {
+        guard let entry = HotkeyRegistry.entries.first(where: { $0.id == id }) else { return nil }
+        let title = NSLocalizedString(entry.titleKey, comment: "")
+        func find(_ menu: NSMenu?) -> NSMenuItem? {
+            for item in menu?.items ?? [] {
+                if item.title == title, item.action != nil { return item }
+                if let hit = find(item.submenu) { return hit }
+            }
+            return nil
+        }
+        return find(NSApp.mainMenu)
+    }
+
     private static func findMenuItem(matching binding: HotkeyBinding) -> NSMenuItem? {
-        guard let ch = binding.key.first else { return nil }
+        let symbol = binding.key == "backslash" ? "\\" : binding.key
+        guard let ch = symbol.first else { return nil }
         var want: NSEvent.ModifierFlags = []
         if binding.shift { want.insert(.shift) }
         if binding.option { want.insert(.option) }

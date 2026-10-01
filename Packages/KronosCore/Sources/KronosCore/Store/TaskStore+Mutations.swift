@@ -97,7 +97,9 @@ extension TaskStore {
 
     public func snooze(_ id: UUID) {
         update(id) { t in
-            t.dueDay = (t.dueDay ?? Day.today()) + 1
+            // Tomorrow from TODAY: adding 1 to a stale due day left an overdue task overdue
+            // (due 5 days ago -> due 4 days ago; live audit 30.09.).
+            t.dueDay = max(t.dueDay ?? Day.today(), Day.today()) + 1
             if t.originalDueDay == nil { t.originalDueDay = t.dueDay }
         }
     }

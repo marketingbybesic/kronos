@@ -84,7 +84,8 @@ public final class JSONExporter {
 
     private func exportSubtask(_ s: KSubtask) -> ExportedSubtask {
         ExportedSubtask(id: s.id, title: s.title, isDone: s.isDone, sortIndex: s.sortIndex,
-                        createdAt: s.createdAt, updatedAt: s.updatedAt)
+                        createdAt: s.createdAt, updatedAt: s.updatedAt,
+                        notes: s.notes.isEmpty ? nil : s.notes)
     }
 
     private func exportTask(_ t: KTask) -> ExportedTask {
@@ -104,7 +105,8 @@ public final class JSONExporter {
             calendarEventID: t.calendarEventID, externalID: t.externalID, source: t.source,
             projectID: t.projectID, labelIDs: sortedLabelIDs,
             subtasks: sortedSubtasks.map(exportSubtask),
-            createdAt: t.createdAt, updatedAt: t.updatedAt)
+            createdAt: t.createdAt, updatedAt: t.updatedAt,
+            waitsOn: t.waitsOnIDs.isEmpty ? nil : t.waitsOn)
     }
 
     private func fetchAll<T: PersistentModel>(_ type: T.Type) -> [T] {

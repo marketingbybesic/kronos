@@ -118,14 +118,25 @@ enum ViewOptionsMapper {
         case .today: return String(localized: "list.filter.due.today")
         case .overdue: return String(localized: "list.filter.due.overdue")
         case .thisWeek, .next7: return String(localized: "list.filter.due.week")
-        // GAP (reported): no catalog key for "Next 30 days" / "Custom range" — every other
-        // deadline window has one (list.filter.due.*), these two do not.
-        case .next30: return "Next 30 days"
+        case .next30: return String(localized: "list.filter.due.next30")
         case .none: return String(localized: "list.filter.due.none")
         case .custom:
-            guard let from = f.dueFrom, let to = f.dueTo else { return "Custom range" }
-            return "\(Day.iso(from)) – \(Day.iso(to))"
+            guard let from = f.dueFrom, let to = f.dueTo else { return String(localized: "list.filter.due.custom") }
+            return "\(mediumDate(from)) – \(mediumDate(to))"
         }
+    }
+
+    private static let mediumFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = KronosLocale.calendar
+        f.locale = KronosLocale.current
+        f.dateStyle = .medium
+        return f
+    }()
+
+    /// A day as the APP language's medium date ("15 Sep 2026" / "15. 9. 2026."): never the raw ISO string on screen.
+    static func mediumDate(_ day: Int) -> String {
+        mediumFormatter.string(from: Day.date(day, calendar: KronosLocale.calendar))
     }
 
     // MARK: - Filter rules <-> KFilter
@@ -135,39 +146,47 @@ enum ViewOptionsMapper {
     /// `isNegated` on each rule mirrors `f.isNegated(_:)` for that rule's Core field — a
     /// boolean-field rule (`coreField` returns nil for those) never negates, since its
     /// true/false value already answers "is"/"is not".
-    static func filterRules(from f: KFilter, projectName: (UUID) -> String?, areaName: (UUID) -> String?, labelName: (UUID) -> String?) -> [KFilterRule] {
+    static func filterRules(from f: KFilter, compact: Bool = false, projectName: (UUID) -> String?, areaName: (UUID) -> String?, labelName: (UUID) -> String?) -> [KFilterRule] {
         var rules: [KFilterRule] = []
+        /// The popover's value column is ~150 pt and its builder hard-truncates with "…", which
+        /// left "Waiting,…" unreadable. `compact` (popover only; chips keep the full list) turns a
+        /// long list into "first +N": the full selection is one click away in the value menu.
+        func joined(_ names: [String]) -> String {
+            let all = names.joined(separator: ", ")
+            guard compact, names.count > 1, all.count > 14 else { return all }
+            return "\(names[0]) +\(names.count - 1)"
+        }
         func negated(_ id: FilterFieldID) -> Bool {
             coreField(id).map(f.isNegated) ?? false
         }
         if !f.statuses.isEmpty {
             let names = f.statuses.compactMap { KStatus(rawValue: $0) }.map(statusName)
-            rules.append(KFilterRule(field: filterField(.status), isNegated: negated(.status), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.status), isNegated: negated(.status), valueSummary: joined(names)))
         }
         if !f.priorities.isEmpty {
             let names = f.priorities.compactMap { KPriority(rawValue: $0) }.map(priorityName)
-            rules.append(KFilterRule(field: filterField(.priority), isNegated: negated(.priority), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.priority), isNegated: negated(.priority), valueSummary: joined(names)))
         }
         if !f.efforts.isEmpty {
             let names = f.efforts.compactMap { KEffort(rawValue: $0) }.map(effortName)
-            rules.append(KFilterRule(field: filterField(.effort), isNegated: negated(.effort), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.effort), isNegated: negated(.effort), valueSummary: joined(names)))
         }
         if !f.depths.isEmpty {
             let names = f.depths.compactMap { KDepth(rawValue: $0) }.map(depthName)
-            rules.append(KFilterRule(field: filterField(.depth), isNegated: negated(.depth), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.depth), isNegated: negated(.depth), valueSummary: joined(names)))
         }
         if !f.projectIDs.isEmpty || f.noProject {
             var names = f.projectIDs.compactMap(projectName)
             if f.noProject { names.append(String(localized: "viewoptions.noproject")) }
-            rules.append(KFilterRule(field: filterField(.project), isNegated: negated(.project), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.project), isNegated: negated(.project), valueSummary: joined(names)))
         }
         if !f.areaIDs.isEmpty {
             let names = f.areaIDs.compactMap(areaName)
-            rules.append(KFilterRule(field: filterField(.area), isNegated: negated(.area), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.area), isNegated: negated(.area), valueSummary: joined(names)))
         }
         if !f.labelIDs.isEmpty {
             let names = f.labelIDs.compactMap(labelName)
-            rules.append(KFilterRule(field: filterField(.label), isNegated: negated(.label), valueSummary: names.joined(separator: ", ")))
+            rules.append(KFilterRule(field: filterField(.label), isNegated: negated(.label), valueSummary: joined(names)))
         }
         if f.due != .any {
             rules.append(KFilterRule(field: filterField(.deadline), isNegated: negated(.deadline), valueSummary: deadlineSummary(f)))

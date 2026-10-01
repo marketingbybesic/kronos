@@ -17,7 +17,7 @@ struct ImpulsCardView: View {
     private var language: Lang { Lang(rawValue: KronosLocale.languageCode) ?? .en }
 
     var body: some View {
-        KPanel(padding: Space.x5, radius: Radius.card) {
+        KPanel(padding: Space.x5, radius: Radius.card, floating: true) {
             VStack(alignment: .leading, spacing: Space.x4) {
                 // The card reads as ONE summary element (first move, then title, estimate,
                 // depth, mentor line) for accessibility; the three buttons stay separate
@@ -31,13 +31,15 @@ struct ImpulsCardView: View {
                     Text(card.task.title)
                         .font(Typo.row)
                         .foregroundStyle(Tok.textSecondary)
-                        .lineLimit(1)
+                        .lineLimit(2)   // two lines before truncating (audit D25)
 
                     metaRow
 
-                    KHairline()
-
-                    mentorLineView
+                    // An empty line means the reason was only the default ranking: nothing to say.
+                    if !mentor.line.isEmpty {
+                        KHairline()
+                        mentorLineView
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isSummaryElement)
@@ -113,13 +115,15 @@ struct ImpulsCardView: View {
 
     private var buttons: some View {
         HStack(spacing: Space.x2) {
+            // "Not now" closes Impuls (the key keeps its old name); "Another" swaps the task.
+            // Another stays in place, disabled at its cap, so the row never jumps.
             Button(String(localized: "impuls.button.skip"), action: onSkip)
                 .kButton(.ghost)
-            if canAskAnother {
-                Button(String(localized: "impuls.button.another"), action: onAnother)
-                    .kButton(.secondary)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)).animation(Motion.curve(Motion.fast)))
-            }
+                .accessibilityHint(String(localized: "impuls.a11y.notnow.hint"))
+            Button(String(localized: "impuls.button.another"), action: onAnother)
+                .kButton(.secondary)
+                .disabled(!canAskAnother)
+                .accessibilityHint(String(localized: "impuls.a11y.another.hint"))
             Spacer()
             Button(String(localized: "impuls.button.start"), action: onStart)
                 .kButton(.primary)
@@ -128,6 +132,5 @@ struct ImpulsCardView: View {
                 // localized key in the catalog, so the sentence is not hard-coded here — the
                 // label "Start" already reads correctly without it.
         }
-        .animation(Motion.curve(Motion.fast), value: canAskAnother)
     }
 }

@@ -301,6 +301,10 @@ public final class KTask {
     // calendar (D20)
     public var calendarEventID: String? = nil
 
+    // dependencies (w22e): comma-joined UUID strings of tasks this one waits on. ONE defaulted
+    // attribute, same lightweight-migration shape as KSubtask.notes; "" = waits on nothing.
+    public var waitsOnIDs: String = ""
+
     // external origin (L1b import; no @Attribute(.unique) under CloudKit)
     public var externalID: String? = nil
     public var source: String? = nil
@@ -371,6 +375,15 @@ extension KTask {
         return (all.filter(\.isDone).count, all.count)
     }
 
+    /// Decoded `waitsOnIDs` (malformed pieces dropped, order kept, no duplicates).
+    public var waitsOn: [UUID] { KTask.parseWaitsOn(waitsOnIDs) }
+
+    static func parseWaitsOn(_ raw: String) -> [UUID] {
+        var seen = Set<UUID>()
+        return raw.split(separator: ",").compactMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespaces)) }
+            .filter { seen.insert($0).inserted }
+    }
+
     public var isInOrdo: Bool { ordoIndex != nil }
     public var isTriagedUnreviewed: Bool { triagedAt != nil && triageReviewedAt == nil }
 }
@@ -382,6 +395,8 @@ public final class KSubtask {
     public var id: UUID = UUID()
     public var title: String = ""
     public var isDone: Bool = false
+    /// Notes text for the subtask, used to store context links (files, emails) just like KTask.notes.
+    public var notes: String = ""
     public var sortIndex: Double = 0
     public var createdAt: Date = Date()
     public var updatedAt: Date = Date()

@@ -60,6 +60,24 @@ extension TaskStore {
     }
 }
 
+@MainActor
+extension TaskStore {
+    /// Removes the junk lines a broken 28.09.2026 build wrote into task notes on every drop
+    /// (`ContextLink.corruptLines`). Idempotent and cheap, so it runs every launch with no
+    /// marker; touches only notes that contain them, never `updatedAt`, one save, no undo.
+    @discardableResult
+    public static func stripCorruptContextLinkLines(store: TaskStore) -> Int {
+        let fixes = store.allTasks().compactMap { t in ContextLink.strippingCorruptLines(t.notes).map { (t, $0) } }
+        guard !fixes.isEmpty else { return 0 }
+        let wasMachine = store.isMachineWrite
+        store.isMachineWrite = true
+        for (t, clean) in fixes { t.notes = clean }
+        store.isMachineWrite = wasMachine
+        store.saveContext()
+        return fixes.count
+    }
+}
+
 // MARK: - Launch-time entry point (marker file + backup, called once from AppDelegate)
 
 @MainActor

@@ -22,8 +22,20 @@ public final class UndoToastCenter {
     public private(set) var current: ListUndoState?
     private init() {}
 
-    public func show(_ message: String) {
-        current = ListUndoState(message: message)
+    /// `customUndo` is for a change that is NOT in the store's undo stack (pinning the focus
+    /// task): the pill's Undo button and `performCustomUndo()` run it instead of `store.undo()`.
+    public func show(_ message: String, customUndo: (() -> Void)? = nil) {
+        current = ListUndoState(message: message, customUndo: customUndo)
+    }
+
+    /// Runs and clears the on-screen toast's own undo, if it has one. Returns false when the
+    /// toast is a store change (the caller then uses `store.undo()` as before).
+    @discardableResult
+    public func performCustomUndo() -> Bool {
+        guard let undo = current?.customUndo else { return false }
+        current = nil
+        undo()
+        return true
     }
 
     /// Only clears if the toast on screen is still the one that expired — a fresh toast
@@ -42,6 +54,11 @@ public final class UndoToastCenter {
 public struct ListUndoState: Identifiable, Equatable {
     public let id = UUID()
     public let message: String
+    public let customUndo: (() -> Void)?
+    public init(message: String, customUndo: (() -> Void)? = nil) {
+        self.message = message
+        self.customUndo = customUndo
+    }
     public static func == (a: ListUndoState, b: ListUndoState) -> Bool { a.id == b.id }
 }
 
@@ -70,16 +87,27 @@ public struct KUndoPill: View {
             }
             .frame(width: 14, height: 14)
             Text(message)
-                .font(Typo.meta)
+                .font(Typo.body)
                 .foregroundStyle(Tok.textSecondary)
-            Button(String(localized: "undo.action"), action: onUndo)
-                .font(Typo.metaStrong)
-                .buttonStyle(.plain)
-                .foregroundStyle(Tok.textPrimary)
+                .lineLimit(1)
+            // The key hint teaches that Cmd-Z does the same thing (audit D11).
+            Button {
+                if !UndoToastCenter.shared.performCustomUndo() { onUndo() }
+            } label: {
+                HStack(spacing: Space.x1) {
+                    Text(String(localized: "undo.action"))
+                        .font(Typo.metaStrong)
+                        .foregroundStyle(Tok.textPrimary)
+                    KKeyHint("⌘", "Z")
+                }
                 .frame(minHeight: Metrics.minHit)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, Space.x3)
-        .frame(height: 32)
+        .frame(height: 36)
+        .frame(maxWidth: 560)   // a long title truncates inside the pill instead of widening it
         .background(Tok.overlay)
         .kBorder(Tok.borderControl, radius: Radius.full)
         .clipShape(RoundedRectangle(cornerRadius: Radius.full, style: .continuous))

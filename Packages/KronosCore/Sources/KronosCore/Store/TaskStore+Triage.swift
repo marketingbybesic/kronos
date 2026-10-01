@@ -22,6 +22,25 @@ public enum TriageFieldKind: String, CaseIterable, Sendable {
     case project, priority, due, depth, estimateMinutes, energyKind, firstMove, labels, effort
 }
 
+/// A first move that only repeats the task title ("Review: <title>", or the title itself) adds no
+/// step: triage leaves the field empty instead so the inspector shows its hint.
+public enum FirstMoveRestatement {
+    public static func restates(_ move: String, title: String) -> Bool {
+        func norm(_ s: String) -> String {
+            s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                .trimmingCharacters(in: CharacterSet(charactersIn: ".:;"))
+        }
+        var m = norm(move)
+        let t = norm(title)
+        guard !t.isEmpty else { return false }
+        for prefix in ["review:", "pregledaj:", "review ", "pregledaj "] where m.hasPrefix(prefix) {
+            m = norm(String(m.dropFirst(prefix.count)))
+            break
+        }
+        return m == t || (m.count >= 12 && t.contains(m)) || (t.count >= 12 && m.contains(t))
+    }
+}
+
 extension TaskStoring {
 
     /// Apply `result` to task `id`.
@@ -97,7 +116,8 @@ extension TaskStoring {
                 update(id) { $0.energyKindRaw = result.energyKind.kEnergyKind.rawValue }
                 filled.append(.energyKind)
             }
-            if mayWrite(.firstMove), !result.firstMove.isEmpty {
+            if mayWrite(.firstMove), !result.firstMove.isEmpty,
+               !FirstMoveRestatement.restates(result.firstMove, title: current.title) {
                 update(id) { $0.firstMove = result.firstMove }
                 filled.append(.firstMove)
             }

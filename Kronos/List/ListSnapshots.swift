@@ -38,7 +38,24 @@ enum ListSnapshots {
             "list.saveview": AnyView(saveViewSheet()),
             "list.nowcard": AnyView(nowCardList(model: model)),
             "list.editing": AnyView(editingList(model: model)),
+            "list.bulk": AnyView(bulkList(model: model)),
+            "list.bulkpanel": AnyView(bulkPanel(model: model)),
+            "list.waiting": AnyView(waitingWithPin(model: model)),
+            "list.undopill": AnyView(undoPill()),
         ]
+    }
+
+    /// Rows 2-4 of All selected (anchor = row 3) so the floating bulk bar renders over the list.
+    private static func bulkList(model: AppModel) -> some View {
+        TaskListScreen(model: model)
+            .onAppear {
+                model.setOptions(.default, for: .all)
+                model.scope = .all
+                let rows = ListContext(model: model).rows
+                guard rows.count > 4 else { return }
+                model.selectedTaskID = rows[2].id
+                model.selectedIDs = Set(rows[1...3].map(\.id))
+            }
     }
 
     /// A row mid double-click-edit: there is no double-click to send inside the
@@ -50,7 +67,7 @@ enum ListSnapshots {
     private static func editingList(model: AppModel) -> some View {
         TaskListScreen(model: model)
             .onAppear {
-                model.chromaMode = .calm
+                model.chromaMode = .focus
                 model.setOptions(.default, for: .all)
                 model.scope = .all
                 model.searchText = "Edit row:"
@@ -162,13 +179,14 @@ enum ListSnapshots {
         TaskListScreen(model: model)
             .onAppear {
                 model.scope = .all
-                // Calm: this fixture's whole contract is the priority glyph's left edge at
+                // Focus: this fixture's whole contract is the priority glyph's left edge at
                 // a fixed x on a 420pt-tall frame with no chip bar (column-check.mjs skips
                 // only its own `--top 120` px). The Now card sits above the list in every
                 // other mode (G9), which is correct there but would push these rows out of
                 // the oracle's frame here — test setup choosing its scenario, same as
                 // emptyList picking `.waiting` below, not the screen branching on chroma.
-                model.chromaMode = .calm
+                // Calm mode was removed in rev18; Focus is the monochrome default.
+                model.chromaMode = .focus
                 model.setOptions(.default, for: .all)   // no active sort/filter rules -> no chip bar
                 // Search filters the view down to just these 5 rows, so no seed task with a
                 // long real title reaches the oracle's trailing-region scan (its own doc
@@ -214,6 +232,35 @@ enum ListSnapshots {
                 }
                 model.didMutate()
             }
+    }
+
+    /// The inspector's multi-selection state (BulkSelectionPanel), at inspector width.
+    private static func bulkPanel(model: AppModel) -> some View {
+        BulkSelectionPanel(model: model)
+            .frame(width: 340, height: 420)
+            .onAppear {
+                let ids = model.store.allTasks().prefix(4).map(\.id)
+                model.selectedTaskID = ids.first
+                model.selectedIDs = Set(ids)
+            }
+    }
+
+    /// Waiting list with a pinned focus task: the Now card must NOT render here (audit D2).
+    private static func waitingWithPin(model: AppModel) -> some View {
+        TaskListScreen(model: model)
+            .onAppear {
+                model.scope = .waiting
+                if let t = model.store.allTasks().first(where: { $0.status == .waiting }) { model.pinnedFocusTaskID = t.id }
+            }
+    }
+
+    /// The undo pill with its Cmd-Z hint (audit D11).
+    private static func undoPill() -> some View {
+        KUndoPill(message: String(format: String(localized: "undo.completed.name"), "Send the September invoice"),
+                  onUndo: {}, onExpire: {})
+            .padding(Space.x6)
+            .frame(width: 560, height: 120)
+            .background(Tok.bg)
     }
 }
 #endif

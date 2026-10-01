@@ -13,6 +13,7 @@ final class PermissionsModel {
     private let statusProvider: PermissionsStatusProviding
     private let requestCalendarAccess: () async -> Void
     private let requestNotesAccess: () async -> Void
+    private let requestRemindersAccess: () async -> Void
     private let enableLaunchAtLogin: () -> Void
     /// Set by `PermissionsWindow` once it knows how to switch to the MCP tab; the model has
     /// no notion of "tabs" itself, only that Claude access's button asks for one.
@@ -22,10 +23,12 @@ final class PermissionsModel {
     init(statusProvider: PermissionsStatusProviding,
          requestCalendarAccess: @escaping () async -> Void = {},
          requestNotesAccess: @escaping () async -> Void = {},
+         requestRemindersAccess: @escaping () async -> Void = {},
          enableLaunchAtLogin: @escaping () -> Void = {}) {
         self.statusProvider = statusProvider
         self.requestCalendarAccess = requestCalendarAccess
         self.requestNotesAccess = requestNotesAccess
+        self.requestRemindersAccess = requestRemindersAccess
         self.enableLaunchAtLogin = enableLaunchAtLogin
         refresh()
     }
@@ -61,6 +64,8 @@ final class PermissionsModel {
             Task { await requestCalendarAccess(); refresh() } // prompt-ok: only runs from this explicit button tap
         case .notes:
             Task { await requestNotesAccess(); refresh() } // prompt-ok: only runs from this explicit button tap
+        case .reminders:
+            Task { await requestRemindersAccess(); refresh() } // prompt-ok: only runs from this explicit button tap
         case .launchAtLogin:
             enableLaunchAtLogin()
             refresh()
@@ -93,7 +98,9 @@ struct PermissionsWindow: View {
         }
     }
 
-    private let rows: [PermissionKind] = [.calendar, .notes, .launchAtLogin, .siriShortcuts, .spotlight, .claudeAccess]
+    // Only rows that can ask the user for something: Siri & Shortcuts and Spotlight ("Not
+    // needed") have no action, and Launch at login lives in Settings > General only.
+    private let rows: [PermissionKind] = [.calendar, .reminders, .notes, .claudeAccess]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -131,7 +138,7 @@ struct PermissionsWindow: View {
             // A one-line note that macOS remembers each answer, distinct from
             // permissions.intro's "works without any of these" framing, so it stays a second
             // line rather than folding into it.
-            Text(String(localized: "permissions.remembered", defaultValue: "macOS remembers each answer — change it any time in System Settings."))
+            Text(String(localized: "permissions.remembered", defaultValue: "macOS remembers each answer. Change it any time in System Settings."))
                 .font(Typo.meta)
                 .foregroundStyle(Tok.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -255,6 +262,7 @@ enum PermissionsWindowController {
             statusProvider: LivePermissionsStatus(model: model, mcpStatus: mcpStatus),
             requestCalendarAccess: { await model.coach.requestCalendarAccess() },
             requestNotesAccess: { _ = try? await model.notes.folders() },
+            requestRemindersAccess: { _ = await EventKitReminders.shared.requestAccess() },
             enableLaunchAtLogin: { LaunchAtLogin.setEnabled(true) })
         show(model: permModel)
     }

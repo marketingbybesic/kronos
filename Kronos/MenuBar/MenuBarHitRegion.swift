@@ -15,7 +15,17 @@ enum MenuBarHitRegion {
     /// (if any) after it. A negative/zero `circleWidth` or a negative `x` never matches the
     /// circle: there is nothing to hit.
     static func region(forX x: CGFloat, circleWidth: CGFloat) -> Zone {
-        guard circleWidth > 0, x >= 0, x < circleWidth else { return .rest }
-        return .circle
+        region(forX: x, circleWidth: circleWidth, imageOrigin: 0, slop: 0)
+    }
+
+    /// The real geometry: `NSStatusBarButton` centres its image, so the glyph starts at
+    /// `imageOrigin` = (button width - image width) / 2, not at 0 — with origin 0 a click on
+    /// the drawn circle landed ~8 pt into the "rest" zone and opened the popover instead
+    /// (user report: the circle did not respond). `slop` widens a 14 pt glyph into a comfortable target.
+    static func region(forX x: CGFloat, circleWidth: CGFloat, imageOrigin: CGFloat, slop: CGFloat) -> Zone {
+        guard circleWidth > 0 else { return .rest }
+        let lower = max(0, imageOrigin - slop)
+        let upper = imageOrigin + circleWidth + slop
+        return (x >= lower && x < upper) ? .circle : .rest
     }
 }

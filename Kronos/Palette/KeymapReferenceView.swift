@@ -129,7 +129,8 @@ struct KeymapReferenceView: View {
             // the card's own bottom edge.
             .padding(.bottom, Space.x4)
         }
-        // Opens already scrolled to the end (same proven pattern as
+        // Opened scrolled to the END until audit D16 (the top groups were hidden under the search
+        // field); now it opens at the top. Declarative anchor (same proven pattern as
         // Kronos/Sidebar/SidebarScreen.swift's own scrollToBottomForSnapshot): a
         // `ScrollViewReader.scrollTo` called from `.onAppear` was a silent no-op in this
         // screen's own offscreen snapshot harness — `layoutSubtreeIfNeeded()` in
@@ -137,7 +138,7 @@ struct KeymapReferenceView: View {
         // reset it back to the top (measured against this screen's own PNG, twice, at two
         // different delays). `defaultScrollAnchor` is resolved declaratively during layout
         // instead of by an imperative runtime call, so it survives that re-layout.
-        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.top)   // opens at the first group (audit D16: it opened at the last)
     }
 
     private var emptyState: some View {

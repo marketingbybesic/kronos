@@ -16,10 +16,10 @@ enum PermissionsSnapshots {
         [
             "permissions": AnyView(preview(statuses: [:])),
             "permissions.mixed": AnyView(preview(statuses: [
-                .calendar: .granted, .notes: .denied,
+                .calendar: .granted, .notes: .denied, .reminders: .denied,
             ])),
             "permissions.granted": AnyView(preview(statuses: [
-                .calendar: .granted, .notes: .granted, .launchAtLogin: .granted, .claudeAccess: .granted,
+                .calendar: .granted, .reminders: .granted, .notes: .granted, .launchAtLogin: .granted, .claudeAccess: .granted,
             ])),
         ]
     }

@@ -2,12 +2,15 @@
 // inline rename (double-click or Return enters edit mode), delete, progress caption,
 // reorder. Rename/reorder/delete each go through their own TaskStoring setter (rev 4),
 // so every step edit is its own named undo step rather than a raw `update` rewriting
-// the whole subtasks array. Reorder still uses move-up/move-down buttons rather than a
-// drag gesture: SwiftUI's onDrag/onDrop needs an async NSItemProvider round-trip to
-// identify the dragged row, which a plain String payload can't do synchronously —
-// shipping that half-built would look like reordering but silently do nothing, which is
-// worse than a keyboard-safe button pair.
+// the whole subtasks array.
+// Wave 18: reorder by the hover arrows, Option-Up/Down, OR by dragging a row onto another
+// (the dragged row lands in the target's slot); a file/folder/Mail message dropped on a row
+// attaches to THAT subtask (small chips right of the title). One drop delegate tells the two
+// apart synchronously: a row drag carries `kronos-subtask:<uuid>` as its text, read straight
+// off the drag pasteboard — no async NSItemProvider round-trip, no state that a cancelled
+// drag could leave behind.
 import SwiftUI
+import AppKit
 import KronosCore
 
 struct InspectorStepsSection: View {
@@ -21,6 +24,9 @@ struct InspectorStepsSection: View {
     /// Keyboard path for reorder/delete/rename: which step row currently has keyboard
     /// focus, independent of hover (hover still drives the trailing button trio).
     @FocusState private var focusedStepID: UUID?
+
+    /// The row a drag is currently over (reorder or attachment), for the dashed outline.
+    @State private var dropTargetStepID: UUID?
 
     /// Snapshot-only: forces one step straight into rename mode on appear, without
     /// touching the store while the screens dictionary is being built.
@@ -50,6 +56,10 @@ struct InspectorStepsSection: View {
             VStack(spacing: Space.x1) {
                 ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
                     stepRow(step, index: index)
+                        .onDrag { NSItemProvider(object: (MailDropPasteboard.subtaskDragPrefix + step.id.uuidString) as NSString) }
+                        .onDrop(of: ContextLinkDropModifier.acceptedTypes,
+                                delegate: SubtaskRowDropDelegate(step: step, steps: steps, model: model,
+                                                                 hoveredID: $dropTargetStepID))
                 }
                 addRow
             }
@@ -62,6 +72,9 @@ struct InspectorStepsSection: View {
             }
         }
         .animation(Motion.curve(Motion.fast), value: isBreakdownOpen)
+        .onReceive(NotificationCenter.default.publisher(for: .kronosFocusAddSubtaskRequested)) { _ in
+            addFieldFocused = true
+        }
         .onAppear {
             if forceRenameOnAppear, let first = steps.first {
                 beginRename(first)
@@ -92,7 +105,7 @@ struct InspectorStepsSection: View {
     /// fill hover already uses rather than a ring nobody asked for.
     private func stepRow(_ step: KSubtask, index: Int) -> some View {
         HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: step.isDone, size: Metrics.iconL) {
+            KCheckbox(isChecked: step.isDone, size: Metrics.iconL, label: step.title) {
                 model.store.toggleSubtask(step.id)
                 model.didMutate()
             }
@@ -114,6 +127,7 @@ struct InspectorStepsSection: View {
                     .strikethrough(step.isDone)
                     .onTapGesture(count: 2) { beginRename(step) }
             }
+            SubtaskAttachmentChips(model: model, subtask: step)
             Spacer(minLength: Space.x2)
             if hoveredStepID == step.id || focusedStepID == step.id {
                 HStack(spacing: 0) {
@@ -141,6 +155,12 @@ struct InspectorStepsSection: View {
             RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                 .fill(focusedStepID == step.id && renamingStepID != step.id ? Tok.hoverFill : Color.clear)
         )
+        .overlay {
+            if dropTargetStepID == step.id {
+                RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+                    .strokeBorder(Tok.borderActive, style: StrokeStyle(lineWidth: Metrics.strokeQuiet, dash: [Space.x1, Space.x1]))
+            }
+        }
         .contentShape(Rectangle())
         .onHover { hoveredStepID = $0 ? step.id : nil }
         .focusable(renamingStepID != step.id)
@@ -229,5 +249,46 @@ struct InspectorStepsSection: View {
         let before: UUID? = offset < 0 ? ordered[to].id : (ordered.indices.contains(to + 1) ? ordered[to + 1].id : nil)
         model.store.reorderSubtask(step.id, before: before)
         model.didMutate()
+    }
+}
+
+/// One drop target per subtask row. Kronos's own row drag (text `kronos-subtask:<uuid>` on
+/// the drag pasteboard) reorders: the dragged row takes the target row's slot, so dragging
+/// down one row really moves it down (the previous delegate inserted BEFORE the target in both
+/// directions, which is a no-op for a one-row move down, and reordered on every hover, one undo
+/// step each). Anything else — Finder files/folders, Mail messages, links — attaches to this
+/// subtask through the same routine the task-level drop uses.
+struct SubtaskRowDropDelegate: DropDelegate {
+    let step: KSubtask
+    let steps: [KSubtask]
+    let model: AppModel
+    @Binding var hoveredID: UUID?
+
+    func dropEntered(info: DropInfo) { hoveredID = step.id }
+
+    func dropExited(info: DropInfo) {
+        if hoveredID == step.id { hoveredID = nil }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: MailDropPasteboard.subtaskID(from: NSPasteboard(name: .drag)) != nil ? .move : .copy)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        hoveredID = nil
+        guard let draggedID = MailDropPasteboard.subtaskID(from: NSPasteboard(name: .drag)) else {
+            return ContextLinkDropModifier.accept(info.itemProviders(for: ContextLinkDropModifier.acceptedTypes),
+                                                  target: .subtask(step), model: model)
+        }
+        let order = steps.map(\.id)
+        // Nothing to do for the row itself or an id from another task.
+        guard draggedID != step.id, let from = order.firstIndex(of: draggedID),
+              let to = order.firstIndex(of: step.id) else { return false }
+        // The dragged row takes the target's slot: moving up -> before the target; moving
+        // down -> before the row after the target (nil = to the end).
+        let before: UUID? = from > to ? step.id : (order.indices.contains(to + 1) ? order[to + 1] : nil)
+        model.store.reorderSubtask(draggedID, before: before)
+        model.didMutate()
+        return true
     }
 }

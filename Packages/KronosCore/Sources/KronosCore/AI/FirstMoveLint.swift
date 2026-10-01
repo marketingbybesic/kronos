@@ -233,12 +233,16 @@ public enum DeterministicFirstMove {
                                 hasOpenSubtask: Bool,
                                 notesNonEmpty: Bool,
                                 dread: Bool,
-                                language appLanguage: Lang) -> String {
+                                language appLanguage: Lang,
+                                titleLanguageWins: Bool = true) -> String {
         // The move is read right under the title, so it follows the TITLE language; the app
         // language only decides when the title gives no signal (it shipped "Open Nazovi Ivanu
         // oko termina and write the first line" for a Croatian task in an English app).
         let firstWord = title.split(separator: " ").first.map { $0.lowercased() } ?? ""
-        let language: Lang = verbMapHR[firstWord] != nil ? .hr
+        // `titleLanguageWins: false` pins the app language (the Impuls card headline sits among
+        // localised buttons, so a Croatian title must not produce a Croatian line in an English UI).
+        let language: Lang = !titleLanguageWins ? appLanguage
+            : verbMapHR[firstWord] != nil ? .hr
             : verbMapEN[firstWord] != nil ? .en
             : detectLanguage(title) == .hr ? .hr : appLanguage
         if let url = firstMoveURL, let host = hostOrFilename(url) {
@@ -260,6 +264,35 @@ public enum DeterministicFirstMove {
         }
         return defaultOpener(title: title, verb: verb, language: language)
     }
+
+    /// True when `text` is one of the placeholder sentences `generate` writes when it knows
+    /// nothing about the task ("Open the notes for this task and write the first line", the
+    /// read-subtask-1 / read-the-notes / one-sentence moves), in either language, ignoring
+    /// case and a trailing full stop. The UI treats such a stored move as empty so a real
+    /// suggestion (next subtask, attached email/file, the title) can take its place.
+    public static func isGenericTemplate(_ text: String) -> Bool {
+        genericTemplates.contains(normalizedTemplate(text))
+    }
+
+    private static func normalizedTemplate(_ text: String) -> String {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        while t.hasSuffix(".") { t.removeLast() }
+        return t
+    }
+
+    private static let genericTemplates: Set<String> = {
+        var s: Set<String> = ["open the notes for this task and write the first move"]  // older wording
+        let anyVerb: (VerbFamily, String) = (.review, "")
+        for lang in [Lang.en, .hr] {
+            s.insert(defaultOpener(title: "", verb: nil, language: lang))
+            s.insert(subtaskOpener(title: "", verb: nil, language: lang))
+            s.insert(subtaskOpener(title: "", verb: anyVerb, language: lang))
+            s.insert(notesOpener(title: "", verb: nil, language: lang))
+            s.insert(notesOpener(title: "", verb: anyVerb, language: lang))
+            s.insert(dreadOpener(title: "", verb: nil, language: lang))
+        }
+        return Set(s.map(normalizedTemplate))
+    }()
 
     // MARK: Verb-family detection
 

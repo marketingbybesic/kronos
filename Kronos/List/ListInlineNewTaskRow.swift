@@ -48,6 +48,7 @@ struct ListInlineNewTaskRow: View {
         .contentShape(Rectangle())
         .onTapGesture { isFocused = true }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosNewTaskRequested"))) { _ in
+            guard !model.isAnyOverlayOpen else { return }
             isFocused = true
         }
     }
@@ -57,8 +58,9 @@ struct ListInlineNewTaskRow: View {
         // `scope:` makes the new task belong to the list it was typed in (Someday -> .someday,
         // Waiting -> .waiting, Today/Next 7 -> due today unless the text names a date, an area ->
         // that area) — see ListScopeDefaults in QuickAddCreate.swift.
-        guard !QuickAddCreate.create(from: title, model: model, fallbackProject: currentProject,
-                                      scope: scope).isEmpty else { return }
+        let made = QuickAddCreate.create(from: title, model: model, fallbackProject: currentProject, scope: scope)
+        guard let first = made.first else { return }
+        UndoToastCenter.shared.show(String(format: String(localized: "undo.added.name"), first.title))
         title = ""
         isFocused = true
     }

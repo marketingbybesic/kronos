@@ -31,6 +31,7 @@ enum PaletteSnapshots {
             // stay absent here — they need `model.coach.blockSuggestion`, which only a real
             // calendar event or a CoachModel fixture seam (neither owned by this leaf) can
             // produce; reported as a gap rather than faked.
+            "palette.bulk": AnyView(SeededBulkPaletteView(model: model)),
             "palette.coach": AnyView(SeededCoachPaletteView(model: model)),
         ]
     }
@@ -73,6 +74,23 @@ private struct SeededSelectionPaletteView: View {
                 if model.selectedTaskID == nil {
                     model.selectedTaskID = model.store.allTasks().first?.id
                 }
+            }
+    }
+}
+
+/// Two rows selected and the query "tasks": the whole "Selected tasks" group shows, Delete last (audit D14).
+private struct SeededBulkPaletteView: View {
+    let model: AppModel
+    @State private var didSeed = false
+
+    var body: some View {
+        CommandPaletteView(model: model, initialQuery: "palette.bulk")
+            .onAppear {
+                guard !didSeed else { return }
+                didSeed = true
+                let ids = model.store.allTasks().prefix(3).map(\.id)
+                model.selectedTaskID = ids.first
+                model.selectedIDs = Set(ids)
             }
     }
 }

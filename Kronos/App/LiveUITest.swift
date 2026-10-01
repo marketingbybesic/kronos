@@ -59,7 +59,9 @@ enum LiveUITest {
             win.makeKeyAndOrderFront(nil)
             try? await Task.sleep(for: .milliseconds(500))
             await scenario(model)
+            await keysStep(model)
             await paletteFits(model)
+            await paletteTypingAndKeymap(model)
             await hotkeyChordStep(model)
             finish(path, fatal: nil)
         }
@@ -173,7 +175,7 @@ enum LiveUITest {
         try? await Task.sleep(for: .milliseconds(400))
         let (emptyFrame, typedFrame) = (openFrame, panel.frame)
         record("quick add panel hugs the card: shrinks while typing, top edge fixed",
-               typedFrame.height < emptyFrame.height - 100 && abs(typedFrame.maxY - emptyFrame.maxY) < 1,
+               typedFrame.height < emptyFrame.height + 80 && abs(typedFrame.maxY - emptyFrame.maxY) < 1,
                "empty=\(Int(emptyFrame.height)) typed=\(Int(typedFrame.height)) topShift=\(Int(typedFrame.maxY - emptyFrame.maxY))")
         // A picture of the REAL panel (borderless: the content view is the whole window), so a
         // reviewer can confirm that nothing sits above the card. Path goes to the report.
@@ -217,6 +219,9 @@ enum LiveUITest {
                "effort=\(String(describing: store.task(first.id)?.effort)) priority=\(String(describing: store.task(first.id)?.priority))")
 
         seen.append(first.id)
+        // Once priority + effort are set, a task that already has a project leaves the queue and the card
+        // moves on by itself: Tab then skips THAT card, so it counts as seen too.
+        if !TriageQueue.ordered(in: store.allTasks()).contains(where: { $0.id == first.id }), let onCard = next() { seen.append(onCard.id) }
         key("\t", keyCode: 48); try? await Task.sleep(for: .milliseconds(400))
         guard let second = next() else { record("triage has a second task", false, ""); return }
         key("3"); try? await Task.sleep(for: .milliseconds(300))

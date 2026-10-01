@@ -212,4 +212,15 @@ struct FirstMoveLintTests {
         if case .fail(let reason) = v { return reason.contains(needle) }
         return false
     }
+
+    @Test func appLanguageCanOverrideTitleLanguage() {
+        let title = "ACME: na stranicu dodati gumb"
+        let titled = DeterministicFirstMove.generate(title: title, firstMoveURL: nil, hasOpenSubtask: false,
+                                                     notesNonEmpty: true, dread: false, language: .en)
+        let pinned = DeterministicFirstMove.generate(title: title, firstMoveURL: nil, hasOpenSubtask: false,
+                                                     notesNonEmpty: true, dread: false, language: .en,
+                                                     titleLanguageWins: false)
+        #expect(titled.hasPrefix("Otvori"), "default keeps following the title language")
+        #expect(pinned == "Open the notes of this task and read them for 2 minutes")
+    }
 }

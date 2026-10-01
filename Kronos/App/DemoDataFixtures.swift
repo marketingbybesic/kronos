@@ -32,9 +32,13 @@ public enum DemoData {
         // read everywhere else.
         @discardableResult
         func make(title: String, notes: String = "", project: KProject? = nil,
-                  priority: KPriority = .none, dueDay: Int? = nil) -> KTask {
-            store.create(title: title, notes: notes, project: project,
+                  priority: KPriority = .none, dueDay: Int? = nil, triage: Bool = false) -> KTask {
+            let t = store.create(title: title, notes: notes, project: project,
                         status: .todo, priority: priority, dueDay: dueDay)
+            // Triage shows a short queue, not 24: only tasks made with `triage: true` (the 3
+            // newest filler ones below) stay in it.
+            if !triage { store.update(t.id) { $0.needsTriage = false } }
+            return t
         }
 
         store.groupedUndo("Load demo data") {
@@ -161,8 +165,8 @@ public enum DemoData {
                 ("Pick stock photos for the campaign",projGlobex,   .none),
                 ("Water the office plants",           projPersonal, .none),
             ]
-            for (title, project, priority) in filler {
-                tag(make(title: title, project: project, priority: priority))
+            for (i, (title, project, priority)) in filler.enumerated() {
+                tag(make(title: title, project: project, priority: priority, triage: i >= filler.count - 3))
             }
         }
     }

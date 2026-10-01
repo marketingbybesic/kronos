@@ -248,6 +248,7 @@ public final class KronosImporter {
         k.project = project; k.projectID = project?.id; k.areaID = project?.area?.id
         k.labels = labels
         k.createdAt = t.createdAt; k.updatedAt = t.updatedAt
+        k.waitsOnIDs = (t.waitsOn ?? []).map(\.uuidString).joined(separator: ",")
 
         var existingSubs: [UUID: KSubtask] = [:]
         for s in k.subtasks ?? [] { existingSubs[s.id] = s }
@@ -257,10 +258,11 @@ public final class KronosImporter {
             if let existing = existingSubs[s.id] {
                 existing.title = s.title; existing.isDone = s.isDone
                 existing.sortIndex = s.sortIndex; existing.updatedAt = s.updatedAt
+                existing.notes = s.notes ?? ""
                 keep.append(existing)
             } else {
                 let sub = KSubtask(title: s.title, sortIndex: s.sortIndex)
-                sub.id = s.id; sub.isDone = s.isDone
+                sub.id = s.id; sub.isDone = s.isDone; sub.notes = s.notes ?? ""
                 sub.createdAt = s.createdAt; sub.updatedAt = s.updatedAt
                 sub.task = k
                 store.context.insert(sub)

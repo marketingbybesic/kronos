@@ -42,28 +42,41 @@ extension TriageFlowView {
     /// off `handleKey`'s synchronous path entirely, same as the original load).
     @ViewBuilder
     var aiStateRow: some View {
+        // AI off or no router: nothing at all (no dead Refresh button). Otherwise ONE line, ONE
+        // button, never wrapped: the text truncates before a button label can break ("Ret ry").
         if aiEnabled, model.ai != nil {
             HStack(spacing: Space.x2) {
                 if isAskingAI {
                     Text(String(format: String(localized: "triage.flow.asking"), askingElapsed))
                         .font(Typo.meta)
                         .foregroundStyle(Tok.textTertiary)
+                        .lineLimit(1)
                         .uiTestAnchor("triage.card.asking")
                 } else if let aiFailure {
                     Text(aiFailure.localizedText)
                         .font(Typo.meta)
                         .foregroundStyle(Tok.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .uiTestAnchor("triage.card.ai.failed")
-                    Button(String(localized: "triage.flow.ai.retry")) { retryAI() }
-                        .kButton(.ghost)
-                        .uiTestAnchor("triage.card.ai.retry")
+                    // Retry is the same re-ask as Refresh (key R), so a failure shows it once, and
+                    // not at all without a key: asking again cannot help until Settings has one.
+                    if aiFailure != .noKey { aiButton("triage.flow.ai.retry", anchor: "triage.card.ai.retry") }
+                } else {
+                    aiButton("triage.flow.ai.refresh", anchor: "triage.card.ai.refresh")
                 }
-                Button(String(localized: "triage.flow.ai.refresh")) { retryAI() }
-                    .kButton(.ghost)
-                    .disabled(isAskingAI)
-                    .uiTestAnchor("triage.card.ai.refresh")
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func aiButton(_ key: String, anchor: String) -> some View {
+        Button(String(localized: String.LocalizationValue(key))) { retryAI() }
+            .kButton(.ghost)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(isAskingAI)
+            .uiTestAnchor(anchor)
     }
 
     /// Synchronous neighbour vote first (renders instantly, same as Impuls/AutoTriage), then

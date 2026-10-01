@@ -45,15 +45,17 @@ enum MenuBarPrefs {
     private static let pointsKey = "kronos.menubar.maxPoints"
     static let pointsRange: ClosedRange<Double> = 120...900
 
-    /// The title runs all the way to the camera housing. Default on.
+    /// The title runs all the way to the camera housing. Default OFF since 30.09.2026: on a
+    /// notch MacBook with a menu-bar manager (Ice) it swallowed every hidden icon and the
+    /// manager's own arrow; it is meant to stay in its lane.
     static var fillToCamera: Bool {
-        get { defaults.object(forKey: fillKey) == nil ? true : defaults.bool(forKey: fillKey) }
+        get { defaults.object(forKey: fillKey) == nil ? false : defaults.bool(forKey: fillKey) }
         set { defaults.set(newValue, forKey: fillKey) }
     }
 
     /// Exact width of the whole status item in points, used when `fillToCamera` is off.
     static var maxPoints: Double {
-        get { let v = defaults.double(forKey: pointsKey); return v > 0 ? min(max(v, pointsRange.lowerBound), pointsRange.upperBound) : 360 }
+        get { let v = defaults.double(forKey: pointsKey); return v > 0 ? min(max(v, pointsRange.lowerBound), pointsRange.upperBound) : 220 }
         set { defaults.set(newValue, forKey: pointsKey) }
     }
 

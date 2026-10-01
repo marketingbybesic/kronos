@@ -139,6 +139,17 @@ struct AutomaticStatusRuleTests {
         #expect(store.task(t.id)?.status == .waiting) // waiting never auto-changes
     }
 
+    // Live audit 30.09.: "Snooze to tomorrow" on a task due 5 days ago moved it to 4 days ago.
+    @Test func snoozeOnAnOverdueTaskLandsOnTomorrow() throws {
+        let store = try makeStore()
+        let t = store.create(title: "late", status: .todo, dueDay: Day.today() - 5)
+        store.snooze(t.id)
+        #expect(store.task(t.id)?.dueDay == Day.today() + 1)
+        let u = store.create(title: "next week", status: .todo, dueDay: Day.today() + 7)
+        store.snooze(u.id)
+        #expect(store.task(u.id)?.dueDay == Day.today() + 8)
+    }
+
     @Test func snoozeOnAnOpenTaskSetsDueAndKeepsTodo() throws {
         let store = try makeStore()
         let t = store.create(title: "a", status: .todo, dueDay: nil)

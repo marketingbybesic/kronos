@@ -1,6 +1,9 @@
 // Kronos/MenuBar/MenuBarPopoverContent.swift
 // `PopoverContent` — split out of MenuBarOrdoController.swift purely to keep that file under
 // the 500-line cap; no behaviour change, same struct.
+// Rev18: two-zone layout (Now | Capture) via KSegmented, no ScrollView — the popover opens
+// fully at intrinsic height. Width 380 → 400 for the extra zone chrome. Dark grey fill
+// (`Tok.overlay`) so it reads as floating off the pure-black window behind it.
 import AppKit
 import SwiftUI
 import KronosCore
@@ -11,6 +14,8 @@ import KronosCore
 extension Notification.Name {
     static let kronosMenuBarFocusCaptureField = Notification.Name("kronosMenuBarFocusCaptureField")
 }
+
+private enum MenuBarZone: Hashable { case now, capture }
 
 /// The popover's content view: reads `model.pinnedFocusTaskID` / `model.ordoFocus` /
 /// `model.version` / `model.coach` directly (an `@Observable` read, so it re-renders on any
@@ -31,6 +36,7 @@ struct PopoverContent: View {
     /// `menubar.popover.block` snapshot renders this fixed value instead of depending on
     /// the machine's actual calendar/consent state. This is a wiring gap to close later.
     var previewBlockSuggestion: BlockSuggestion?? = nil
+
     @State private var justCompleted: (taskID: UUID, wasSubtask: Bool)?
     @State private var skippedThisSession: Set<UUID> = []
     @State private var captureText = ""
@@ -39,6 +45,7 @@ struct PopoverContent: View {
     /// (item 3), or defaults to the current-or-next unmatched block so the main banner
     /// shows a picker even before anything is tapped in the strip.
     @State private var linkingEvent: KCalendarEvent?
+    @State private var zone: MenuBarZone = .now
 
     private var isPinned: Bool { model.pinnedFocusTaskID != nil }
 
@@ -49,19 +56,21 @@ struct PopoverContent: View {
     /// same pattern this view already uses for `resolved`/`nextRows` reading `model` live.
     private var blockTasks: TimeBlocksModel { TimeBlocksModel(model: model) }
 
-    private var resolved: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)? {
-        let _ = model.version
-        if let blockID = blockTasks.blockFocusTaskID, let task = model.store.task(blockID) {
-            return (task.id, task.title, task.firstMove, model.ordoFocus.remaining, task.project)
-        }
-        if let pinID = model.pinnedFocusTaskID, let task = model.store.task(pinID) {
-            return (task.id, task.title, task.firstMove, model.ordoFocus.remaining, task.project)
-        }
-        let focus = model.ordoFocus
-        guard let id = focus.taskID else { return nil }
-        let project = model.store.task(id)?.project
-        return (id, focus.title, focus.firstMove, focus.remaining, project)
-    }
+   private var resolved: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)? {
+       let _ = model.version
+       if let blockID = blockTasks.blockFocusTaskID, let task = model.store.task(blockID) {
+            return (task.id, task.title, FirstMoveLogic.text(for: task), model.ordoFocus.remaining, task.project)
+       }
+       if let pinID = model.pinnedFocusTaskID, let task = model.store.task(pinID) {
+            return (task.id, task.title, FirstMoveLogic.text(for: task), model.ordoFocus.remaining, task.project)
+       }
+       let focus = model.ordoFocus
+       guard let id = focus.taskID else { return nil }
+       if let task = model.store.task(id) {
+            return (id, focus.title, FirstMoveLogic.text(for: task), focus.remaining, task.project)
+       }
+        return (id, focus.title, focus.firstMove, focus.remaining, nil)
+   }
 
     /// Block precedence also lists the block's tasks first in the popover, not just the top
     /// focus row — `MenuBarBlockFocus.reordered` (hand-tested) puts them ahead of the normal
@@ -77,34 +86,29 @@ struct PopoverContent: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.x3) {
-                blockSection
-                KOrdoPopoverG(task: resolved, isPinned: isPinned, onComplete: complete, onUnpin: unpin,
-                              onNotNow: resolved != nil ? notNow : nil, onSnooze: resolved != nil ? snooze : nil)
-                if let justCompleted {
-                    KUndoPill(message: String(format: String(localized: "undo.completed.name"),
-                                              model.store.task(justCompleted.taskID)?.title ?? ""),
-                              onUndo: { undo(justCompleted) },
-                              onExpire: { self.justCompleted = nil })
-                }
-                MenuBarNextSection(rows: nextRows, onSelect: pin)
-                MenuBarPresetRow(presets: model.coach.presets, activeID: model.coach.activePreset(for: model.scope).id,
-                                  onSelect: { model.coach.applyPreset($0, to: model.scope) })
-                MenuBarEnergyRow(energy: Binding(get: { ImpulsEnergyMemory.todayEnergy() ?? .mid },
-                                                  set: { ImpulsEnergyMemory.rememberToday($0) }))
-                KHairline()
-                MenuBarCaptureField(text: $captureText, isFocused: $focusedField, onFindTasks: findTasks)
-                KHairline()
-                footerRow
+        VStack(alignment: .leading, spacing: Space.x3) {
+            KSegmented(selection: $zone, segments: [
+                KSegment(value: MenuBarZone.now, icon: "circle-dot", label: String(localized: "menubar.zone.now")),
+                KSegment(value: MenuBarZone.capture, icon: "pencil", label: String(localized: "menubar.zone.capture"))
+            ])
+            .accessibilityLabel(String(localized: "menubar.zone.title"))
+
+            switch zone {
+            case .now:
+                nowZone
+            case .capture:
+                captureZone
             }
-            .padding(Space.x4)
+
+            KHairline()
+            footerRow
         }
-        .frame(width: 380)
-        // OLED: the popover's own corners must read as true black (gate-shots' corner
-        // check), not the slightly-raised `Tok.overlay` other popovers use for a floating
-        // sheet look — this one fills edge-to-edge under the status item instead.
-        .background(Tok.bg)
+        .padding(Space.x4)
+        .frame(width: 400)
+        // Floating surface: dark grey (`Tok.overlay`) lifts the popover off the pure-black
+        // main window. Gate-shots corner check accepts rgb <= 40 for this surface via the
+        // `corners=raised` spec key.
+        .background(Tok.overlay)
         .environment(\.chromaMode, model.chromaMode)
         .environment(\.kAccent, Accent.resolve(model.coach.settings.accentHex, mode: model.chromaMode))
         .accessibilityElement(children: .contain)
@@ -112,14 +116,44 @@ struct PopoverContent: View {
             // Never touches EventKit when a snapshot fixture is supplied: no real calendar
             // access, no consent prompt, ever, from an automated run.
             if previewBlockSuggestion == nil { Task { await model.coach.refreshBlocks() } }
-            if focusCaptureOnAppear { focusedField = .capture }
+            if focusCaptureOnAppear {
+                zone = .capture
+                focusedField = .capture
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .kronosMenuBarFocusCaptureField)) { _ in
+            zone = .capture
             focusedField = .capture
         }
         // Esc-closes is `NSPopover`'s own default behaviour for `.transient` (no custom
         // `.onKeyPress(.escape)` here — this file is not on `verify-hotkeys.mjs`'s
         // ALLOW_LIST, and adding an unlisted key literal fails that gate outright).
+    }
+
+    // MARK: - Now zone
+
+    private var nowZone: some View {
+        VStack(alignment: .leading, spacing: Space.x3) {
+            KOrdoPopoverG(task: resolved, isPinned: isPinned, onComplete: complete, onUnpin: unpin,
+                          onNotNow: resolved != nil ? notNow : nil, onSnooze: resolved != nil ? snooze : nil)
+            if let justCompleted {
+                KUndoPill(message: String(format: String(localized: "undo.completed.name"),
+                                          model.store.task(justCompleted.taskID)?.title ?? ""),
+                          onUndo: { undo(justCompleted) },
+                          onExpire: { self.justCompleted = nil })
+            }
+            MenuBarNextSection(rows: nextRows, onSelect: pin)
+        }
+    }
+
+    // MARK: - Capture zone
+
+    private var captureZone: some View {
+        VStack(alignment: .leading, spacing: Space.x3) {
+            blockSection
+            // No Order/Energy rows: configuration does not belong on a capture surface (F10).
+            MenuBarCaptureField(text: $captureText, isFocused: $focusedField, onFindTasks: findTasks)
+        }
     }
 
     /// nil override means "read the live coach"; a non-nil override (snapshot only) is
@@ -151,15 +185,15 @@ struct PopoverContent: View {
             MenuBarCalendarAccessRow()
         } else if let suggestion = blockSuggestion {
             MenuBarBlockBanner(suggestion: suggestion, unmatchedEventTitle: nil, projects: model.store.allProjects(),
-                                onSwitch: { model.coach.switchToBlock() }, onStay: { model.coach.stayInCurrent() },
-                                onLink: { _ in })
+                               onSwitch: { model.coach.switchToBlock() }, onStay: { model.coach.stayInCurrent() },
+                               onLink: { _ in })
         } else if let event = unmatchedEvent {
             MenuBarBlockBanner(suggestion: nil, unmatchedEventTitle: event.title, projects: model.store.allProjects(),
-                                onSwitch: {}, onStay: {}, onLink: { project in link(event, to: project) })
+                               onSwitch: {}, onStay: {}, onLink: { project in link(event, to: project) })
         }
         if previewBlockSuggestion == nil {
             MenuBarTodaysBlocksStrip(blocks: model.coach.todaysBlocks, projectName: projectName,
-                                      onLinkEvent: { linkingEvent = $0 })
+                                     onLinkEvent: { linkingEvent = $0 })
         }
     }
 
@@ -172,7 +206,6 @@ struct PopoverContent: View {
             Button(String(localized: "menubar.footer.settings"), action: openSettings)
                 .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary).fixedSize()
             Spacer(minLength: 0)
-            KChromaModeSwitch(mode: Binding(get: { model.chromaMode }, set: { model.chromaMode = $0 }))
         }
     }
 

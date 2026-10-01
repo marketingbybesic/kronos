@@ -1,8 +1,8 @@
 // Kronos/Settings/SettingsMCPTab.swift
-// Status, the copyable `claude mcp add` snippet, Regenerate token, enable/disable.
-// The bearer token is inside the snippet by necessity but is
-// masked in the UI as bullets; Copy puts the real snippet (with the real token) on the
-// pasteboard, which is the whole point of the snippet existing.
+// Status, the bridge command per AI tool (Claude Code, Codex, Hermes, Claude Desktop), a
+// "Connect all local AI tools" button, Regenerate token, enable/disable.
+// The snippets carry NO token: the bridge (Contents/MacOS/kronos-mcp) reads the token and port
+// from the app's own secrets folder on every request, so nothing secret is ever shown or pasted.
 
 import AppKit
 import SwiftUI
@@ -11,13 +11,14 @@ import KronosCore
 struct SettingsMCPTab: View {
     let status: MCPStatusProviding
     @State private var isEnabled: Bool = MCPSettingsKeys.isEnabled
-    /// Which snippet's Copy button most recently confirmed — at most one shows "Copied" at a
-    /// time (mirrors `didCopy`'s old single-snippet meaning, now that there are two blocks).
+    /// Which snippet's Copy button most recently confirmed; at most one shows "Copied".
     @State private var copiedSnippet: SnippetKind?
     @State private var confirmingRegenerate = false
+    @State private var connecting = false
+    @State private var connectSummary: String?
     private let isHermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
 
-    private enum SnippetKind { case generic, claudeCLI }
+    private enum SnippetKind: Hashable { case claudeCode, codex, hermes, desktop }
 
     var body: some View {
         SettingsSection(title: String(localized: "settings.tab.mcp")) {
@@ -27,8 +28,7 @@ struct SettingsMCPTab: View {
                     .tint(Tok.textPrimary)
                     .labelsHidden()
                     // Goes through status.setEnabled, not just the UserDefaults flag, so a
-                    // live MCPLiveController starts/stops the real listener at once — a
-                    // previous version only ever flipped the pref for next launch.
+                    // live MCPLiveController starts/stops the real listener at once.
                     .onChange(of: isEnabled) { _, v in status.setEnabled(v) }
                     .uiTestAnchor("settings.mcp.enabled")
             }
@@ -39,20 +39,45 @@ struct SettingsMCPTab: View {
 
             KHairline().padding(.vertical, Space.x1)
 
-            // MCP access should not be Claude-specific: the copyable block any MCP client can
-            // use (Core's own `MCPSettingsSnippet.genericJSON`, already AI-agnostic) is now
-            // the PRIMARY snippet; the Claude Code one-liner is kept underneath, explicitly
-            // labelled as one example among possible clients rather than the only path shown.
             VStack(alignment: .leading, spacing: Space.x2) {
-                Text(String(localized: "settings.mcp.snippet.title", defaultValue: "Connect an MCP client"))
+                Text(String(localized: "settings.mcp.snippet.title"))
                     .font(Typo.metaStrong)
                     .foregroundStyle(Tok.textSecondary)
-                snippetBlock(String(localized: "settings.mcp.snippet.generic", defaultValue: "Works with any MCP client:"),
-                             text: maskedGenericSnippet, real: realGenericSnippet, kind: .generic,
-                             anchorID: "settings.mcp.copy.generic")
-                snippetBlock(String(localized: "settings.mcp.snippet.example", defaultValue: "Example — Claude Code:"),
-                             text: maskedCLISnippet, real: realCLISnippet, kind: .claudeCLI,
-                             anchorID: "settings.mcp.copy.claudecli")
+                Text(String(localized: "settings.mcp.snippet.bridge"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                KPanel(padding: Space.x3) {
+                    Text(bridgePath)
+                        .font(Typo.mono)
+                        .foregroundStyle(Tok.textPrimary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                snippetBlock(String(localized: "settings.mcp.snippet.claudecode"),
+                             MCPSettingsSnippet.bridgeClaudeCode(bridge: bridgePath, name: serverName), .claudeCode)
+                snippetBlock(String(localized: "settings.mcp.snippet.codex"),
+                             MCPSettingsSnippet.bridgeCodexTOML(bridge: bridgePath, name: serverName), .codex)
+                snippetBlock(String(localized: "settings.mcp.snippet.hermes"),
+                             MCPSettingsSnippet.bridgeHermesYAML(bridge: bridgePath, name: serverName), .hermes)
+                snippetBlock(String(localized: "settings.mcp.snippet.desktop"),
+                             MCPSettingsSnippet.bridgeDesktopJSON(bridge: bridgePath, name: serverName), .desktop)
+            }
+
+            SettingsTrailingRow {
+                Button(connecting ? String(localized: "settings.mcp.connecting") : String(localized: "settings.mcp.connectall")) {
+                    connectAll()
+                }
+                .kButton(.secondary, size: .compact)
+                .disabled(connecting)
+                .uiTestAnchor("settings.mcp.connectall")
+            }
+            .padding(.top, Space.x1)
+            if let connectSummary {
+                Text(connectSummary)
+                    .font(Typo.mono)
+                    .foregroundStyle(Tok.textTertiary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if confirmingRegenerate {
@@ -97,70 +122,55 @@ struct SettingsMCPTab: View {
         if let port = status.port, status.isRunning {
             return String(format: String(localized: "settings.mcp.status.running"), String(port))
         }
-        // A calm reason beats a bare "not running" when one is known — MCPLiveController.lastError
-        // carries the real NWListener failure (e.g. every port in range refused) instead of
-        // leaving the user to guess.
+        // A calm reason beats a bare "not running" when one is known (the real listener failure).
         if let reason = status.lastError {
             return String(format: String(localized: "settings.mcp.status.stopped.reason"), reason)
         }
         return String(localized: "settings.mcp.status.stopped")
     }
 
-    private var displayToken: String {
-        // Only runs while this tab is open (a user action, not launch): reading the
-        // app-owned token here is fine, same as any other Settings field showing its
-        // current stored value.
-        // `token()`, not `loadToken()`: the server creates the token lazily on its first
-        // request, so right after MCP was switched on there was none yet and Copy produced
-        // "Authorization: Bearer " with nothing after it. While MCP is off, nothing is created.
-        if isHermetic { return "0123456789abcdef0123456789abcdef" }
-        return (MCPSettingsKeys.isEnabled ? MCPKeychain.token() : MCPKeychain.loadToken()) ?? ""
+    // MARK: bridge
+
+    /// The demo registers as "kronos-demo" so it never replaces the real entry (same rule as
+    /// connect-harnesses.mjs).
+    private var serverName: String { (Bundle.main.bundleIdentifier ?? "").hasSuffix(".demo") ? "kronos-demo" : "kronos" }
+
+    private var bridgePath: String {
+        if isHermetic { return "/Applications/Kronos.app/Contents/MacOS/kronos-mcp" }
+        return Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/kronos-mcp").path
     }
 
-    private var realGenericSnippet: String { MCPSettingsSnippet.genericJSON(token: displayToken, port: status.port ?? 47311) }
-    private var realCLISnippet: String { MCPSettingsSnippet.claudeCLI(token: displayToken, port: status.port ?? 47311) }
-
-    /// Same masking rule for both blocks: the real token never appears on screen, only on the
-    /// pasteboard after Copy — masked(text) replaces it with bullets for display only.
-    private func masked(_ real: String) -> String {
-        guard !displayToken.isEmpty else { return real }
-        return real.replacingOccurrences(of: displayToken, with: String(repeating: "•", count: 8))
-    }
-    private var maskedGenericSnippet: String { masked(realGenericSnippet) }
-    private var maskedCLISnippet: String { masked(realCLISnippet) }
-
-    @ViewBuilder
-    private func snippetBlock(_ label: String, text: String, real: String, kind: SnippetKind, anchorID: String) -> some View {
-        Text(label)
-            .font(Typo.meta)
-            .foregroundStyle(Tok.textTertiary)
-        KPanel(padding: Space.x3) {
-            HStack(alignment: .top) {
-                Text(text)
-                    .font(Typo.mono)
-                    .foregroundStyle(Tok.textPrimary)
-                    .textSelection(.enabled)
-                Spacer(minLength: Space.x2)
-                Button {
-                    copySnippet(real, kind: kind)
-                } label: {
-                    HStack(spacing: Space.x1) {
-                        // "copy" IS a real Icon.swift map key (-> "doc.on.doc"), verified
-                        // against Icon.symbol(for:) directly — the prior comment here was stale.
-                        Icon(copiedSnippet == kind ? "check" : "copy", size: Metrics.iconS)
-                        Text(copiedSnippet == kind ? String(localized: "settings.data.mcp.copied") : String(localized: "settings.data.mcp.copy"))
+    private func snippetBlock(_ label: String, _ text: String, _ kind: SnippetKind) -> some View {
+        VStack(alignment: .leading, spacing: Space.x1) {
+            Text(label)
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textTertiary)
+            KPanel(padding: Space.x3) {
+                HStack(alignment: .top) {
+                    Text(text)
+                        .font(Typo.mono)
+                        .foregroundStyle(Tok.textPrimary)
+                        .textSelection(.enabled)
+                    Spacer(minLength: Space.x2)
+                    Button {
+                        copySnippet(text, kind: kind)
+                    } label: {
+                        HStack(spacing: Space.x1) {
+                            Icon(copiedSnippet == kind ? "check" : "copy", size: Metrics.iconS)
+                            Text(copiedSnippet == kind ? String(localized: "settings.data.mcp.copied") : String(localized: "settings.data.mcp.copy"))
+                        }
                     }
+                    .kButton(.secondary, size: .compact)
+                    .uiTestAnchor("settings.mcp.copy.\(String(describing: kind))")
                 }
-                .kButton(.secondary, size: .compact)
-                .uiTestAnchor(anchorID)
             }
         }
     }
 
-    private func copySnippet(_ real: String, kind: SnippetKind) {
+    private func copySnippet(_ text: String, kind: SnippetKind) {
         if !isHermetic {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(real, forType: .string)
+            NSPasteboard.general.setString(text, forType: .string)
         }
         copiedSnippet = kind
         Task {
@@ -169,14 +179,48 @@ struct SettingsMCPTab: View {
         }
     }
 
+    /// Runs the bundled connect-harnesses.mjs with node (PATH, then Homebrew). The script backs
+    /// every config up first and never prints secrets, so its stdout is shown as is.
+    private func connectAll() {
+        guard !isHermetic, !connecting else { return }
+        guard let script = Bundle.main.url(forResource: "connect-harnesses", withExtension: "mjs"),
+              let node = Self.findNode() else {
+            connectSummary = String(localized: "settings.mcp.connect.unavailable")
+            return
+        }
+        connecting = true
+        let app = Bundle.main.bundleURL.path
+        Task.detached {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: node)
+            p.arguments = [script.path, "--app", app]
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = pipe
+            try? p.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let out = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                connectSummary = out
+                connecting = false
+            }
+        }
+    }
+
+    private static func findNode() -> String? {
+        let path = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
+        return (path + ["/opt/homebrew/bin", "/usr/local/bin"])
+            .map { $0 + "/node" }
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
     private func regenerateToken() {
         guard !isHermetic else { return }
-        // Through MCPKeychain (the one place that writes this entry) so the running
-        // MCPServer's tokenProvider — the same app-owned store — picks up the new
-        // value on its next read, instead of writing a second, unrelated entry.
+        // Through MCPKeychain (the one place that writes this entry); the bridge re-reads the
+        // token file on every request and retries once on 401, so connected tools keep working.
         MCPKeychain.generateAndStoreToken()
-        // A server already running captured the OLD token at init; restart it so the
-        // snippet's token and the one the server checks stay the same one.
+        // A server already running captured the OLD token at init; restart it.
         status.tokenDidRegenerate()
     }
 }

@@ -46,6 +46,10 @@ enum CaptureSnapshots {
             // 7-task demo note.
             "capture.review.big": AnyView(SeededCaptureScreen(model: model, seed: .reviewBig)),
             "capture.done": AnyView(SeededCaptureScreen(model: model, seed: .done)),
+            // "From Reminders": the review step fed by fictional reminders, and the paste step
+            // after access was denied (the calm row with the System Settings fallback).
+            "capture.reminders": AnyView(SeededCaptureScreen(model: model, seed: .reviewReminders)),
+            "capture.reminders.denied": AnyView(SeededCaptureScreen(model: model, seed: .remindersDenied)),
             // Feature F: the "From Apple Notes" picker's CONTENT exposed directly (popovers/
             // sheets can't be captured while presented, same reason list.viewoptions exposes
             // ListViewOptionsPopoverContent rather than the popover itself). Granted shows the
@@ -178,6 +182,8 @@ private struct SeededCaptureScreen: View {
         /// One ~90-char title with a full attribute set, offline (`CaptureFixtures.longTitleNote`).
         case reviewLongTitle
         case done
+        case reviewReminders
+        case remindersDenied
     }
 
     let model: AppModel
@@ -196,6 +202,10 @@ private struct SeededCaptureScreen: View {
     @ViewBuilder
     private var screen: some View {
         switch seed {
+        case .reviewReminders:
+            CaptureScreen(model: model, preloadedText: "", preloadedStep: .reminders)
+        case .remindersDenied:
+            CaptureScreen(model: model, preloadedText: "", preloadedStep: .remindersDenied)
         case .emptyPaste, .pasteWithAI:
             CaptureScreen(model: model)
         case .aiPending, .reviewWithAI, .reviewOffline, .reviewAIAvailableButOff:
@@ -223,7 +233,7 @@ private struct SeededCaptureScreen: View {
         model.didMutate()
 
         switch seed {
-        case .emptyPaste, .reviewOffline, .reviewBig, .reviewLongTitle:
+        case .emptyPaste, .reviewOffline, .reviewBig, .reviewLongTitle, .reviewReminders, .remindersDenied:
             break   // AI off: model.ai stays nil throughout.
         case .pasteWithAI:
             model.ai = CaptureFixtures.sampleRouter()

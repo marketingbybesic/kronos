@@ -168,6 +168,18 @@ public protocol TaskStoring: AnyObject {
     /// REGISTERS UNDO.
     func removeLabel(_ label: KLabel, from id: UUID)
 
+    // MARK: Dependencies (w22e)
+
+    /// True while any task `id` waits on is open. Derived, never stored.
+    func isBlocked(_ id: UUID) -> Bool
+    /// Blocked ids among `tasks` (nil = every live task).
+    func blockedIDs(in tasks: [KTask]?) -> Set<UUID>
+    /// Replace what `id` waits on; self, unknown, duplicate and cycle-closing ids are dropped.
+    /// Returns true when every requested id was accepted. REGISTERS UNDO.
+    @discardableResult func setWaitsOn(_ id: UUID, _ ids: [UUID]) -> Bool
+    /// As `setWaitsOn`, with no undo step. NO UNDO: MCP `update_task`.
+    @discardableResult func setWaitsOnNoUndo(_ id: UUID, _ ids: [UUID]) -> Bool
+
     // MARK: ORDO
     //
     // `ordoIndex` arithmetic: top = min − 1024, append = max + 1024,
@@ -242,6 +254,9 @@ public protocol TaskStoring: AnyObject {
     /// re-inserting a deleted model, which SwiftData does not guarantee
     /// (rev 4).
     func deleteSubtask(_ id: UUID)
+
+    /// Update a subtask notes text (used for attachments). REGISTERS UNDO.
+    func updateSubtaskNotes(_ id: UUID, notes: String)
 
     // MARK: Projects, labels, areas
 

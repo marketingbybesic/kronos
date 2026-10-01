@@ -149,4 +149,26 @@ extension TaskStore {
         redoStack.removeAll()
         saveContext()
     }
+
+    /// Update a subtask's notes text (used for attachments). REGISTERS UNDO.
+    public func updateSubtaskNotes(_ id: UUID, notes: String) {
+        guard let s = subtask(id) else { return }
+        let oldNotes = s.notes
+        s.notes = notes
+        s.updatedAt = Date()
+        undoStack.append(("Update Subtask Notes", { [weak self] in
+            guard let self else { return }
+            s.notes = oldNotes
+            s.updatedAt = Date()
+            self.saveContext()
+            self.redoStack.append(("Update Subtask Notes", { [weak self] in
+                guard let self else { return }
+                s.notes = notes
+                s.updatedAt = Date()
+                self.saveContext()
+            }))
+        }))
+        redoStack.removeAll()
+        saveContext()
+    }
 }

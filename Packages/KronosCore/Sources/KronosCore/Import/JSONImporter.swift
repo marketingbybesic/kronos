@@ -138,6 +138,7 @@ public final class JSONImporter {
             t.areaID = projectsByName[pn]?.area?.id
         }
         // Tags → labels (AND semantics preserved; created above if missing).
+        if let w = s.waitsOn { t.waitsOnIDs = w.map(\.uuidString).joined(separator: ",") }
         let tagNames = s.tags ?? []
         var resolved: [KLabel] = []
         for name in tagNames {

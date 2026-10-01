@@ -50,14 +50,19 @@ struct MorningCardView: View {
         KPanel(padding: Space.x3, radius: Radius.control) {
             HStack(alignment: .top, spacing: Space.x2) {
                 VStack(alignment: .leading, spacing: Space.x1) {
-                    Text(entry.firstMove)
+                    // A generic template ("Open the notes for this task...") says nothing: the
+                    // task's own title is the honest hero then, with no second line repeating it.
+                    let generic = DeterministicFirstMove.isGenericTemplate(entry.firstMove)
+                    Text(generic ? entry.task.title : entry.firstMove)
                         .font(Typo.rowStrong)
                         .foregroundStyle(Tok.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(entry.task.title)
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
-                        .lineLimit(1)
+                    if !generic {
+                        Text(entry.task.title)
+                            .font(Typo.meta)
+                            .foregroundStyle(Tok.textTertiary)
+                            .lineLimit(1)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

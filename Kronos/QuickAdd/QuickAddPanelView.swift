@@ -1,9 +1,9 @@
 // Kronos/QuickAdd/QuickAddPanelView.swift
 // The panel's SwiftUI content, rebuilt larger and calmer, with a plain-word LEGEND replacing
 // an old bare-symbol strip that gave no indication what each symbol meant. The legend pairs
-// each real QuickAddParser token with its meaning in the UI language; it is visible when the
-// field is empty, and the footer's "Show syntax" button re-opens the SAME full legend while
-// typing (an earlier toggle only showed a one-line reminder instead of the full symbol list).
+// each real QuickAddParser token with its meaning in the UI language. It is COLLAPSED by
+// default (the placeholder carries one example line, so the panel hugs its content) and the
+// footer's "Show syntax" toggle opens the full legend; that choice is remembered.
 // Legend and the parsed chips never show at once (spec §2.3 "rapid dump"). Parsed chips stay
 // quieter than the input itself: tertiary glyphs, secondary text, no border, no fill.
 //
@@ -33,7 +33,16 @@ struct QuickAddPanelView: View {
     @FocusState private var isFocused: Bool
     private let parser = QuickAddParser()
 
-    init(model: AppModel, hotkeyNotice: String? = nil, seedText: String = "", seedLegendPinned: Bool = false,
+    /// True while the text is still the restored (<= 60 s) draft, untouched: it opens selected so
+    /// typing replaces it, and a faint "Draft" caption says why there is text already.
+    @State private var isDraft: Bool
+    /// "Added: <title>" shown under the field after Return (rapid-dump flow: the panel stays open).
+    @State private var addedNotice: String?
+    /// UserDefaults key for the remembered "Show syntax" state (default collapsed).
+    static let legendOpenKey = "kronos.quickadd.legendOpen"
+
+    init(model: AppModel, hotkeyNotice: String? = nil, seedText: String = "", seedIsDraft: Bool = false,
+         seedLegendPinned: Bool? = nil,
          seedIsWaiting: Bool = false, onSubmit: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.model = model
         self.hotkeyNotice = hotkeyNotice
@@ -41,7 +50,8 @@ struct QuickAddPanelView: View {
         self.onSubmit = onSubmit
         self.onClose = onClose
         self._text = State(initialValue: seedText)
-        self._legendPinned = State(initialValue: seedLegendPinned)
+        self._legendPinned = State(initialValue: seedLegendPinned ?? UserDefaults.standard.bool(forKey: Self.legendOpenKey))
+        self._isDraft = State(initialValue: seedIsDraft && !seedText.isEmpty)
         self._isWaiting = State(initialValue: seedIsWaiting)
     }
 
@@ -90,11 +100,24 @@ struct QuickAddPanelView: View {
 
             inputRow
 
-            if text.isEmpty || legendPinned {
-                // "Show syntax" opens the SAME full legend as the empty state — no separate
-                // one-line hint — and the legend and the parsed chips never show at once
-                // (spec §2.3 "rapid dump"), so pinning it while typing still hides
-                // `chipRow` below.
+            if let addedNotice, text.isEmpty {
+                Text(addedNotice)
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .transition(.opacity)
+            }
+
+            if QuickAddTemplateList.isShowing(text: text, templates: TemplateStore.shared.templates) {
+                // `/` prefix: the saved templates replace the legend and chips (QuickAddTemplates.swift).
+                QuickAddTemplateList(templates: TemplateStore.shared.templates, text: text) { t in
+                    text = "/" + t.name + " "
+                }
+            } else if legendPinned {
+                // Only "Show syntax" opens the full legend (collapsed by default); the legend
+                // and the parsed chips never show at once (spec §2.3 "rapid dump"), so
+                // pinning it while typing still hides `chipRow` below.
                 legend
             } else if !parsed.isEmptyResult || subtaskSummary != nil {
                 VStack(alignment: .leading, spacing: Space.x2) {
@@ -127,6 +150,12 @@ struct QuickAddPanelView: View {
         // so the colour mode is injected here and re-read every render via `model.chromaMode`.
         .environment(\.chromaMode, model.chromaMode)
         .onAppear { DispatchQueue.main.async { isFocused = true } }
+        .onChange(of: text) { _, new in
+            QuickAddDraft.text = new  // lets the controller keep a half-typed thought for 60 s
+            if new != seedText { isDraft = false }
+            if !new.isEmpty { addedNotice = nil }
+        }
+        .onChange(of: legendPinned) { _, new in UserDefaults.standard.set(new, forKey: Self.legendOpenKey) }
         .onExitCommand(perform: onClose)
         .animation(Motion.hover, value: text.isEmpty)
     }
@@ -163,8 +192,15 @@ struct QuickAddPanelView: View {
                     // No horizontal/vertical padding of its own beyond TextEditor's built-in
                     // inset, so a one-line entry lines up with the old TextField exactly.
                     .padding(.horizontal, -Space.x1)
-                    .background(QuickAddKeyCatcher(onReturn: submit))
+                    .background(QuickAddKeyCatcher(onReturn: submit, selectAllOnAppear: isDraft))
                     .uiTestAnchor("quickadd.field")
+            }
+            if isDraft {
+                Text(String(localized: "quickadd.draft.caption"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .padding(.top, Space.x1)
+                    .accessibilityIdentifier("quickadd.draft")
             }
         }
         .padding(.horizontal, Space.x4)
@@ -200,17 +236,10 @@ struct QuickAddPanelView: View {
             // a legend that only shows "!" and "!!!!" leaves the reader to guess whether "!!"
             // and "!!!" are valid — they are (QuickAddParserTests' `!{1,4}` grammar).
             legendRow(key: "quickadd.legend.priority") { KKeyHint("!", "!!", "!!!", "!!!!") }
-            // `*` is the primary alias — tilde needs a dead-key chord on a Croatian Mac
-            // keyboard, which makes it awkward to type for effort; `~` still works too.
-            // All five real sizes (`KEffort.xs...xl`), matching the priority row's completeness.
-            legendRow(key: "quickadd.legend.effort") { KKeyHint("*xs", "*s", "*m", "*l", "*xl") }
-            // Star-COUNT alias: `*`/`**`/`***` = S/M/L in QuickAddParser; this view only shows
-            // it, the parsing lives elsewhere. Shown as its own row rather than folded into
-            // the line above so "one row per distinct way to type it" stays true to the
-            // priority row's own pattern (`!`..`!!!!` there is one shape; the word-suffix and
-            // star-count effort aliases are two different shapes for the SAME three sizes,
-            // which is confusing to cram onto one line).
-            legendRow(key: "quickadd.legend.effort.stars") { KKeyHint("*", "**", "***") }
+            // ONE effort teaching: star count `*`/`**`/`***` = S/M/L (QuickAddParser; this view only
+            // shows it). The word aliases (`*xs`..`*xl`) still parse but are not taught, so quick
+            // add, Triage (S M L) and the legend agree on three sizes.
+            legendRow(key: "quickadd.legend.effort") { KKeyHint("*", "**", "***") }
             // Used to be one dynamic "Tomorrow" chip. Every shape `QuickAddParser
             // .matchDatePhrase` actually accepts is real vocabulary, not just the relative-day
             // word: a bare weekday abbreviation, "next week", and "in N days" all resolve too
@@ -311,21 +340,26 @@ struct QuickAddPanelView: View {
             // A real Waiting toggle, previously missing entirely. Filled (`.secondary`) when
             // on so it reads as a pressed state, quiet ghost when off; wins the status over
             // every scope (ListScopeDefaultsTests.waitingToggleAlwaysWinsOverEveryScope).
-            Button(String(localized: "quickadd.waiting.toggle")) {
+            // Off: "Mark as waiting" (ghost). On: "Waiting" with a check (filled), so the label
+            // names the state it is in and nobody has to guess which side is on (audit D1).
+            Button {
                 isWaiting.toggle()
+            } label: {
+                HStack(spacing: Space.x1) {
+                    if isWaiting { Icon("check", size: Metrics.iconXS) }
+                    Text(String(localized: isWaiting ? "status.waiting" : "quickadd.waiting.toggle"))
+                }
             }
             .kButton(isWaiting ? .secondary : .ghost, size: .compact)
             .uiTestAnchor("quickadd.waiting")
-            if !text.isEmpty {
-                // A button, not a "?" key: a key handler on the field made "?" untypeable in a
-                // title. The label toggles between "Show syntax" and "Hide syntax", reflecting
-                // `legendPinned`, the same boolean that decides whether `legend` is showing
-                // just above.
-                Button(String(localized: legendPinned ? "quickadd.legend.toggle.hide" : "quickadd.legend.toggle")) {
-                    legendPinned.toggle()
-                }
-                .kButton(.ghost, size: .compact)
+            // A button, not a "?" key: a key handler on the field made "?" untypeable in a
+            // title. Always present (the legend is collapsed by default): "Show syntax" /
+            // "Hide syntax" reflects `legendPinned`, which is remembered across opens.
+            Button(String(localized: legendPinned ? "quickadd.legend.toggle.hide" : "quickadd.legend.toggle")) {
+                legendPinned.toggle()
             }
+            .kButton(.ghost, size: .compact)
+            .uiTestAnchor("quickadd.legend.toggle")
             KKeyHintItem(["⎋"], label: String(localized: "quickadd.hint.close"))
         }
     }
@@ -390,10 +424,31 @@ struct QuickAddPanelView: View {
     /// per task line via QuickAddParser, plus "a > b" / Tab / bulleted subtasks via TaskOutline,
     /// all as one undo step).
     private func submit() {
-        guard !QuickAddCreate.create(from: text, model: model, isWaiting: isWaiting).isEmpty else { return }
+        // `/name rest` creates from a template (QuickAddTemplates.swift); anything else is plain text.
+        switch QuickAddTemplates.submit(text: text, model: model, isWaiting: isWaiting) {
+        case .created:
+            finishCreate(String(text.dropFirst()).trimmingCharacters(in: .whitespaces)); return
+        case .fill(let completed): text = completed; return
+        case .ignore: return
+        case .notATemplate: break
+        }
+        guard let first = QuickAddCreate.create(from: text, model: model, isWaiting: isWaiting).first else { return }
+        finishCreate(first.title)
+    }
+
+    /// One consistent create path: clear the field (nothing is restored as a draft), post the
+    /// shell's undo pill (the whole entry is one undo step) and STAY OPEN with focus in the empty
+    /// field for the next thought (rapid dump). Esc closes. The legend choice is a remembered
+    /// preference and is not reset.
+    private func finishCreate(_ title: String) {
         text = ""
-        legendPinned = false
+        QuickAddDraft.text = ""
         isWaiting = false
+        isDraft = false
+        let notice = String(format: String(localized: "quickadd.created"), title)
+        addedNotice = notice
+        UndoToastCenter.shared.show(notice)
+        DispatchQueue.main.async { isFocused = true }
     }
 }
 
@@ -401,76 +456,5 @@ private extension QuickAddParser.Parsed {
     var isEmptyResult: Bool {
         projectName == nil && labelName == nil && priority == .none && dueDay == nil
             && unresolvedProjectToken == nil && effort == nil
-    }
-}
-
-/// Local NSEvent monitor scoped to this view's lifetime, same pattern as
-/// `Kronos/Palette/CommandPaletteView.swift`'s `KeyCatcher`: SwiftUI's `.onSubmit`/`.onKeyPress`
-/// do not fire for a `TextEditor` (multi-line editors have no "submit" concept — every Return
-/// is just a newline to them), so plain Return has to be caught here and routed to `onReturn`;
-/// Option-Return and Shift-Return are let through untouched, which is what makes `TextEditor`
-/// insert its normal newline, so Return can be used to write a subtask line instead of
-/// sending the whole thing.
-///
-/// ROOT CAUSE of a real bug where the quick add did not add subtasks properly:
-/// `TextEditor`'s backing `NSTextView` inherits macOS's system-wide smart-substitution defaults
-/// (System Settings > Keyboard > Text Input — on by default on a real Mac, off in a snapshot's
-/// bare process, which is why `QuickAddSnapshots`' seeded outline always rendered fine). With
-/// dash/text substitution on, a line typed as `- find the template` can be silently rewritten
-/// (en-dash, or a registered text replacement) before `TaskOutline.parse` ever sees it, and the
-/// line no longer starts with a marker `dissect` recognises — the panel path "loses" subtasks
-/// the deterministic `ListInlineNewTaskRow`/Capture paths never touch because neither uses a
-/// freeform multi-line `NSTextView`. Same view is reused to reach the real `NSTextView` (there is
-/// exactly one in this panel) and turn every macOS text substitution off, the way a command-line
-/// / quick-entry field should behave — never touched here otherwise, so nothing about typing
-/// speed or focus changes.
-private struct QuickAddKeyCatcher: NSViewRepresentable {
-    let onReturn: () -> Void
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                let isReturn = event.keyCode == 36 || event.keyCode == 76
-                let plainReturn = isReturn && event.modifierFlags.isDisjoint(with: [.option, .shift])
-                guard plainReturn else { return event }
-                onReturn()
-                return nil
-            }
-            disableSmartSubstitution(in: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { disableSmartSubstitution(in: nsView) }
-    }
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    /// Walks up to the window and finds the panel's `NSTextView` (there is only one), then turns
-    /// off every substitution that would rewrite `TaskOutline`/`QuickAddParser` syntax before it
-    /// is read. Idempotent and cheap enough to call on every update.
-    private func disableSmartSubstitution(in view: NSView) {
-        guard let textView = view.window?.contentView?.firstTextView else { return }
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-    }
-
-    final class Coordinator {
-        var monitor: Any?
-        deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
-    }
-}
-
-private extension NSView {
-    /// Depth-first search for the first `NSTextView` descendant.
-    var firstTextView: NSTextView? {
-        if let textView = self as? NSTextView { return textView }
-        for sub in subviews {
-            if let found = sub.firstTextView { return found }
-        }
-        return nil
     }
 }

@@ -37,8 +37,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: AppModel
     let menuBarOrdo: MenuBarOrdoController
     let quickAdd: QuickAddController
+    /// Set when the store would not open (ReadableLaunchError.swift): the app then runs on an empty in-memory
+    /// store behind the error window and skips every other launch step.
+    let launchFailure: LaunchFailure?
+    private var servicesProvider: ServicesProvider?
 
     /// Owns the MCP listener: Settings toggles it live and reads its real port / last error.
+    let mcpBackground = MCPBackgroundLaunch()
     private(set) lazy var mcpLive = MCPLiveController(store: store, ranking: RankingEngine())
     private var blockTimer: Timer?
     private var spotlightIndexer: SpotlightIndexer?
@@ -51,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var firstFrameObserver: NSObjectProtocol?
 
     override init() {
+        var failure: LaunchFailure?
+        let opened: TaskStore
         do {
             // Snapshot runs use an in-memory store so they never open the real one. The harness
             // itself is compiled out of Release (it exists to drive hand-testing, not to ship),
@@ -60,10 +67,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #else
             let inMemory = false
             #endif
-            self.store = try TaskStore(inMemory: inMemory)
+            opened = try TaskStore(inMemory: inMemory)
         } catch {
-            fatalError("KronosContainer: \(error)")
+            // Copy the store aside first, then show a readable window (applicationDidFinishLaunching).
+            failure = LaunchFailure.capture(error)
+            // An in-memory store always opens; it only lets init finish and is never written to disk.
+            opened = try! TaskStore(inMemory: true)
         }
+        self.store = opened
+        self.launchFailure = failure
         self.model = AppModel(store: store)
         self.menuBarOrdo = MenuBarOrdoController(model: model)
         self.quickAdd = QuickAddController(model: model)
@@ -71,8 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppDelegate.shared = self
     }
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        registerURLHandler()   // DockMenu.swift: before launch ends, so a cold kronos:// URL is not lost
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         LaunchTrace.mark("applicationDidFinishLaunching")
+        if let failure = launchFailure { LaunchErrorWindow.show(failure); return }
         #if !RELEASE
         if SnapshotHarness.isRequested { SnapshotHarness.run(store: store); return }
         #endif
@@ -89,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Idempotent (marker file), backs up first, skips on backup failure.
         _ = UndatedSomedayMigration.runIfNeeded(store: store)
         LaunchTrace.mark("UndatedSomedayMigration")
+        TaskStore.stripCorruptContextLinkLines(store: store)
         // A second, independent path to every Option-modified window-scope menu command
         // (Opt-Cmd-T Triage foremost), matched by physical key code so it is immune to whatever
         // SwiftUI's `.keyboardShortcut` menu-equivalent localization is doing. Installed for
@@ -99,16 +117,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The live UI test runs beside a normal running app: no menu-bar item, no global
         // hotkeys, no Keychain, no Spotlight, no permission window. It only drives its own
         // window.
-        #if !RELEASE
-        if LiveUITest.isRequested {
+       #if !RELEASE
+       if LiveUITest.isRequested {
+           DemoData.load(into: model.store)
+           model.didMutate()
+           AIWiring.configure(model)
+           LiveUITest.run(model: model)
+           return
+       }
+        // Kronos Demo build: auto-load demo data on first launch when the store is empty.
+        // Compile-time flag -DKRONOS_DEMO_AUTOLOAD set by scripts/build-demo.sh.
+        #if KRONOS_DEMO_AUTOLOAD
+        if model.store.allTasks().isEmpty {
             DemoData.load(into: model.store)
             model.didMutate()
-            AIWiring.configure(model)
-            LiveUITest.run(model: model)
-            return
         }
         #endif
-        menuBarOrdo.install()
+       #endif
+       applyLaunchScope()
+       menuBarOrdo.install()
         LaunchTrace.mark("menuBarOrdo.install")
         offerWelcomeOnce()
         LaunchTrace.mark("offerWelcomeOnce")
@@ -129,6 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mcpLive.applyStoredEnabledState()
         #endif
         LaunchTrace.mark("mcpLive.applyStoredEnabledState")
+        MCPEndpointFile.removeLegacy()   // ~/.kronos-mcp.json held the bearer token world-readable
+        mcpBackground.begin()
         startDayChangeTracking()
         LaunchTrace.mark("startDayChangeTracking")
         BackupScheduler(store: store).runIfNeeded()
@@ -159,6 +188,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // Siri / Shortcuts / Spotlight (hermetic under snapshots; this path never runs
                 // for them). Neither result is visible in the first frame, so both run after it.
                 KronosIntents.bootstrap(model: self.model)
+                // Services menu (NSServices in project.yml) and any kronos:// URL that arrived during launch.
+                let provider = ServicesProvider(model: self.model)
+                self.servicesProvider = provider
+                NSApp.servicesProvider = provider
+                NSUpdateDynamicServices()
+                URLSchemeRouter.markReady(model: self.model)
                 self.spotlightIndexer = SpotlightIndexer.start(model: self.model)
                 #if !RELEASE
                 LiveSelfTest.run(model: self.model, autoTriage: self.autoTriage)
@@ -177,14 +212,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let decision = WelcomeGate.decide(env: env,
                                            welcomeShown: UserDefaults.standard.bool(forKey: welcomeKey),
                                            permissionsShown: UserDefaults.standard.bool(forKey: permissionsKey))
+        // Permissions wait until the tour's basics are done (OnboardingLogic): asking on top of
+        // the very first step is the worst moment. The closure also serves a tour started earlier.
+        OnboardingCenter.shared.offerPermissions = { [model, mcpLive] in
+            UserDefaults.standard.set(true, forKey: permissionsKey)
+            PermissionsWindowController.show(model: model, mcpStatus: mcpLive)
+        }
         guard decision.showWelcome else { return }
         UserDefaults.standard.set(true, forKey: welcomeKey)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [model, mcpLive] in
-            WelcomeWindowController.show(onFinish: {
-                UserDefaults.standard.set(true, forKey: permissionsKey)
-                guard decision.showPermissionsAfter else { return }
-                PermissionsWindowController.show(model: model, mcpStatus: mcpLive)
-            })
+        // One intro screen (what Kronos is), then the Learn Kronos card on the list, tried at the
+        // user's own pace (Kronos/Welcome/Onboarding*.swift). Closing the intro counts the same.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [model] in
+            // "Show me around" runs the guided tour over the real window (TourOverlay);
+            // "Later" or closing still leaves the Learn Kronos card, and Help reopens both.
+            OnboardingIntroController.show(onStart: {
+                                               OnboardingCenter.shared.start(model: model)
+                                               TourCenter.shared.start(model: model)
+                                           },
+                                           onLater: { OnboardingCenter.shared.start(model: model) })
         }
     }
 
@@ -262,6 +307,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// F1: open on the list that has something to do and select its first row, so the inspector
+    /// shows the first move at once. Hermetic runs keep `.inbox` with nothing selected.
+    private func applyLaunchScope() {
+        guard !LaunchScope.isHermetic(ProcessInfo.processInfo.environment) else { return }
+        let today = Day.today()
+        func open(_ scope: ListScope) -> Int {
+            model.store.allTasks().filter { KStatus.open.contains($0.status) && ScopeFilter.matches($0, scope: scope, today: today) }.count
+        }
+        switch LaunchScope.pick(hermetic: false, inboxOpen: open(.inbox), todayOpen: open(.today)) {
+        case .inbox: model.scope = .inbox
+        case .today: model.scope = .today
+        case .all: model.scope = .all
+        }
+        model.selectedTaskID = ListContext(model: model).rows.first { KStatus.open.contains($0.status) }?.id
+    }
+
     /// A Spotlight result was clicked: open that task.
     func application(_ application: NSApplication, continue userActivity: NSUserActivity,
                      restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
@@ -272,7 +333,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Kronos lives in the menu bar too, so closing the window (or hiding it for
+    /// --mcp-background) must not quit the app: SwiftUI's default is to terminate when the last
+    /// window closes, which killed every background launch within a second.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Dock click while the window is hidden (--mcp-background) brings it back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        mcpBackground.restore() ? false : true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        guard launchFailure == nil else { return }
         mcpLive.stop()
         model.persist()
     }

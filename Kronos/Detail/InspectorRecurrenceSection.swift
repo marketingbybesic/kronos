@@ -98,18 +98,15 @@ struct InspectorRecurrenceEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            KMenuButton(text: kind.title) {
-                ForEach(RecurrenceKind.allCases) { k in
-                    Button {
-                        kind = k
-                        push()
-                    } label: {
-                        if k == kind { Label(k.title, systemImage: "checkmark") } else { Text(k.title) }
-                    }
-                }
-            } leading: {
-                Icon("repeat", size: Metrics.iconM).foregroundStyle(Tok.textTertiary)
+            // Every kind visible at once (radio list), not a menu button inside a popover: the
+            // nested menu opened unreliably from the popover and read as an empty card showing
+            // only "Never" (live audit 30.09.).
+            Picker(String(localized: "detail.recurrence"), selection: $kind) {
+                ForEach(RecurrenceKind.allCases) { k in Text(k.title).tag(k) }
             }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+            .onChange(of: kind) { _, _ in push() }
 
             switch kind {
             case .none: EmptyView()

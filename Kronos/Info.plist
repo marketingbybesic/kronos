@@ -4,25 +4,53 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>en</string>
-		<string>hr</string>
-	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Kronos</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Kronos backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.besic.kronos.backup</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>hr</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>Kronos</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.besic.kronos.url</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kronos</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>KronosBuildID</key>
@@ -44,9 +72,66 @@
 	<string>Kronos reads your calendar to show how much free time today has. Nothing leaves this Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Marketing by Bešić</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Kronos reads your open reminders so you can turn them into tasks. Nothing is changed in Reminders and nothing leaves this Mac.</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Add to Kronos</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>addToKronos</string>
+			<key>NSPortName</key>
+			<string>Kronos</string>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSStringPboardType</string>
+				<string>public.utf8-plain-text</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Capture in Kronos</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>captureInKronos</string>
+			<key>NSPortName</key>
+			<string>Kronos</string>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSStringPboardType</string>
+				<string>public.utf8-plain-text</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSSupportsAutomaticTermination</key>
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Kronos backup</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.besic.kronos.backup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>kronos.json</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

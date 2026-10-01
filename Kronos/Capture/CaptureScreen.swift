@@ -17,7 +17,7 @@ import KronosCore
 struct CaptureScreen: View {
     /// Snapshot-only entry points, applied once in `.onAppear` (Kronos/Capture/CaptureSnapshots.swift):
     /// drives the screen straight to a later step without the harness simulating typing or clicks.
-    enum PreloadedStep { case pasted, review, done }
+    enum PreloadedStep { case pasted, review, done, reminders, remindersDenied }
 
     let model: AppModel
     @State private var capture: CaptureModel
@@ -67,6 +67,8 @@ struct CaptureScreen: View {
         case .pasted: break
         case .review: capture.findTasks()
         case .done: capture.findTasks(); capture.create()
+        case .reminders: capture.showReminders(CaptureFixtures.reminders)
+        case .remindersDenied: capture.remindersState = .denied
         }
     }
 

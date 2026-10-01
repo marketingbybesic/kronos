@@ -1,8 +1,7 @@
 // Kronos/QuickAdd/QuickAddController.swift
 // Global-hotkey quick-add panel (spec §4): a non-activating NSPanel over any app,
 // running the one QuickAddParser grammar live and showing its result as chips.
-// Return creates via `model.store.create` and keeps the panel open (rapid dump,
-// spec §2.3); Esc or click-outside closes and returns focus to the previous app.
+// Return creates via `model.store.create`, posts the undo pill and keeps the panel open (rapid dump); Esc or click-outside closes and returns focus to the previous app.
 
 import AppKit
 import SwiftUI
@@ -72,7 +71,7 @@ final class QuickAddController: NSObject, NSWindowDelegate {
 
         KeyboardShortcuts.onKeyUp(for: .quickAdd) { [weak self] in self?.toggle() }
         if KeyboardShortcuts.getShortcut(for: .quickAdd) == nil {
-            hotkeyNotice = String(localized: "quickadd.hint.return")
+            hotkeyNotice = String(localized: "quickadd.hint.noshortcut")
         }
 
         KeyboardShortcuts.onKeyUp(for: .meetingCapture) {
@@ -80,6 +79,22 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         }
         KeyboardShortcuts.onKeyUp(for: .showOrdo) {
             NotificationCenter.default.post(name: .kronosShowOrdoRequested, object: nil)
+        }
+        // Palette "New from template…": open fresh with `/` typed so the template list shows.
+        NotificationCenter.default.addObserver(forName: .kronosNewFromTemplate, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                QuickAddDraft.text = "/"; QuickAddDraft.closedAt = Date()
+                self.open()
+            }
+        }
+        // "Start here" > Show me opens THIS panel (the one the quest teaches), not the list's
+        // inline row: `kronosNewTaskRequested` only ever focused that row.
+        NotificationCenter.default.addObserver(forName: .kronosQuickAddPanelRequested, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !(self.panel?.isVisible ?? false) else { return }
+                self.open()
+            }
         }
     }
 
@@ -124,6 +139,12 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         previousApp = NSWorkspace.shared.frontmostApplication
         let panel = self.panel ?? makePanel()
         self.panel = panel
+        // Fresh root per open: clears text/legend/waiting, re-runs onAppear focus, and re-reads
+        // whether the global shortcut is currently set (the notice used to be frozen at launch).
+        hotkeyNotice = KeyboardShortcuts.getShortcut(for: .quickAdd) == nil ? String(localized: "quickadd.hint.noshortcut") : nil
+        let seed = QuickAddDraft.takeSeed()
+        // "/" is the palette's template opener, not a restored thought: no Draft caption, no selection.
+        if let host = panel.contentView as? QuickAddHostingView { host.rootView = makeRoot(seed: seed, isDraft: seed != "/") }
         position(panel)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -153,6 +174,7 @@ final class QuickAddController: NSObject, NSWindowDelegate {
     }
 
     private func finishClose(_ panel: NSPanel) {
+        QuickAddDraft.closedAt = Date()
         panel.orderOut(nil)
         previousApp?.activate()
         previousApp = nil
@@ -165,6 +187,24 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         let x = frame.midX - size.width / 2
         let y = frame.minY + frame.height * 0.66 - size.height / 2
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    private func makeRoot(seed: String, isDraft: Bool = false) -> AnyView {
+        let accent = Accent.resolve(model.coach.settings.accentHex, mode: model.chromaMode)
+        return AnyView(QuickAddPanelView(
+            model: model,
+            hotkeyNotice: hotkeyNotice,
+            seedText: seed,
+            seedIsDraft: isDraft,
+            // Create keeps the panel open (the shell shows the undo pill); only Esc/click-away closes.
+            onSubmit: { },
+            onClose: { [weak self] in self?.close() }
+        )
+            // Separate root from the shell (its own NSPanel/NSHostingView), so it needs the
+            // same accent injection AppShellView.swift gives the main window.
+            .environment(\.kAccent, accent)
+            .tint(accent)
+            .id(UUID()))  // new identity = fresh @State; same-typed AnyView would otherwise keep the old text
     }
 
     private func makePanel() -> NSPanel {
@@ -183,18 +223,7 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         // shape, one layer up). `isOpaque = false` + `backgroundColor = .clear` makes the panel
         // itself invisible outside the card's own paint, so only the card's rounded shape and
         // its own shadow-casting content are ever seen.
-        let accent = Accent.resolve(model.coach.settings.accentHex, mode: model.chromaMode)
-        let hostingView = QuickAddHostingView(rootView: AnyView(QuickAddPanelView(
-            model: model,
-            hotkeyNotice: hotkeyNotice,
-            onSubmit: { [weak self] in self?.previousApp?.activate() },
-            onClose: { [weak self] in self?.close() }
-        )
-            // Separate root from the shell (its own NSPanel/NSHostingView), so it needs the
-            // same accent injection AppShellView.swift gives the main window.
-            .environment(\.kAccent, accent)
-            .tint(accent)
-        ))
+        let hostingView = QuickAddHostingView(rootView: makeRoot(seed: ""))
         // `fittingSize` measures the SwiftUI root's own ideal size — the card already fixes its
         // width to 720 (QuickAddPanelView.swift), so this reports the height that content needs
         // (empty legend / typed chips / a multi-line outline all differ) instead of the old

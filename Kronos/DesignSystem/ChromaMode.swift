@@ -9,8 +9,6 @@ enum ChromaMode: String, CaseIterable, Codable, Sendable {
     case focus
     /// Every project shows the colour the user chose.
     case full
-    /// Distraction free: no hue anywhere.
-    case calm
 }
 
 private struct ChromaModeKey: EnvironmentKey {
@@ -44,10 +42,8 @@ enum Chroma {
                       carrier: ChromaCarrier = .other, carriers: ColourCarriers = AppearancePrefs.colourCarriers) -> Color {
         switch mode {
         case .full: return projectColor
-        // The carrier toggles are "what carries colour in FOCUS mode": Full always shows the
-        // user's colours, Calm never does.
+        // The carrier toggles gate hue in Focus mode; Full always shows user colours.
         case .focus: return (isFocus && carriers.allows(carrier)) ? projectColor : Tok.textSecondary
-        case .calm: return Tok.textSecondary
         }
     }
 }

@@ -157,9 +157,10 @@ struct SidebarProjectFolders: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url,
-              let link = SidebarFolderDropClassifier.link(for: url) else { return }
-        addLink(link)
+        panel.presentOnKeyWindow { url in
+            guard let link = SidebarFolderDropClassifier.link(for: url) else { return }
+            addLink(link)
+        }
     }
 
     private func addLink(_ link: ProjectFolderLink) {

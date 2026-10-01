@@ -15,6 +15,23 @@ import Foundation
 import Observation
 import KronosCore
 
+// LAUNCHSCOPE-BEGIN (compiled standalone by scripts/launchscope-selftest.swift: keep it Foundation-only)
+/// Which list a normal launch opens on: the next thing, not an empty Inbox (F1). Hermetic runs
+/// (snapshots, self-tests, UI test, custom store dir) keep the old `.inbox` so they stay deterministic.
+enum LaunchScopeChoice: Equatable { case inbox, today, all }
+
+enum LaunchScope {
+    static let hermeticEnv = ["KRONOS_SNAPSHOT", "KRONOS_STORE_DIR", "KRONOS_SELFTEST", "KRONOS_UITEST"]
+
+    static func isHermetic(_ env: [String: String]) -> Bool { hermeticEnv.contains { env[$0] != nil } }
+
+    static func pick(hermetic: Bool, inboxOpen: Int, todayOpen: Int) -> LaunchScopeChoice {
+        if hermetic || inboxOpen > 0 { return .inbox }
+        return todayOpen > 0 ? .today : .all
+    }
+}
+// LAUNCHSCOPE-END
+
 /// What the list pane is showing. Persisted per window via `AppModel`.
 enum ListScope: Hashable, Codable, Sendable {
     case inbox, today, next7, waiting, someday, all
@@ -76,6 +93,9 @@ final class AppModel {
     var scope: ListScope = .inbox
     /// The task open in the inspector. List writes, inspector reads.
     var selectedTaskID: UUID?
+    /// Multi-selection (⌘/⇧ click, ⌘A in the list). Empty unless 2+ rows are selected; when
+    /// not empty it always contains `selectedTaskID`, which stays the anchor. Not persisted.
+    var selectedIDs: Set<UUID> = []
     /// Sidebar display mode. Persisted.
     var sidebarIconsOnly: Bool = false
     /// Colour mode. Persisted. Screens never branch on
@@ -100,8 +120,15 @@ final class AppModel {
     var isPaletteOpen: Bool = false
     /// Shortcuts card; lives on the model so overlays below it (triage) can yield the keyboard.
     var isKeymapOpen: Bool = false
+    /// Note-link picker sheet, hosted by the shell (always mounted) so it outlives the inspector pane.
+    var noteLinkPickerOpen: Bool = false
     /// Capture (paste notes -> proposed tasks) overlay, owned by the shell.
     var isCaptureOpen: Bool = false
+    /// True while any shell overlay (scrim + card) is up; menu commands that act on the list
+    /// beneath the scrim (⌘N inline row) must bail out instead of focusing behind it.
+    var isAnyOverlayOpen: Bool {
+        isImpulsOpen || isTriageOpen || isTimeBlocksOpen || isPaletteOpen || isKeymapOpen || isCaptureOpen
+    }
     /// Text handed to Capture from outside the window (menu-bar meeting capture, Siri, a project
     /// folder). Capture reads it ONCE when it opens and clears it. Use `openCapture(with:)`.
     var pendingCaptureText: String?

@@ -146,6 +146,16 @@ public enum NoteSplitter {
 
     private static let continuationStoppers: Set<Character> = [".", ":", ";", "!", "?"]
 
+    /// Prose, not a task title: sentence punctuation at the end, a lowercase start (a wrapped
+    /// or continued sentence) or a long line (> 80 characters). Everything else is a title.
+    static func readsAsProse(_ line: String) -> Bool {
+        let t = line.trimmingCharacters(in: .whitespaces)
+        guard let last = t.last, let first = t.first else { return false }
+        if [".", "!", "?", "…", ")"].contains(last) { return true }
+        if first.isLowercase { return true }
+        return t.count > 80
+    }
+
     static func isWrappedContinuation(of previousRaw: String, next nextRaw: String) -> Bool {
         let previousTrimmed = previousRaw.trimmingCharacters(in: .whitespaces)
         guard !previousTrimmed.isEmpty, let (previousMarker, _) = bulletMarker(previousTrimmed),
@@ -268,7 +278,12 @@ public enum NoteSplitter {
             // line / blank line") — not deeper (a subtask, above) and not a bullet (also a
             // subtask, above): reads as descriptive text about the task rather than a fresh
             // task line, and becomes that task's notes instead of a bogus task of its own.
-            if notesOpen, !isBullet, level == parentLevel, !groups.isEmpty, countLetters(body) >= 3 {
+            // Only a line that READS as prose joins the notes: ends in sentence punctuation,
+            // starts lowercase, or runs long. A short bare line ("Nazvati Ivana oko roka") is
+            // the brain-dump shape — one task per line — and must stay its own task; before
+            // this check a three-line paste came back as one task with two lines of notes.
+            if notesOpen, !isBullet, level == parentLevel, !groups.isEmpty, countLetters(body) >= 3,
+               readsAsProse(body) {
                 groups[groups.count - 1].notes.append(body)
                 continue
             }

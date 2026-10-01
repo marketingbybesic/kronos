@@ -50,6 +50,8 @@ final class LivePermissionsStatus: PermissionsStatusProviding {
             }
         case .notes:
             return NotesPermissionReader.currentStatus()
+        case .reminders:
+            return EventKitReminders.permissionStatus()
         case .launchAtLogin:
             return LaunchAtLogin.currentStatus() == .enabled ? .granted : .notDetermined
         case .siriShortcuts, .spotlight:

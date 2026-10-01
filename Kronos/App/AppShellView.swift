@@ -13,6 +13,7 @@ struct AppShellView: View {
 
     @State private var inspectorWidth: CGFloat = AppShellView.restoredInspectorWidth()
     @State private var userCollapsedInspector = false
+    @State private var pickerFrame: NSRect?
     @State private var dragStartWidth: CGFloat?
     @State private var windowWidth: CGFloat = 1280
     /// Set once by `WindowWidthReader` (`viewDidMoveToWindow`) — THIS view's real window, never
@@ -140,11 +141,37 @@ struct AppShellView: View {
                 }
             }
             .background(WindowWidthReader { windowWidthObserver.attach(to: $0) })
+            // Guided tour (Kronos/Welcome/Tour*.swift): reads the parts marked .tourAnchor.
+            .overlayPreferenceValue(TourAnchorKey.self) { TourOverlay(anchors: $0) }
             .onAppear { offerMorningPlanIfDue() }
             .onChange(of: model.scope) { _, _ in offerMorningPlanIfDue() }
-            .onChange(of: model.isImpulsOpen) { _, open in if !open { impulsMode = .ask } }
+            .onChange(of: model.isImpulsOpen) { _, open in
+                if !open { impulsMode = .ask } else { OnboardingCenter.shared.noteOpened(.impuls, model: model) }
+            }
+            // "Start here" power quests tick when their surface is opened once, by any route.
+            .onChange(of: model.isTriageOpen) { _, open in if open { OnboardingCenter.shared.noteOpened(.triage, model: model) } }
+            .onChange(of: model.isCaptureOpen) { _, open in if open { OnboardingCenter.shared.noteOpened(.captureNotes, model: model) } }
+            .onChange(of: model.isTimeBlocksOpen) { _, open in if open { OnboardingCenter.shared.noteOpened(.timeBlocks, model: model) } }
+            .onChange(of: model.isPaletteOpen) { _, open in if open { OnboardingCenter.shared.noteOpened(.palette, model: model) } }
             .onChange(of: windowWidthObserver.width) { _, newValue in
                 if let newValue { windowWidth = newValue }
+            }
+            // SwiftUI re-fits the window to its ideal width when a sheet attaches (measured 1500 -> 945 in
+            // the live UI test), which would collapse the inspector under the picker: put the frame back.
+            .onChange(of: model.noteLinkPickerOpen) { _, open in
+                if open { pickerFrame = NSApp.keyWindow?.frame }
+                guard let kept = pickerFrame, let win = NSApp.windows.first(where: { $0.contentView != nil && $0.canBecomeMain && $0.isVisible }) else { return }
+                Task { @MainActor in
+                    for _ in 0..<6 { try? await Task.sleep(for: .milliseconds(120)); if win.frame.size != kept.size { win.setFrame(kept, display: true) } }
+                }
+            }
+        }
+        .sheet(isPresented: Binding(get: { model.noteLinkPickerOpen }, set: { model.noteLinkPickerOpen = $0 })) {
+            if let id = model.selectedTaskID, let t = model.store.task(id) {
+                NotesPickerSheet(model: model, mode: .single { n, _ in
+                    InspectorNoteLinkRow.link(model: model, task: t, noteID: n.id, title: n.title)
+                    model.noteLinkPickerOpen = false
+                })
             }
         }
         .background(Tok.bg)
@@ -274,12 +301,19 @@ extension AppShellView {
         let d = UserDefaults.standard
         let enabled = AppearancePrefs.morningPlanEnabled
         guard enabled, model.scope == .today || model.scope == .inbox, !model.isImpulsOpen else { return }
+        // Never on top of the welcome/Learn Kronos card or the guided tour, and never on the very
+        // first launch day: the first thing a new user sees must not be a plan they did not ask for.
+        guard !OnboardingCenter.shared.isVisible, !TourCenter.shared.isRunning else { return }
+        // The day "Start here" began is the first-launch day; a user who predates it has none and is never blocked.
+        guard d.bool(forKey: "kronos.welcome.shownOnce") else { return }  // welcome window still pending
+        if let started = OnboardingCenter.shared.state.startedAt, Day.from(started) >= Day.today() { return }
         let last = d.object(forKey: "kronos.coach.morningLastShownDay") as? Int
         guard ImpulsScreen.shouldOfferMorning(now: Date(), lastShownDay: last) else { return }
         let open = model.store.allTasks().filter { $0.deletedAt == nil && KStatus.open.contains($0.status) }
         guard open.count >= 3 else { return }
         d.set(Day.today(), forKey: "kronos.coach.morningLastShownDay")
         impulsMode = .morning
+        OnboardingCenter.shared.markProgrammaticOpen(.impuls)  // the card opened it, not the user: no quest tick
         model.isImpulsOpen = true
     }
 }

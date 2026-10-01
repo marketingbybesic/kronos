@@ -32,12 +32,11 @@ struct KChromaModeSwitch: View {
         return segment
     }
 
-    /// One dot = one coloured thing; a palette = every colour; a moon = quiet.
+    /// One dot = one coloured thing; a palette = every colour.
     static func icon(_ mode: ChromaMode) -> String {
         switch mode {
         case .focus: return "circle-dot"
         case .full: return "palette"
-        case .calm: return "moon"
         }
     }
 
@@ -45,7 +44,6 @@ struct KChromaModeSwitch: View {
         switch mode {
         case .focus: return String(localized: "chroma.mode.focus", defaultValue: "Focus")
         case .full: return String(localized: "chroma.mode.full", defaultValue: "Full")
-        case .calm: return String(localized: "chroma.mode.calm", defaultValue: "Calm")
         }
     }
 
@@ -53,7 +51,6 @@ struct KChromaModeSwitch: View {
         switch mode {
         case .focus: return String(localized: "chroma.mode.focus.hint", defaultValue: "colour only on the task you are doing")
         case .full: return String(localized: "chroma.mode.full.hint", defaultValue: "every project in its own colour")
-        case .calm: return String(localized: "chroma.mode.calm.hint", defaultValue: "no colour, no counts")
         }
     }
 }

@@ -46,16 +46,25 @@ extension KPriority {
         }
     }
 
-    /// Button-face text is empty: the bars glyph already carries the level, name shown in
-    /// tooltip/accessibility instead, and "Medium"/"Urgent" were the words that didn't fit a
-    /// 3-column row at 360pt. Full name still reads through displayName in the dropdown and
-    /// the accessibility label.
-    var shortDisplayName: String { "" }
+    /// Button-face text: the word next to the bars, so priority reads like Effort and
+    /// Deadline instead of a glyph alone. "None" is a dash like Effort's. Where three columns
+    /// cannot fit the word, attributesRow's ViewThatFits drops to two rows.
+    var shortDisplayName: String { self == .none ? "—" : displayName }
 }
 
 /// Small helper so a text field can revert on Esc without every call site re-writing the
 /// same key handler.
 extension View {
+    /// Keeps a view mounted (so a sheet it hosts still presents) while it takes no space, shows
+    /// nothing and is skipped by hit-testing and VoiceOver.
+    func kCollapsedHost(_ collapsed: Bool) -> some View {
+        opacity(collapsed ? 0 : 1)
+            .frame(height: collapsed ? 0 : nil)
+            .clipped()
+            .allowsHitTesting(!collapsed)
+            .accessibilityHidden(collapsed)
+    }
+
     func kOnEscapeRevert(active: Bool, _ revert: @escaping () -> Void) -> some View {
         onKeyPress(.escape) {
             guard active else { return .ignored }

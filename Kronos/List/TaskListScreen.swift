@@ -12,12 +12,17 @@ struct TaskListScreen: View {
     var previewBlockSuggestion: BlockSuggestion?? = nil
     @State private var showPopover = false
     // Not `private`: TaskListScreen+Parts.swift's extension (the Now card) reads/writes it.
-    @State var isNowCardCollapsed = false
+    // One global key (not per scope): a user who folds the card wants it folded everywhere.
+    @State var isNowCardCollapsed = UserDefaults.standard.bool(forKey: "kronos.nowcard.collapsed")
+    @State var hotkeyRevision = 0   // bumped on HotkeyRegistry.changed so the key filter below re-reads the bindings
     @FocusState private var searchFocused: Bool
-    @FocusState private var listFocused: Bool
+    @FocusState var listFocused: Bool   // not private: TaskListScreen+Bulk.swift
     /// "E": open or close every subtask list at once.
-    @State private var allSubtasksExpanded = false
-
+   @State private var allSubtasksExpanded = false
+   
+    /// Calm mode was removed in rev18; this stays false so the header count always shows.
+    private var isCalm: Bool { false }
+    
     // MARK: - Calm-mode visibility (Now card, chip row, header count)
     //
     // Read straight off `model.chromaMode` rather than `@Environment(\.chromaMode)`: the
@@ -27,29 +32,31 @@ struct TaskListScreen: View {
     // builds its root view once as a plain local value and applies `.environment(...)`
     // outside any reactive View body — a fixture that mutates `model.chromaMode` in its
     // own `.onAppear` (columnsList, below) never reaches that frozen environment value,
-    // while `model` itself (an `@Observable` reference this view already holds via
-    // `@Bindable`) reflects the mutation immediately, in the harness exactly as in the
-    // real app. This is a visibility decision, not a colour one, so reading the model
-    // directly is not the "branch on chromaMode to pick a colour" the design system forbids.
-    private var isCalm: Bool { model.chromaMode == .calm }
+    // Calm mode was removed in rev18; active rules bar is always visible when filters apply.
 
     var body: some View {
         let ctx = context
         VStack(alignment: .leading, spacing: 0) {
             header(ctx)
-            if !isCalm, ctx.activeRuleCount > 0 {
+            if ctx.activeRuleCount > 0 {
                 KActiveRulesBar(chips: chips(ctx), onReset: resetOptions)
                     .padding(.horizontal, Space.x4)
                     .padding(.top, Space.x2)
             }
             CoachBannerSlot(model: model, previewSuggestion: previewBlockSuggestion, isCalm: isCalm)
+            // "Start here" (Kronos/Welcome/OnboardingCard.swift): renders nothing unless a tour runs.
+            OnboardingCard(model: model)
+                .tourAnchor(.learnCard)
+                .padding(.horizontal, Space.x4)
+                .padding(.top, Space.x3)
             // The Now card toggle (Settings > Appearance > Layout,
             // `CoachSettings.nowCardEnabled`) is the ONLY thing gating this card; it used to
             // also hide under `!isCalm`, so Calm mode silently overrode a setting the user had
             // turned on. Calm mode still hides the rules bar and header count above/below
             // (unrelated), but the Now card itself no longer depends on chromaMode at all.
-            if model.coach.settings.nowCardEnabled, let focusTask = focusTask {
+            if model.coach.settings.nowCardEnabled, showsNowCard(ctx), let focusTask = focusTask {
                 nowCard(focusTask, ctx)
+                    .tourAnchor(.nowCard)
                     .padding(.horizontal, Space.x4)
                     .padding(.top, Space.x3)
             }
@@ -210,12 +217,14 @@ struct TaskListScreen: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: Space.x1) {
                         ListInlineNewTaskRow(model: model, scope: model.scope)
+                            .tourAnchor(.newTask)
                         ForEach(ctx.rows, id: \.id) { task in
                             ListRowView(model: model, task: task, ctx: ctx,
-                                        isSelected: model.selectedTaskID == task.id,
+                                        isSelected: isRowSelected(task.id),
                                         showProjectGlyph: showsProjectGlyph,
                                         columnMode: columnMode,
-                                        onSelect: { model.selectedTaskID = task.id; listFocused = true })
+                                        onSelect: { handleRowClick(task.id, ctx) })
+                                .tourAnchor(.firstRow, when: task.id == ctx.rows.first?.id)
                         }
                         if ctx.rows.isEmpty {
                             KEmptyState(icon: "search", title: noMatchesTitle)
@@ -229,14 +238,21 @@ struct TaskListScreen: View {
             .focusable(true)
             .focusEffectDisabled()   // selection is shown by the row, never by a system ring
             .focused($listFocused)
+            .overlay { bulkBarOverlay }   // only while 2+ rows are selected (TaskListScreen+Bulk.swift)
+            .onReceive(NotificationCenter.default.publisher(for: HotkeyRegistry.changed).receive(on: DispatchQueue.main)) { _ in hotkeyRevision += 1 }
             // Registry ids, Kronos/Hotkeys/HotkeyRegistry.swift scope .list.
             .onKeyPress(.upArrow) { guard !Self.isTyping else { return .ignored }; moveSelection(-1, ctx); return .handled }
             .onKeyPress(.downArrow) { guard !Self.isTyping else { return .ignored }; moveSelection(1, ctx); return .handled }
             .onKeyPress(.space) { guard !Self.isTyping else { return .ignored }; toggleSelected(ctx); return .handled }
-            .onKeyPress(.deleteForward) { guard !Self.isTyping else { return .ignored }; deleteSelected(ctx); return .handled }
-            .onKeyPress(.delete) { guard !Self.isTyping else { return .ignored }; deleteSelected(ctx); return .handled }
+            // A real Backspace delivers U+007F, which SwiftUI's `.delete` (U+0008) does NOT match, so
+            // the key was dead on hardware while a synthetic U+0008 worked. Match all three spellings.
+            .onKeyPress(keys: [.delete, .deleteForward, KeyEquivalent("\u{7F}")]) { _ in
+                guard !Self.isTyping else { return .ignored }; deleteSelected(ctx); return .handled
+            }
             .onKeyPress(.return) { guard !Self.isTyping else { return .ignored }; selectAndOpen(ctx); return .handled }
-            .onKeyPress(characters: CharacterSet(charactersIn: "hHfFeEoO01234")) { press in
+            .onKeyPress(.escape) { handleEscape() }
+            .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { handleSelectAll($0, ctx) }
+            .onKeyPress(characters: listCharacterSet) { press in
                 guard !Self.isTyping else { return .ignored }
                 handleCharacter(press.characters, ctx)
                 return .handled
@@ -294,6 +310,7 @@ struct TaskListScreen: View {
     /// against was the inspector showing a task while the list was empty, not the absence of
     /// an auto-selected replacement.
     private func pruneSelection(_ ctx: ListContext) {
+        pruneBulk(ctx)
         guard let id = model.selectedTaskID, !ctx.rows.contains(where: { $0.id == id }) else { return }
         model.selectedTaskID = nil
     }
@@ -302,6 +319,7 @@ struct TaskListScreen: View {
 
     private func moveSelection(_ delta: Int, _ ctx: ListContext) {
         guard !ctx.rows.isEmpty else { return }
+        model.selectedIDs = []   // arrows go back to a single selection
         guard let current = model.selectedTaskID, let i = ctx.rows.firstIndex(where: { $0.id == current }) else {
             model.selectedTaskID = ctx.rows.first?.id
             return
@@ -311,11 +329,13 @@ struct TaskListScreen: View {
     }
 
     private func toggleSelected(_ ctx: ListContext) {
+        if isMultiSelected { ListBulk.apply(.toggleDone, model: model); return }
         guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
         ListCompletion.toggle(task, store: model.store, model: model)
     }
 
     private func deleteSelected(_ ctx: ListContext) {
+        if isMultiSelected { ListBulk.apply(.delete, model: model); return }
         guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
         model.store.softDelete(task.id)
         model.didMutate()
@@ -337,19 +357,20 @@ struct TaskListScreen: View {
     /// True while a text field owns the keyboard. The list container reports itself focused even
     /// when focus is in the inline field INSIDE it, so a FocusState check let space, Return, o, h, f
     /// and 0-4 be eaten while typing (the live UI test typed "Buy oat milk" and got "Buyatmilk").
-    private static var isTyping: Bool {
+    static var isTyping: Bool {
         // Not only keyWindow: it is nil for a moment whenever the app is not frontmost, and the
         // keys would be eaten again exactly then.
         (NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible })?.firstResponder is NSTextView
     }
 
     private func handleCharacter(_ characters: String, _ ctx: ListContext) {
+        if handleBulkCharacter(characters) { return }
         guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
         let pressed = characters.lowercased()
         switch pressed {
-        case HotkeyRegistry.current(for: "list.snooze")?.key: snoozeTask(task)
-        case HotkeyRegistry.current(for: "list.focuspin")?.key: toggleFocusPin(task)
-        case HotkeyRegistry.current(for: "list.expandall")?.key:
+        case Self.listKey("list.snooze"): snoozeTask(task)
+        case Self.listKey("list.focuspin"): toggleFocusPin(task)
+        case Self.listKey("list.expandall"):
             allSubtasksExpanded.toggle()
             NotificationCenter.default.post(name: .kronosExpandAllSubtasks, object: allSubtasksExpanded)
         case "0", "o": setPriority(task, .none)   // "o" too: a zero reads as the letter in the guide
@@ -361,19 +382,8 @@ struct TaskListScreen: View {
         }
     }
 
-    private func snoozeTask(_ task: KTask) {
-        model.store.snooze(task.id)
-        model.didMutate()
-    }
-
-    private func setPriority(_ task: KTask, _ priority: KPriority) {
-        model.store.setPriority(task.id, priority)
-        model.didMutate()
-    }
-
-    private func toggleFocusPin(_ task: KTask) {
-        model.pinnedFocusTaskID = model.pinnedFocusTaskID == task.id ? nil : task.id
-    }
+    // snoozeTask / setPriority / toggleFocusPin live in TaskListScreen+Actions.swift (each raises
+    // the undo pill, audit D10).
 
     /// UI_CONTRACT_REV 4: clear the pin when its task is done, deleted or missing, checked
     /// on every `model.version` bump (any store mutation) and once on appear. `store.task`
@@ -387,13 +397,16 @@ struct TaskListScreen: View {
     // MARK: - Ordo
 
     private func publishOrdo(_ ctx: ListContext) {
-        guard let first = ctx.rows.first(where: { KStatus.open.contains($0.status) }) else {
+        // A task that waits on an open task is skipped here too (w22e): the Now card and the
+        // menu bar never offer something that cannot be started yet.
+        let blocked = model.store.blockedIDs(in: ctx.rows)
+        let open = ctx.rows.filter { KStatus.open.contains($0.status) && !blocked.contains($0.id) }
+        guard let first = open.first else {
             model.publishOrdoFocus(.empty(listName: ctx.title))
             return
         }
-        let remaining = ctx.rows.filter { KStatus.open.contains($0.status) }.count - 1
         model.publishOrdoFocus(OrdoFocus(taskID: first.id, title: first.title, firstMove: first.firstMove,
-                                         listName: ctx.title, remaining: max(0, remaining)))
+                                         listName: ctx.title, remaining: max(0, open.count - 1)))
     }
 
     // MARK: - Name lookups (chips, filter builder)

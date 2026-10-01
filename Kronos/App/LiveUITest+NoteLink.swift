@@ -32,7 +32,7 @@ extension LiveUITest {
         // so this is the first to require a wide-enough window (same `window.setFrame` idiom
         // `paletteFits` already uses below).
         var frame = mainWindow.frame
-        frame.size = NSSize(width: 1100, height: 760)
+        frame.size = NSSize(width: 1500, height: 900)
         mainWindow.setFrame(frame, display: true)
         try? await Task.sleep(for: .milliseconds(300))
 
@@ -42,10 +42,14 @@ extension LiveUITest {
         // sidebar scope (every earlier step may have changed scope/scroll position).
         model.selectedTaskID = task.id
         try? await Task.sleep(for: .milliseconds(500))
-        diagnostics.append("noteLinkButton: task=\(task.title) selected=\(model.selectedTaskID == task.id) notelinkAnchor=\(UITestAnchors.frames["inspector.notelink.add"] != nil)")
+        diagnostics.append("noteLinkButton: task=\(task.title) selected=\(model.selectedTaskID == task.id) notelinkAnchor=\(UITestAnchors.frames["inspector.notes.notelink.add"] != nil)")
 
-        let ok = await click("inspector.notelink.add")
-        try? await Task.sleep(for: .milliseconds(500))
+        diagnostics.append("noteLinkButton pre-click width=\(Int(mainWindow.frame.width)) content=\(Int(mainWindow.contentView!.bounds.width)) anchor=\(String(describing: UITestAnchors.frames["inspector.notes.notelink.add"]))")
+        let ok = await click("inspector.notes.notelink.add")
+        for i in 0..<12 { try? await Task.sleep(for: .milliseconds(40)); diagnostics.append("noteLinkButton t=\(i*40) w=\(Int(mainWindow.frame.width)) sheets=\(mainWindow.sheets.count) wins=\(NSApp.windows.count)") }
+        diagnostics.append("noteLinkButton post-click width=\(Int(mainWindow.frame.width)) sheets=\(mainWindow.sheets.count) wins=\(NSApp.windows.count)")
+        try? await Task.sleep(for: .milliseconds(1800))
+        diagnostics.append("noteLinkButton windows: " + NSApp.windows.map { "\(type(of: $0)) vis=\($0.isVisible) key=\($0.canBecomeKey) \(Int($0.frame.width))x\(Int($0.frame.height)) sheets=\($0.sheets.count)" }.joined(separator: " | "))
         guard let sheet = NSApp.windows.first(where: { $0.isVisible && $0 !== mainWindow && $0.canBecomeKey }) else {
             record("note-link button opens the picker", false, "found=\(ok) no sheet window appeared"); return
         }
@@ -78,6 +82,7 @@ extension LiveUITest {
         var cardShowsTitle = false
         for _ in 0..<20 {
             try? await Task.sleep(for: .milliseconds(200))
+            diagnostics.append("noteLinkButton after-link w=\(Int(mainWindow.frame.width)) sheets=\(mainWindow.sheets.count) open=\(UITestAnchors.frames["inspector.notelink.open"] != nil) insp=\(UITestAnchors.frames.keys.filter { $0.hasPrefix("inspector") }.sorted()) notesAnchor=\(UITestAnchors.frames["inspector.notes.notelink.add"] != nil) sel=\(model.selectedTaskID == task.id) picker=\(model.noteLinkPickerOpen)")
             if UITestAnchors.frames["inspector.notelink.open"] != nil { cardShowsTitle = true; break }
         }
         record("linked row shows title, Open note, Unlink (inspector survives the sheet closing, no resize)",

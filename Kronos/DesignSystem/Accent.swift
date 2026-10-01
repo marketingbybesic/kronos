@@ -60,9 +60,9 @@ public extension EnvironmentValues {
 }
 
 public enum Accent {
-    /// nil hex (no personalisation chosen) or Calm mode (distraction-free — never grows a
-    /// hue back) both resolve to white, matching `Tok.textPrimary` exactly so the un-set
-    /// state is pixel-identical to before this feature existed.
+    /// nil hex (no personalisation chosen) resolves to white, matching `Tok.textPrimary`
+    /// exactly so the un-set state is pixel-identical to before this feature existed.
+    /// Calm mode was removed in rev18; Focus and Full are the only modes.
     /// A hex matching a known swatch (project palette OR the accent's own `AccentPalette`)
     /// resolves to that swatch's exact colour value; any OTHER well-formed "#RRGGBB"/"RRGGBB"
     /// is a custom colour from the native `ColorPicker` and is parsed directly — a prior
@@ -76,7 +76,7 @@ public enum Accent {
     /// call site lives in this same target, so this is not a real visibility restriction, only
     /// what the compiler requires.
     static func resolve(_ hex: String?, mode: ChromaMode) -> Color {
-        guard mode != .calm, let hex else { return Tok.textPrimary }
+        guard let hex else { return Tok.textPrimary }
         let normalizedHex = normalized(hex)
         if let swatch = KProjectPalette.swatches.first(where: { $0.hex.caseInsensitiveCompare(normalizedHex) == .orderedSame }) {
             return swatch.color

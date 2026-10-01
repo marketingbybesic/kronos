@@ -86,7 +86,7 @@ struct SidebarAreaEditor: View {
         case .create:
             _ = model.store.createArea(name: trimmed, colorHex: color.hexString, icon: "square.grid.2x2")
         case .edit(let area):
-            model.store.groupedUndo("Edit area") {
+            model.store.groupedUndo(String(localized: "undo.area.edit")) {
                 model.store.renameArea(area.id, name: trimmed)
                 model.store.updateArea(area.id, colorHex: color.hexString, icon: nil)
             }

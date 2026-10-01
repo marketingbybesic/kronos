@@ -9,10 +9,11 @@ import KronosCore
 /// first, then Go to, then Tasks last — a query must never let task-search results push
 /// commands or scopes out of the visible window.
 enum PaletteGroup: Int, CaseIterable {
-    case create, session, coach, app, view, goTo, task
+    case bulk, create, session, coach, app, view, goTo, task
 
     var titleKey: String {
         switch self {
+        case .bulk:    return "palette.bulk.section"   // only offered while 2+ rows are selected
         case .create:  return "list.new"
         case .session: return "palette.section.run"
         // Not in the catalog yet ("Coach") — reported, per brief §"every string through the

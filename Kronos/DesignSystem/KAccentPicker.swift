@@ -70,7 +70,7 @@ public struct KAccentPicker: View {
     private var hexField: some View {
         HStack(spacing: Space.x2) {
             KTextField("#RRGGBB", text: $hexInput, leading: "pencil")
-                .frame(width: 100)
+                .frame(width: 124)   // 100 clipped the placeholder to "#RRGGBI" at text size M (live audit 30.09.)
                 .onChange(of: hexInput) { _, newValue in applyHexInput(newValue) }
                 .uiTestAnchor("accent.hexfield")
             if hexIsInvalid {

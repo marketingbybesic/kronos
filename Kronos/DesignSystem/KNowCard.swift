@@ -1,7 +1,7 @@
 // Kronos/DesignSystem/KNowCard.swift
 // The focus task as a hero card: the FIRST MOVE is the hero line — the physical action that
 // starts the task, not the task's name (activation, not planning) — with the title under it,
-// one Complete control, the task's attributes, and how many are left. One hairline, no fill.
+// one Complete control and the task's attributes (no count: F10). One hairline, no fill.
 // Its project glyph is always `isFocus`, so in Focus mode this card is one of the few places
 // hue appears; in Calm the glyph is neutral through `KProjectGlyph`'s own `carrier: .nowCard`
 // tint (Chroma.tint always returns neutral for Calm), not by the card being absent — the
@@ -18,20 +18,30 @@ import SwiftUI
 public struct KNowCard<Attributes: View>: View {
     let firstMove: String?
     let title: String
+    /// Kept only so the design-gallery call sites still compile; never drawn (no count beside the one task).
     let remaining: Int
     var projectIcon: String?
     var projectColorHex: String?
     var projectName: String?
+    /// When true the Complete ring breathes (opacity 0.55↔1.0, ~2.4 s easeInOut) to draw
+    /// attention to an overdue or high-priority First Move. Reduce Motion disables the
+    /// animation and keeps the ring at full emphasis. Rev18 decision 5A.
+    var attention: Bool
     @ViewBuilder let attributes: () -> Attributes
     let onComplete: () -> Void
     @State private var isCompleting = false
     @State private var checkTrim: CGFloat = 0
     @State private var isHoveringComplete = false
-    @FocusState private var isCompleteFocused: Bool
-    @Environment(\.kAccent) private var accent
+    @State private var attentionPhase: Bool = false
+   @FocusState private var isCompleteFocused: Bool
+   @Environment(\.kAccent) private var accent
+    // Use the project's own static accessor (Tokens.swift) — there is no
+    // SwiftUI EnvironmentKey named \.reduceMotion; the macOS 27 SDK rejects it.
+    private var reduceMotion: Bool { Motion.reduceMotion }
 
-    public init(firstMove: String?, title: String, remaining: Int,
+    public init(firstMove: String?, title: String, remaining: Int = 0,
                 projectIcon: String? = nil, projectColorHex: String? = nil, projectName: String? = nil,
+                attention: Bool = false,
                 @ViewBuilder attributes: @escaping () -> Attributes,
                 onComplete: @escaping () -> Void) {
         self.firstMove = firstMove
@@ -40,6 +50,7 @@ public struct KNowCard<Attributes: View>: View {
         self.projectIcon = projectIcon
         self.projectColorHex = projectColorHex
         self.projectName = projectName
+        self.attention = attention
         self.attributes = attributes
         self.onComplete = onComplete
     }
@@ -97,11 +108,6 @@ public struct KNowCard<Attributes: View>: View {
                 }
             }
             Spacer(minLength: Space.x3)
-            Text(String(localized: "nowcard.remaining", defaultValue: "\(remaining) remaining"))
-                .font(Typo.count)
-                .foregroundStyle(Tok.textTertiary)
-                .lineLimit(1)
-                .layoutPriority(1)
         }
     }
 
@@ -112,6 +118,7 @@ public struct KNowCard<Attributes: View>: View {
                     Circle().fill(isCompleting ? accent : (isHoveringComplete ? Tok.hoverFill : Color.clear))
                     Circle().strokeBorder(isCompleting ? Color.clear : (isHoveringComplete ? Tok.textPrimary : Tok.textSecondary),
                                           lineWidth: Metrics.strokeQuiet)
+                        .opacity(attention && !isHoveringComplete && !isCompleting && !reduceMotion ? (attentionPhase ? 0.55 : 1.0) : 1.0)
                     CheckMark()
                         .trim(from: 0, to: isCompleting ? checkTrim : (isHoveringComplete ? 1 : 0))
                         .stroke(isCompleting ? Accent.onFill(accent) : Tok.textDisabled,
@@ -132,6 +139,21 @@ public struct KNowCard<Attributes: View>: View {
         .focusEffectDisabled()
         .onHover { isHoveringComplete = $0 }
         .animation(Motion.hover, value: isHoveringComplete)
+        .onAppear {
+            guard attention, !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                attentionPhase = true
+            }
+        }
+       .onChange(of: reduceMotion) { _, newValue in
+            if newValue {
+                attentionPhase = false
+            } else if attention {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    attentionPhase = true
+                }
+            }
+        }
         .disabled(isCompleting)
     }
 
@@ -152,7 +174,7 @@ public struct KNowCard<Attributes: View>: View {
 }
 
 public extension KNowCard where Attributes == EmptyView {
-    init(firstMove: String?, title: String, remaining: Int,
+    init(firstMove: String?, title: String, remaining: Int = 0,
          projectIcon: String? = nil, projectColorHex: String? = nil, projectName: String? = nil,
          onComplete: @escaping () -> Void) {
         self.init(firstMove: firstMove, title: title, remaining: remaining, projectIcon: projectIcon,

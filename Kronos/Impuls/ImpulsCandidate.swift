@@ -88,7 +88,7 @@ enum ImpulsQuery {
         case "Nothing shallow left": return String(localized: "impuls.candidate.nothingshallow")
         case "Shallow, but you have been avoiding it": return String(localized: "impuls.candidate.dreadshallow")
         case "Shallow and quick": return String(localized: "impuls.candidate.shallowquick")
-        case "Next by priority": return String(localized: "impuls.candidate.nextbypriority")
+        case "Next by priority": return ""   // default ranking says nothing: the card hides the line
         case "Good energy match": return nil
         default: return reason.isEmpty ? nil : reason
         }
@@ -97,14 +97,17 @@ enum ImpulsQuery {
     /// First move: stored value wins; otherwise Core's deterministic generator, which
     /// always yields a lint-passing move (spec §2.3) and never leaves the card without one.
     static func firstMove(for task: KTask, language: Lang) -> String {
-        if let stored = task.firstMove, !stored.isEmpty { return stored }
+        // A stored generic placeholder (written by triage in the TITLE's language) counts as
+        // empty here so the headline is regenerated in the app language (audit D25).
+        if let stored = task.firstMove, !stored.isEmpty, !DeterministicFirstMove.isGenericTemplate(stored) { return stored }
         let hasOpenSubtask = task.nextOpenSubtask != nil
         return DeterministicFirstMove.generate(title: task.title,
                                                 firstMoveURL: task.firstMoveURL,
                                                 hasOpenSubtask: hasOpenSubtask,
                                                 notesNonEmpty: !task.notes.isEmpty,
                                                 dread: task.dread,
-                                                language: language)
+                                                language: language,
+                                                titleLanguageWins: false)
     }
 }
 

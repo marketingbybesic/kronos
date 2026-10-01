@@ -33,6 +33,7 @@ struct CapturePasteView: View {
             if let notesError {
                 NotesAccessDeniedInline(error: notesError) { isPickingNotes = true }
             }
+            remindersFeedback
             footer
         }
         // Stepping Paste -> Review must not visibly jump sideways — the real Capture card is a
@@ -56,7 +57,9 @@ struct CapturePasteView: View {
         .padding(.bottom, Space.x3)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            isFieldFocused = true
+            // One hop later, same reason as the palette: a same-turn focus request is lost.
+            DispatchQueue.main.async { isFieldFocused = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { isFieldFocused = true }
             if let folder = capture.notesSourceFolder {
                 capture.notesSourceFolder = nil
                 pickerInitialFolder = folder
@@ -127,13 +130,12 @@ struct CapturePasteView: View {
     /// size L, with longer labels.
     private var footer: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            ViewThatFits(in: .horizontal) {
-                sourceButtonsRow
-                VStack(alignment: .leading, spacing: Space.x2) {
-                    HStack(spacing: Space.x3) { pasteButton; notesButton }
-                    inboxButton
-                }
-            }
+            // One Notes entry point (W20): the one-tap inbox pull stays reachable through the
+            // palette's "Pull from Notes" command (kronosPullFromNotesRequested, handled in
+            // CaptureScreen), so the window carries a single, unambiguous Notes button.
+            // A flow layout, not an HStack: three fixed-size source buttons (longer in Croatian
+            // and at Text size L) wrap as whole buttons instead of inflating the column.
+            KFlowLayout(spacing: Space.x3, lineSpacing: Space.x2) { pasteButton; notesButton; remindersButton }
             ViewThatFits(in: .horizontal) {
                 findTasksRow
                 // Fallback: the hint (decoration) drops before the primary action ever shrinks
@@ -142,10 +144,6 @@ struct CapturePasteView: View {
                 HStack { Spacer(minLength: 0); findTasksButton }
             }
         }
-    }
-
-    private var sourceButtonsRow: some View {
-        HStack(spacing: Space.x3) { pasteButton; notesButton; inboxButton; Spacer(minLength: 0) }
     }
 
     private var pasteButton: some View {
@@ -159,11 +157,6 @@ struct CapturePasteView: View {
 
     private var notesButton: some View {
         Button(String(localized: "capture.notes.from_notes")) { pickerInitialFolder = nil; isPickingNotes = true }
-            .kButton(.secondary).fixedSize()
-    }
-
-    private var inboxButton: some View {
-        Button(String(localized: "capture.notes.pull_inbox")) { Task { await pullInbox() } }
             .kButton(.secondary).fixedSize()
     }
 
@@ -197,20 +190,5 @@ struct CapturePasteView: View {
         let joined = bodies.joined(separator: "\n\n")
         capture.noteText = capture.noteText.isEmpty ? joined : capture.noteText + "\n\n" + joined
         notesError = nil
-    }
-
-    /// "Pull from Notes inbox": the one-tap path for the folder configured in Settings >
-    /// Capture & Notes (CoachSettings.notesInboxFolder, default "Kronos") — same append
-    /// behaviour as picking notes by hand, no picker sheet in the way.
-    private func pullInbox() async {
-        let folder = model.coach.settings.notesInboxFolder
-        do {
-            let notes = try await model.notes.notes(inFolder: folder)
-            await appendBodies(of: notes)
-        } catch let e as NotesError {
-            notesError = e
-        } catch {
-            notesError = .unexpected("\(error)")
-        }
     }
 }

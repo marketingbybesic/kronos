@@ -9,71 +9,78 @@ struct InspectorStatusSection: View {
     let task: KTask
 
     var body: some View {
+        let _ = model.version  // blocked is derived from OTHER tasks: re-read after any store change
         VStack(alignment: .leading, spacing: 0) {
-            KPropertyRow(String(localized: "detail.section.status")) { statusMenu }
-            KPropertyRow(String(localized: "detail.section.project")) { projectMenu }
-            labelsRow
-        }
-    }
-
-    private var statusMenu: some View {
-        // ViewThatFits drops the "Waiting" text label first at the inspector's 300pt
-        // minimum (the switch itself is the control; the word is a nice-to-have that
-        // wrapped onto its own line and truncated at that width, caught on the narrow
-        // screenshot read) — same fallback pattern as attributesRow above.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Space.x3) {
-                statusMenuButton
-                waitingToggle(showsLabel: true)
-            }
-            HStack(spacing: Space.x3) {
-                statusMenuButton
-                waitingToggle(showsLabel: false)
-            }
-        }
-    }
-
-    /// Someday is never a manual pick — the store sets/clears it on its own from the due day
-    /// (`TaskStore.applyAutomaticStatusRule`). The menu below is therefore every status EXCEPT
-    /// `.someday`; picking `.done`/`.canceled` still exits automatic tracking as before.
-    private static let manualStatuses: [KStatus] = KStatus.allCases.filter { $0 != .someday }
-
-    private var statusMenuButton: some View {
-        InspectorValueMenu(text: task.status.displayName) {
-            ForEach(Self.manualStatuses, id: \.self) { s in
-                Button {
-                    model.store.setStatus(task.id, s)
-                    model.didMutate()
-                } label: {
-                    if s == task.status {
-                        Label(s.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(s.displayName)
-                    }
+            KPropertyRow(String(localized: "detail.section.status")) {
+                HStack(spacing: Space.x3) {
+                    // The status itself as plain text; the chip beside it is a labelled
+                    // toggle, so it can no longer be mistaken for the status (audit D1).
+                    Text(statusValueText).font(Typo.row).foregroundStyle(Tok.textPrimary)
+                        .uiTestAnchor("inspector.status.value")
+                    statusMenu
+                    if model.store.isBlocked(task.id) { blockedChip }
                 }
             }
+            KPropertyRow(String(localized: "detail.section.project")) { projectMenu }
+            labelsRow
+            InspectorWaitsOnRow(model: model, task: task)
         }
     }
 
-    /// On = `.waiting`. Off = whatever the automatic rule says the due day implies
-    /// (`.todo` with a due day, `.someday` without) — `TaskStore.setWaiting` computes that,
-    /// so this toggle never needs to know the rule itself.
-    private func waitingToggle(showsLabel: Bool) -> some View {
-        Toggle(isOn: Binding(
-            get: { task.status == .waiting },
-            set: { isOn in
-                model.store.setWaiting(task.id, isOn)
-                model.didMutate()
-            }
-        )) {
-            if showsLabel {
-                Text(String(localized: "status.waiting")).font(Typo.row).foregroundStyle(Tok.textSecondary)
-            }
+    /// One chip, not a "To do | Waiting" switch whose on side was ambiguous: filled with a
+    /// check when the task IS waiting, an empty outline when it is not. On = `.waiting`; off =
+    /// whatever the automatic rule says the due day implies (`.todo` with a due day,
+    /// `.someday` without) — `TaskStore.setWaiting` computes that, so this never needs the rule.
+    /// Other statuses (in progress, done) are reached through the checkbox and the palette.
+    private var statusMenu: some View {
+        let isWaiting = task.status == .waiting
+        return HStack(spacing: Space.x1) {
+            if isWaiting { Icon("check", size: Metrics.iconXS) }
+            Text(String(localized: isWaiting ? "status.waiting" : "detail.status.markwaiting")).font(Typo.meta)
         }
-        .toggleStyle(.switch)
-        .tint(Tok.textPrimary)
-        .accessibilityLabel(String(localized: "status.waiting"))
-        .fixedSize()
+        // On = solid light capsule, dark ink, check; off = bare outline, quiet ink. Two states that
+        // differ in fill AND glyph, so nobody has to guess which side "Waiting" is on (audit).
+        .foregroundStyle(isWaiting ? Tok.bg : Tok.textSecondary)
+        .padding(.horizontal, Space.x2)
+        .frame(height: 24)
+        .background(Capsule().fill(isWaiting ? Tok.textPrimary : Color.clear))
+        .overlay(Capsule().strokeBorder(isWaiting ? Color.clear : Tok.borderControl, lineWidth: Metrics.strokeQuiet))
+        .frame(height: Metrics.controlRegular)
+        .contentShape(Rectangle())
+        // A tap target, not a Button: the plain-style Button drew a focus ring wider than the
+        // row's clip (side brackets around the chip on the snapshot read). Fill, not outline:
+        // on = solid fill + check, off = outline only.
+        .onTapGesture {
+            model.store.setWaiting(task.id, !isWaiting)
+            model.didMutate()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(isWaiting ? [.isButton, .isSelected] : .isButton)
+        .accessibilityLabel(String(localized: "detail.status.markwaiting"))
+        .accessibilityAction { model.store.setWaiting(task.id, !isWaiting); model.didMutate() }
+    }
+
+    /// The actual status in three plain words: Open (to do, in progress, someday), Done, Waiting.
+    private var statusValueText: String {
+        switch task.status {
+        case .done: String(localized: "status.done")
+        case .waiting: String(localized: "status.waiting")
+        case .canceled: String(localized: "status.canceled")
+        case .todo, .inProgress, .someday: String(localized: "detail.status.open")
+        }
+    }
+
+    /// Derived by Core (a task it waits on is still open); not a status and not tappable, so it
+    /// is a quiet DASHED outline beside the Waiting chip (a solid one reads as another toggle), monochrome like everything else.
+    private var blockedChip: some View {
+        Text(String(localized: "detail.blocked"))
+            .font(Typo.meta)
+            .foregroundStyle(Tok.textSecondary)
+            .padding(.horizontal, Space.x2)
+            .frame(height: 24)
+            .overlay(Capsule().strokeBorder(Tok.borderControl, style: StrokeStyle(lineWidth: Metrics.strokeQuiet, dash: [3, 3])))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "detail.blocked"))
     }
 
     // MARK: Project
@@ -136,7 +143,7 @@ private struct InspectorLabelsRow: View {
         KPropertyRow(String(localized: "detail.section.labels")) {
             HStack(spacing: Space.x2) {
                 if !labels.isEmpty {
-                    FlowLayout(spacing: Space.x1) {
+                    InspectorFlowLayout(spacing: Space.x1) {
                         ForEach(labels, id: \.id) { label in
                             KChip(label.name, trailing: .clear, onTap: { remove(label) })
                         }
@@ -198,7 +205,7 @@ private struct InspectorLabelsRow: View {
 }
 
 /// Minimal wrapping row layout for label chips — SwiftUI has no built-in flow layout.
-private struct FlowLayout: Layout {
+struct InspectorFlowLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -340,6 +347,37 @@ extension KStatus {
         case .someday: String(localized: "detail.someday")
         case .done: String(localized: "status.done")
         case .canceled: String(localized: "status.canceled")
+        }
+    }
+}
+
+/// The one "Details" disclosure at the end of the inspector: everything that is not the
+/// task itself (status, project, labels, depth, estimate, repeat, time block, focus,
+/// re-triage) lives inside so the default view is only what is next. Open/closed is
+/// remembered by the caller in UserDefaults; every field is one click away.
+struct InspectorDetailsDisclosure<Content: View>: View {
+    @Binding var isOpen: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Button {
+                withAnimation(Motion.curve(Motion.fast)) { isOpen.toggle() }
+            } label: {
+                HStack(spacing: Space.x2) {
+                    InspectorSectionCaption(String(localized: "detail.details"))
+                    Spacer(minLength: Space.x2)
+                    Icon(isOpen ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
+                        .foregroundStyle(Tok.textTertiary)
+                }
+                .frame(height: Metrics.minHit)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "detail.details"))
+            .accessibilityAddTraits(isOpen ? [.isSelected] : [])
+            .uiTestAnchor("inspector.details.toggle")
+            if isOpen { content() }
         }
     }
 }

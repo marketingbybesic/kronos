@@ -56,6 +56,24 @@
         }
       }
     },
+    "a11y.chip.remove": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni %1$@"
+          }
+        }
+      }
+    },
     "a11y.emojipicker.emoji": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -88,6 +106,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Otvori sistemski birač emojija i simbola"
+          }
+        }
+      }
+    },
+    "a11y.restore.button": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore the backup from %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrati sigurnosnu kopiju od %1$@"
           }
         }
       }
@@ -812,6 +848,186 @@
         }
       }
     },
+    "app.dock.capture": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hvatanje"
+          }
+        }
+      }
+    },
+    "app.dock.impuls": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls"
+          }
+        }
+      }
+    },
+    "app.dock.quickadd": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick add"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brzo dodavanje"
+          }
+        }
+      }
+    },
+    "app.dock.untitled": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadatak bez naslova"
+          }
+        }
+      }
+    },
+    "app.launch.error.backup.done": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy saved: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopija spremljena: %@"
+          }
+        }
+      }
+    },
+    "app.launch.error.backup.failed": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No copy could be made. The original files are untouched."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiju nije bilo moguće napraviti. Izvorne datoteke su netaknute."
+          }
+        }
+      }
+    },
+    "app.launch.error.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing was changed or deleted. A copy of your data was saved first, then Kronos stopped here so nothing can be overwritten. Send the message below to support or restore from the backups folder."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ništa nije promijenjeno ni obrisano. Prvo je spremljena kopija tvojih podataka, a Kronos se zaustavio da se ništa ne može prepisati. Pošalji poruku ispod podršci ili vrati podatke iz mape sa sigurnosnim kopijama."
+          }
+        }
+      }
+    },
+    "app.launch.error.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open backups folder"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori mapu sa sigurnosnim kopijama"
+          }
+        }
+      }
+    },
+    "app.launch.error.quit": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izađi"
+          }
+        }
+      }
+    },
+    "app.launch.error.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos could not open your data"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos ne može otvoriti tvoje podatke"
+          }
+        }
+      }
+    },
     "app.name": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -826,6 +1042,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kronos"
+          }
+        }
+      }
+    },
+    "app.url.added": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano: %@"
           }
         }
       }
@@ -1456,6 +1690,114 @@
           "stringUnit": {
             "state": "translated",
             "value": "npr. \"Sastanak Acme: poslati ponudu\" · ono što ti padne na pamet · zadatak s uvučenim redcima ispod njega za podzadatke"
+          }
+        }
+      }
+    },
+    "capture.reminders.denied": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos needs permission to read Reminders."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos treba dopuštenje za čitanje Podsjetnika."
+          }
+        }
+      }
+    },
+    "capture.reminders.denied.action": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori Postavke sustava"
+          }
+        }
+      }
+    },
+    "capture.reminders.empty": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No open reminders found."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema otvorenih podsjetnika."
+          }
+        }
+      }
+    },
+    "capture.reminders.from": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From Reminders…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iz Podsjetnika…"
+          }
+        }
+      }
+    },
+    "capture.reminders.loading": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading your reminders…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čitam tvoje podsjetnike…"
+          }
+        }
+      }
+    },
+    "capture.reminders.status": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From Reminders. Nothing is changed in the Reminders app."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iz Podsjetnika. U aplikaciji Podsjetnici se ništa ne mijenja."
           }
         }
       }
@@ -3152,6 +3494,24 @@
         }
       }
     },
+    "detail.blocked": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blokirano"
+          }
+        }
+      }
+    },
     "detail.breakdown": {
       "comment": "Spec 3.4 Detail / inspector.",
       "extractionState": "manual",
@@ -3422,6 +3782,24 @@
         }
       }
     },
+    "detail.details": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalji"
+          }
+        }
+      }
+    },
     "detail.dread": {
       "comment": "Spec 3.3 Status, priority, depth, energy.",
       "extractionState": "manual",
@@ -3584,6 +3962,24 @@
         }
       }
     },
+    "detail.firstmove.fromattachment.hint": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From the attachment. Remove it to type your own"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iz privitka. Ukloni ga da upišeš svoj"
+          }
+        }
+      }
+    },
     "detail.firstmove.fromsubtask.hint": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -3638,6 +4034,114 @@
         }
       }
     },
+    "detail.firstmove.suggest.file": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review file: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj datoteku: %1$@"
+          }
+        }
+      }
+    },
+    "detail.firstmove.suggest.folder": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open folder: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori mapu: %1$@"
+          }
+        }
+      }
+    },
+    "detail.firstmove.suggest.link": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open link: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori link: %1$@"
+          }
+        }
+      }
+    },
+    "detail.firstmove.suggest.note": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read note: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pročitaj bilješku: %1$@"
+          }
+        }
+      }
+    },
+    "detail.firstmove.suggest.reply": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reply to: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odgovori na: %1$@"
+          }
+        }
+      }
+    },
+    "detail.firstmove.suggest.task": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj: %1$@"
+          }
+        }
+      }
+    },
     "detail.focus.pin": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -3688,6 +4192,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dodaj oznaku"
+          }
+        }
+      }
+    },
+    "detail.links.email.untitled": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-pošta"
           }
         }
       }
@@ -4268,6 +4790,42 @@
         }
       }
     },
+    "detail.status.markwaiting": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as waiting"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označi kao čeka"
+          }
+        }
+      }
+    },
+    "detail.status.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvoreno"
+          }
+        }
+      }
+    },
     "detail.step.movedown": {
       "comment": "Spec 3.4 Detail / inspector.",
       "extractionState": "manual",
@@ -4340,6 +4898,42 @@
         }
       }
     },
+    "detail.template.save": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremi kao predložak"
+          }
+        }
+      }
+    },
+    "detail.template.saved": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved as a template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremljeno kao predložak"
+          }
+        }
+      }
+    },
     "detail.title.placeholder": {
       "comment": "Spec 3.4 Detail / inspector.",
       "extractionState": "manual",
@@ -4372,6 +4966,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Izmijenjeno %1$@"
+          }
+        }
+      }
+    },
+    "detail.waitson.add": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a task this waits on"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj zadatak na koji čeka"
+          }
+        }
+      }
+    },
+    "detail.waitson.empty": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No other open tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema drugih otvorenih zadataka"
+          }
+        }
+      }
+    },
+    "detail.waitson.label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waits on"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na"
+          }
+        }
+      }
+    },
+    "detail.waitson.search": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find a task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronađi zadatak"
           }
         }
       }
@@ -4425,7 +5091,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bez procjene"
+            "value": "Bez napora"
           }
         }
       }
@@ -5792,6 +6458,42 @@
         }
       }
     },
+    "impuls.a11y.another.hint": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows a different task."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikazuje drugi zadatak."
+          }
+        }
+      }
+    },
+    "impuls.a11y.notnow.hint": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closes Impuls without starting anything."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatvara Impuls bez pokretanja ičega."
+          }
+        }
+      }
+    },
     "impuls.button.another": {
       "comment": "Spec 3.7 Impuls.",
       "extractionState": "manual",
@@ -5817,13 +6519,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skip"
+            "value": "Not now"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči"
+            "value": "Ne sada"
           }
         }
       }
@@ -6080,6 +6782,348 @@
         }
       }
     },
+    "list.bulk.close": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear selection"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poništi odabir"
+          }
+        }
+      }
+    },
+    "list.bulk.deleted.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbrisana %lld zadatka"
+          }
+        }
+      }
+    },
+    "list.bulk.deleted.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbrisano %lld zadataka"
+          }
+        }
+      }
+    },
+    "list.bulk.deleted.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbrisan %lld zadatak"
+          }
+        }
+      }
+    },
+    "list.bulk.done.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završena %lld zadatka"
+          }
+        }
+      }
+    },
+    "list.bulk.done.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završeno %lld zadataka"
+          }
+        }
+      }
+    },
+    "list.bulk.done.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završen %lld zadatak"
+          }
+        }
+      }
+    },
+    "list.bulk.panel.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld tasks selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld zadatka odabrana"
+          }
+        }
+      }
+    },
+    "list.bulk.panel.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld tasks selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld zadataka odabrano"
+          }
+        }
+      }
+    },
+    "list.bulk.panel.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld task selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld zadatak odabran"
+          }
+        }
+      }
+    },
+    "list.bulk.reopened.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopened %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponovno otvorena %lld zadatka"
+          }
+        }
+      }
+    },
+    "list.bulk.reopened.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopened %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponovno otvoreno %lld zadataka"
+          }
+        }
+      }
+    },
+    "list.bulk.reopened.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopened %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponovno otvoren %lld zadatak"
+          }
+        }
+      }
+    },
+    "list.bulk.selected.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld odabrana"
+          }
+        }
+      }
+    },
+    "list.bulk.selected.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld odabranih"
+          }
+        }
+      }
+    },
+    "list.bulk.selected.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld odabran"
+          }
+        }
+      }
+    },
+    "list.bulk.updated.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažurirana %lld zadatka"
+          }
+        }
+      }
+    },
+    "list.bulk.updated.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažurirano %lld zadataka"
+          }
+        }
+      }
+    },
+    "list.bulk.updated.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažuriran %lld zadatak"
+          }
+        }
+      }
+    },
     "list.display": {
       "comment": "Spec 3.2 List toolbar, sort, group, filter.",
       "extractionState": "manual",
@@ -6148,6 +7192,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rok"
+          }
+        }
+      }
+    },
+    "list.filter.due.custom": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom range"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilagođeno razdoblje"
+          }
+        }
+      }
+    },
+    "list.filter.due.next30": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next 30 days"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sljedećih 30 dana"
           }
         }
       }
@@ -7448,6 +8528,60 @@
         }
       }
     },
+    "menubar.zone.capture": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hvatanje"
+          }
+        }
+      }
+    },
+    "menubar.zone.now": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sada"
+          }
+        }
+      }
+    },
+    "menubar.zone.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu bar zones"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zone trake izbornika"
+          }
+        }
+      }
+    },
     "morning.accept": {
       "comment": "Spec 3.8 Morning plan.",
       "extractionState": "manual",
@@ -7545,13 +8679,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "~%1$@ min"
+            "value": "%1$@ min"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "~%1$@ min"
+            "value": "%1$@ min"
           }
         }
       }
@@ -7862,6 +8996,294 @@
         }
       }
     },
+    "palette.bulk.complete.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete %1$lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi %1$lld zadatka"
+          }
+        }
+      }
+    },
+    "palette.bulk.complete.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete %1$lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi %1$lld zadataka"
+          }
+        }
+      }
+    },
+    "palette.bulk.complete.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete %1$lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi %1$lld zadatak"
+          }
+        }
+      }
+    },
+    "palette.bulk.delete.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %1$lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbriši %1$lld zadatka"
+          }
+        }
+      }
+    },
+    "palette.bulk.delete.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %1$lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbriši %1$lld zadataka"
+          }
+        }
+      }
+    },
+    "palette.bulk.delete.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %1$lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbriši %1$lld zadatak"
+          }
+        }
+      }
+    },
+    "palette.bulk.due.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set due date for %1$lld tasks: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi rok za %1$lld zadatka: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.due.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set due date for %1$lld tasks: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi rok za %1$lld zadataka: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.due.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set due date for %1$lld task: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi rok za %1$lld zadatak: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.move.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %1$lld tasks to %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premjesti %1$lld zadatka u %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.move.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %1$lld tasks to %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premjesti %1$lld zadataka u %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.move.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %1$lld task to %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premjesti %1$lld zadatak u %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.priority.few": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set priority for %1$lld tasks: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi prioritet za %1$lld zadatka: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.priority.many": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set priority for %1$lld tasks: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi prioritet za %1$lld zadataka: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.priority.one": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set priority for %1$lld task: %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi prioritet za %1$lld zadatak: %2$@"
+          }
+        }
+      }
+    },
+    "palette.bulk.section": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odabrani zadaci"
+          }
+        }
+      }
+    },
     "palette.command.blockstay": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8150,6 +9572,24 @@
         }
       }
     },
+    "palette.template.new": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New from template…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novo iz predloška…"
+          }
+        }
+      }
+    },
     "permissions.action.allow": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8265,13 +9705,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS remembers each answer — change it any time in System Settings."
+            "value": "macOS remembers each answer. Change it any time in System Settings."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS pamti svaki odgovor — promijeni ga bilo kad u Postavkama sustava."
+            "value": "macOS pamti svaki odgovor. Promijeni ga bilo kad u Postavkama sustava."
           }
         }
       }
@@ -8420,6 +9860,42 @@
         }
       }
     },
+    "permissions.row.reminders.reason": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lets Capture bring your open reminders in as tasks."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omogućuje Hvatanju da tvoje otvorene podsjetnike unese kao zadatke."
+          }
+        }
+      }
+    },
+    "permissions.row.reminders.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reminders"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podsjetnici"
+          }
+        }
+      }
+    },
     "permissions.row.siri.reason": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8427,13 +9903,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kronos actions are available in the Shortcuts app — no permission needed."
+            "value": "Kronos actions are available in the Shortcuts app. No permission needed."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kronos radnje dostupne su u aplikaciji Prečaci — dozvola nije potrebna."
+            "value": "Kronos radnje dostupne su u aplikaciji Prečaci. Dozvola nije potrebna."
           }
         }
       }
@@ -8463,13 +9939,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tasks appear in Spotlight search — no permission needed."
+            "value": "Tasks appear in Spotlight search. No permission needed."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zadaci se pojavljuju u Spotlight pretrazi — dozvola nije potrebna."
+            "value": "Zadaci se pojavljuju u Spotlight pretrazi. Dozvola nije potrebna."
           }
         }
       }
@@ -8798,6 +10274,42 @@
         }
       }
     },
+    "quickadd.created": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano: %@"
+          }
+        }
+      }
+    },
+    "quickadd.draft.caption": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draft"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skica"
+          }
+        }
+      }
+    },
     "quickadd.hint.close": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8866,6 +10378,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Novi redak"
+          }
+        }
+      }
+    },
+    "quickadd.hint.noshortcut": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set a shortcut in Settings to open this from anywhere"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postavi prečac u Postavkama da ovo otvaraš odasvud"
           }
         }
       }
@@ -8949,13 +10479,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "e.g. Call Alex #acme *m tomorrow"
+            "value": "e.g. Call Alex #acme ** tomorrow"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "npr. Nazovi Alexa #acme *m sutra"
+            "value": "npr. Nazovi Alexa #acme ** sutra"
           }
         }
       }
@@ -9201,13 +10731,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "What needs doing"
+            "value": "What needs doing? e.g. Send the offer #acme tomorrow"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Što treba napraviti"
+            "value": "Što treba napraviti? npr. Pošalji ponudu #acme sutra"
           }
         }
       }
@@ -9266,6 +10796,42 @@
         }
       }
     },
+    "quickadd.template.empty": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No templates yet. Save one from a task's details."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema predložaka. Spremi ga iz detalja zadatka."
+          }
+        }
+      }
+    },
+    "quickadd.template.hint": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return creates the task with its steps. Type after the name to extend the title."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return stvara zadatak s njegovim koracima. Tipkaj iza naziva za nastavak naslova."
+          }
+        }
+      }
+    },
     "quickadd.waiting.toggle": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -9273,13 +10839,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Waiting"
+            "value": "Mark as waiting"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Čeka"
+            "value": "Označi kao čeka"
           }
         }
       }
@@ -9316,6 +10882,240 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ponavljanje"
+          }
+        }
+      }
+    },
+    "settings.about.build.label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izdanje"
+          }
+        }
+      }
+    },
+    "settings.about.name.label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikacija"
+          }
+        }
+      }
+    },
+    "settings.about.section.updates": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažuriranja"
+          }
+        }
+      }
+    },
+    "settings.about.update.available": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %1$@ available"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dostupna je verzija %1$@"
+          }
+        }
+      }
+    },
+    "settings.about.update.check": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for updates"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provjeri ažuriranja"
+          }
+        }
+      }
+    },
+    "settings.about.update.checking": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provjeravam…"
+          }
+        }
+      }
+    },
+    "settings.about.update.error": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check right now. Try again later."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provjera trenutno nije moguća. Pokušaj kasnije."
+          }
+        }
+      }
+    },
+    "settings.about.update.label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest version"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Najnovija verzija"
+          }
+        }
+      }
+    },
+    "settings.about.update.none": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No public release yet."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema javnog izdanja."
+          }
+        }
+      }
+    },
+    "settings.about.update.note": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos only checks when you press the button. Nothing is installed for you."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos provjerava samo kad pritisneš gumb. Ništa se ne instalira samo."
+          }
+        }
+      }
+    },
+    "settings.about.update.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open download page"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori stranicu za preuzimanje"
+          }
+        }
+      }
+    },
+    "settings.about.update.uptodate": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to date"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualno"
+          }
+        }
+      }
+    },
+    "settings.about.version.label": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verzija"
           }
         }
       }
@@ -10965,13 +12765,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Calendar blocks"
+            "value": "Time block offers"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kalendarski blokovi"
+            "value": "Ponude vremenskih blokova"
           }
         }
       }
@@ -11660,6 +13460,168 @@
         }
       }
     },
+    "settings.data.restore": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from backup"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrati iz sigurnosne kopije"
+          }
+        }
+      }
+    },
+    "settings.data.restore.button": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrati"
+          }
+        }
+      }
+    },
+    "settings.data.restore.confirm": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore and restart"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrati i ponovno pokreni"
+          }
+        }
+      }
+    },
+    "settings.data.restore.empty": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No copies yet. The first one appears after the next daily backup."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema kopija. Prva se pojavi nakon sljedeće dnevne sigurnosne kopije."
+          }
+        }
+      }
+    },
+    "settings.data.restore.failed": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not restore. Nothing was changed."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vraćanje nije uspjelo. Ništa nije promijenjeno."
+          }
+        }
+      }
+    },
+    "settings.data.restore.help": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoring replaces everything with the chosen copy and restarts Kronos. A safety copy of your current data is made first."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vraćanje sve zamjenjuje odabranom kopijom i ponovno pokreće Kronos. Prije toga se napravi sigurnosna kopija trenutnih podataka."
+          }
+        }
+      }
+    },
+    "settings.data.restore.prompt": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To replace your current data with the copy from %1$@, type %2$@. Kronos then restarts."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Za zamjenu trenutnih podataka kopijom od %1$@ upiši %2$@. Kronos se zatim ponovno pokreće."
+          }
+        }
+      }
+    },
+    "settings.data.restore.safety": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before a restore"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prije vraćanja"
+          }
+        }
+      }
+    },
+    "settings.data.restore.word": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RESTORE"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VRATI"
+          }
+        }
+      }
+    },
     "settings.data.reveal": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -11818,6 +13780,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Podaci se nalaze u"
+          }
+        }
+      }
+    },
+    "settings.data.templates": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Templates"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predlošci"
+          }
+        }
+      }
+    },
+    "settings.data.templates.delete": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obriši"
+          }
+        }
+      }
+    },
+    "settings.data.templates.empty": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No templates yet. Open a task and choose Save as template."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema predložaka. Otvori zadatak i odaberi Spremi kao predložak."
+          }
+        }
+      }
+    },
+    "settings.data.templates.rename": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Template name"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naziv predloška"
           }
         }
       }
@@ -12056,6 +14090,60 @@
         }
       }
     },
+    "settings.mcp.connect.unavailable": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js was not found. Use the commands above instead."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Node.js nije pronađen. Umjesto toga upotrijebi naredbe iznad."
+          }
+        }
+      }
+    },
+    "settings.mcp.connectall": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect all local AI tools"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži sve lokalne AI alate"
+          }
+        }
+      }
+    },
+    "settings.mcp.connecting": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezujem"
+          }
+        }
+      }
+    },
     "settings.mcp.enabled": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -12070,6 +14158,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dopusti AI asistentu čitanje i izmjenu zadataka"
+          }
+        }
+      }
+    },
+    "settings.mcp.snippet.bridge": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos starts itself when an AI tool asks. Point the tool at this helper, no token needed:"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos se sam pokrene kad ga AI alat zatraži. Usmjeri alat na ovaj pomoćnik, token nije potreban:"
+          }
+        }
+      }
+    },
+    "settings.mcp.snippet.claudecode": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code"
+          }
+        }
+      }
+    },
+    "settings.mcp.snippet.codex": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex, config.toml"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex, config.toml"
+          }
+        }
+      }
+    },
+    "settings.mcp.snippet.desktop": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop, file claude_desktop_config.json"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop, datoteka claude_desktop_config.json"
           }
         }
       }
@@ -12106,6 +14266,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Radi sa svakim MCP klijentom:"
+          }
+        }
+      }
+    },
+    "settings.mcp.snippet.hermes": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes, config.yaml"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hermes, config.yaml"
           }
         }
       }
@@ -12189,13 +14367,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Regenerate. Connected clients must be set up again."
+            "value": "Regenerate. Tools connected through the helper keep working."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Generiraj ponovno. Povezane klijente treba ponovno postaviti."
+            "value": "Generiraj ponovno. Alati povezani preko pomoćnika nastavljaju raditi."
           }
         }
       }
@@ -15009,13 +17187,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI sent back nothing usable, showing your list instead"
+            "value": "AI answer was unusable"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI nije vratio ništa upotrebljivo, prikazujem prijedlog iz popisa"
+            "value": "Odgovor AI-a nije upotrebljiv"
           }
         }
       }
@@ -15027,13 +17205,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI did not answer, showing your list instead"
+            "value": "AI did not answer"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI nije odgovorio, prikazujem prijedlog iz popisa"
+            "value": "AI nije odgovorio"
           }
         }
       }
@@ -15045,13 +17223,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI is not set up, showing your list instead"
+            "value": "AI is not set up"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI nije postavljen, prikazujem prijedlog iz popisa"
+            "value": "AI nije postavljen"
           }
         }
       }
@@ -15063,13 +17241,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI is busy right now, showing your list instead"
+            "value": "AI is busy"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI je trenutno zauzet, prikazujem prijedlog iz popisa"
+            "value": "AI je zauzet"
           }
         }
       }
@@ -15081,13 +17259,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI took too long, showing your list instead"
+            "value": "AI was too slow"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI je predugo trajao, prikazujem prijedlog iz popisa"
+            "value": "AI je prespor"
           }
         }
       }
@@ -15596,6 +17774,24 @@
         }
       }
     },
+    "undo.added.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added “%1$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodano „%1$@”"
+          }
+        }
+      }
+    },
     "undo.archived.name": {
       "comment": "Spec 3.17 Undo chips (ux-12).",
       "extractionState": "manual",
@@ -15610,6 +17806,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arhivirano „%1$@”"
+          }
+        }
+      }
+    },
+    "undo.area.edit": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit area"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uredi područje"
+          }
+        }
+      }
+    },
+    "undo.capture.create": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stvori zadatke"
           }
         }
       }
@@ -15716,6 +17948,60 @@
         }
       }
     },
+    "undo.pinned.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned “%1$@” as focus"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadatak „%1$@” prikvačen kao fokus"
+          }
+        }
+      }
+    },
+    "undo.priority.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priority %1$@ for “%2$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prioritet %1$@ za „%2$@”"
+          }
+        }
+      }
+    },
+    "undo.quickadd": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick add"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brzi unos"
+          }
+        }
+      }
+    },
     "undo.reordered": {
       "comment": "Spec 3.17 Undo chips (ux-12).",
       "extractionState": "manual",
@@ -15770,6 +18056,42 @@
         }
       }
     },
+    "undo.snoozed.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Snoozed “%1$@” to tomorrow"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odgođeno „%1$@” za sutra"
+          }
+        }
+      }
+    },
+    "undo.template.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created “%1$@” from template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stvoreno „%1$@” iz predloška"
+          }
+        }
+      }
+    },
     "undo.triage.applied": {
       "comment": "Spec 3.17 Undo chips (ux-12).",
       "extractionState": "manual",
@@ -15802,6 +18124,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ponovno otvoreno „%1$@”"
+          }
+        }
+      }
+    },
+    "undo.unpinned.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpinned focus “%1$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fokus „%1$@” otkvačen"
           }
         }
       }
@@ -16742,6 +19082,204 @@
         }
       }
     },
+    "welcome.card.all": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All features"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sve funkcije"
+          }
+        }
+      }
+    },
+    "welcome.card.collapse": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fold this card"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sklopi karticu"
+          }
+        }
+      }
+    },
+    "welcome.card.enough": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enough for now"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosta za sada"
+          }
+        }
+      }
+    },
+    "welcome.card.expand": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the next step"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži sljedeći korak"
+          }
+        }
+      }
+    },
+    "welcome.card.fewer": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samo sljedeće"
+          }
+        }
+      }
+    },
+    "welcome.card.group.basics": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The basics"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osnove"
+          }
+        }
+      }
+    },
+    "welcome.card.group.power": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More, when you want it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još, kad poželiš"
+          }
+        }
+      }
+    },
+    "welcome.card.markdone": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as done"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označi kao gotovo"
+          }
+        }
+      }
+    },
+    "welcome.card.progress": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "welcome.card.ticked": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done: %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotovo: %1$@"
+          }
+        }
+      }
+    },
+    "welcome.card.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn Kronos"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upoznaj Kronos"
+          }
+        }
+      }
+    },
     "welcome.eyebrow": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -16756,6 +19294,222 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "welcome.intro.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A task app built for an ADHD brain: less deciding, less looking, less effort to start."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikacija za zadatke napravljena za ADHD mozak: manje odlučivanja, manje traženja, lakši početak."
+          }
+        }
+      }
+    },
+    "welcome.intro.idea1.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the quick add shortcut anywhere on your Mac and just type. Kronos reads the date, project and priority from your words."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipkom za brzi unos bilo gdje na Macu samo upiši. Kronos iz tvojih riječi pročita datum, projekt i prioritet."
+          }
+        }
+      }
+    },
+    "welcome.intro.idea1.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Throw everything in"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ubaci sve"
+          }
+        }
+      }
+    },
+    "welcome.intro.idea2.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The card on top of your list and the circle in the menu bar show one task and its first move. The rest stays out of sight."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kartica na vrhu popisa i kružić u traci izbornika pokazuju jedan zadatak i njegov prvi potez. Sve ostalo ostaje sklonjeno."
+          }
+        }
+      }
+    },
+    "welcome.intro.idea2.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See only what is next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vidi samo ono što je sljedeće"
+          }
+        }
+      }
+    },
+    "welcome.intro.idea3.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split big things into tiny steps. The next open step becomes your first move, and every finish plays a sound."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razbij velike stvari na male korake. Sljedeći otvoreni korak postaje tvoj prvi potez, a svaki završetak ima svoj zvuk."
+          }
+        }
+      }
+    },
+    "welcome.intro.idea3.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start small, finish often"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kreni malo, završavaj često"
+          }
+        }
+      }
+    },
+    "welcome.intro.idea4.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Learn Kronos card at the top of your list lets you try every feature, one at a time. It suggests what to try next and ticks itself when you do it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kartica Upoznaj Kronos na vrhu popisa daje ti da isprobaš svaku funkciju, jednu po jednu. Predloži što sljedeće probati i sama se označi kad to napraviš."
+          }
+        }
+      }
+    },
+    "welcome.intro.idea4.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn it when you have time"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uči kad imaš vremena"
+          }
+        }
+      }
+    },
+    "welcome.intro.later": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasnije"
+          }
+        }
+      }
+    },
+    "welcome.intro.start": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show me around"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provedi me"
+          }
+        }
+      }
+    },
+    "welcome.intro.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos shows you only the next step"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos ti pokazuje samo sljedeći korak"
           }
         }
       }
@@ -16796,6 +19550,42 @@
         }
       }
     },
+    "welcome.menu.starthere": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn Kronos"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upoznaj Kronos"
+          }
+        }
+      }
+    },
+    "welcome.menu.tour": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Take the tour"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obilazak aplikacije"
+          }
+        }
+      }
+    },
     "welcome.page1.body": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -16821,13 +19611,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "~m tomorrow"
+            "value": "** tomorrow"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "~m tomorrow"
+            "value": "** sutra"
           }
         }
       }
@@ -16911,13 +19701,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Go through new tasks one at a time: set priority, effort, and a deadline without touching the mouse."
+            "value": "Triage fills in what a new task is missing, one task at a time."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prođi nove zadatke jedan po jedan: postavi prioritet, trud i rok bez dodira miša."
+            "value": "Triaža popunjava ono što novom zadatku nedostaje, jedan zadatak po jedan."
           }
         }
       }
@@ -17019,13 +19809,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Triage clears your inbox"
+            "value": "Triage fills the gaps"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Triaža čisti inbox"
+            "value": "Triaža popunjava praznine"
           }
         }
       }
@@ -17037,13 +19827,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "One task, one first move, a timer. Pick your energy."
+            "value": "One task, one first move. Pick your energy."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jedan zadatak, jedan prvi korak, tajmer. Odaberi svoju energiju."
+            "value": "Jedan zadatak, jedan prvi korak. Odaberi svoju energiju."
           }
         }
       }
@@ -17163,13 +19953,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The menu bar shows the one task that is next, and Calendar blocks protect the time for it."
+            "value": "The menu bar shows the one task that is next, and Time blocks protect the time for it."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Traka izbornika pokazuje jedan sljedeći zadatak, a blokovi u kalendaru čuvaju vrijeme za njega."
+            "value": "Traka izbornika pokazuje jedan sljedeći zadatak, a vremenski blokovi čuvaju vrijeme za njega."
           }
         }
       }
@@ -17181,13 +19971,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Calendar blocks"
+            "value": "Time blocks"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "blokovi u kalendaru"
+            "value": "vremenski blokovi"
           }
         }
       }
@@ -17336,6 +20126,384 @@
         }
       }
     },
+    "welcome.quest.attach.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag a file from Finder or an email from Mail onto the task. One click opens it later."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povuci datoteku iz Findera ili mail iz Maila na zadatak. Poslije ga otvaraš jednim klikom."
+          }
+        }
+      }
+    },
+    "welcome.quest.attach.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attach what you need for it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priloži ono što ti za to treba"
+          }
+        }
+      }
+    },
+    "welcome.quest.capture.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press this anywhere on your Mac, type it, press Return. No sorting needed."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pritisni ovo bilo gdje na Macu, upiši i stisni Return. Ne moraš ništa razvrstavati."
+          }
+        }
+      }
+    },
+    "welcome.quest.capture.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write down one thing on your mind"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapiši jednu stvar koja ti se mota po glavi"
+          }
+        }
+      }
+    },
+    "welcome.quest.capturenotes.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste meeting notes or a brain dump. Kronos splits it into tasks and steps."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zalijepi bilješke sa sastanka ili sve što ti je u glavi. Kronos to razdvoji na zadatke i korake."
+          }
+        }
+      }
+    },
+    "welcome.quest.capturenotes.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn notes into tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pretvori bilješke u zadatke"
+          }
+        }
+      }
+    },
+    "welcome.quest.finish.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click the circle next to a subtask or a task. Every finish plays a sound."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klikni kružić pored podzadatka ili zadatka. Svaki završetak ima svoj zvuk."
+          }
+        }
+      }
+    },
+    "welcome.quest.finish.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish one step"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi jedan korak"
+          }
+        }
+      }
+    },
+    "welcome.quest.firststep.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the task and add one subtask. Kronos then shows that step as your first move."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori zadatak i dodaj jedan podzadatak. Kronos ti onda taj korak pokazuje kao prvi potez."
+          }
+        }
+      }
+    },
+    "welcome.quest.firststep.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Break it into a tiny first step"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razbij je na mali prvi korak"
+          }
+        }
+      }
+    },
+    "welcome.quest.impuls.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls asks how much energy you have and picks one task. Use it when you are stuck."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls te pita koliko energije imaš i bira jedan zadatak. Koristi ga kad zapneš."
+          }
+        }
+      }
+    },
+    "welcome.quest.impuls.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let Kronos pick for you"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neka Kronos odabere umjesto tebe"
+          }
+        }
+      }
+    },
+    "welcome.quest.palette.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette jumps to any task, list or action. Start typing."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paleta naredbi skače na bilo koji zadatak, popis ili radnju. Samo počni tipkati."
+          }
+        }
+      }
+    },
+    "welcome.quest.palette.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find anything"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronađi bilo što"
+          }
+        }
+      }
+    },
+    "welcome.quest.seenext.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click the Kronos circle in the menu bar. It always holds one next task, even when the window is closed."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klikni Kronos kružić u traci izbornika. Uvijek drži jedan sljedeći zadatak, i kad je prozor zatvoren."
+          }
+        }
+      }
+    },
+    "welcome.quest.seenext.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See only what is next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vidi samo ono što je sljedeće"
+          }
+        }
+      }
+    },
+    "welcome.quest.timeblocks.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time blocks show only the tasks for the block you are in right now."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vremenski blokovi pokazuju samo zadatke za blok u kojem si upravo sada."
+          }
+        }
+      }
+    },
+    "welcome.quest.timeblocks.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protect time for it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaštiti vrijeme za to"
+          }
+        }
+      }
+    },
+    "welcome.quest.triage.how": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triage shows one task at a time with a suggestion already filled in. Return accepts it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Triaža pokazuje jedan po jedan zadatak s već ispunjenim prijedlogom. Return ga prihvaća."
+          }
+        }
+      }
+    },
+    "welcome.quest.triage.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort new tasks in one pass"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razvrstaj nove zadatke u jednom prolazu"
+          }
+        }
+      }
+    },
+    "welcome.showme": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isprobaj"
+          }
+        }
+      }
+    },
     "welcome.start": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -17368,6 +20536,402 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dobrodošli u Kronos"
+          }
+        }
+      }
+    },
+    "welcome.tour.add.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type it here, or use this shortcut anywhere on your Mac. Dates, projects and priority are read from your words."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upiši ga ovdje ili ovom kraticom bilo gdje na Macu. Datum, projekt i prioritet Kronos čita iz tvojih riječi."
+          }
+        }
+      }
+    },
+    "welcome.tour.add.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj zadatak"
+          }
+        }
+      }
+    },
+    "welcome.tour.back": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Natrag"
+          }
+        }
+      }
+    },
+    "welcome.tour.done": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotovo"
+          }
+        }
+      }
+    },
+    "welcome.tour.finish.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click the circle to finish a task. Every finish plays a sound."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klikni kružić da završiš zadatak. Svaki završetak ima svoj zvuk."
+          }
+        }
+      }
+    },
+    "welcome.tour.finish.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi ga"
+          }
+        }
+      }
+    },
+    "welcome.tour.learn.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This card lets you try every feature, one at a time. It ticks itself when you do it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova kartica ti daje da isprobaš svaku funkciju, jednu po jednu. Sama se označi kad to napraviš."
+          }
+        }
+      }
+    },
+    "welcome.tour.learn.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Learn the rest when you have time"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ostalo nauči kad imaš vremena"
+          }
+        }
+      }
+    },
+    "welcome.tour.lists.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inbox catches everything new. Today holds what is due. You rarely need the rest."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inbox hvata sve novo. Today drži ono što je danas na redu. Ostalo ti rijetko treba."
+          }
+        }
+      }
+    },
+    "welcome.tour.lists.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your lists"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tvoji popisi"
+          }
+        }
+      }
+    },
+    "welcome.tour.menubar.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Kronos circle in your menu bar shows the next task, even when this window is closed."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kronos kružić u traci izbornika pokazuje sljedeći zadatak, i kad je ovaj prozor zatvoren."
+          }
+        }
+      }
+    },
+    "welcome.tour.menubar.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always in sight"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uvijek na oku"
+          }
+        }
+      }
+    },
+    "welcome.tour.next": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalje"
+          }
+        }
+      }
+    },
+    "welcome.tour.now.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This card shows one task and its first move. Everything else can wait."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova kartica pokazuje jedan zadatak i njegov prvi potez. Sve ostalo može čekati."
+          }
+        }
+      }
+    },
+    "welcome.tour.now.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The one thing to do now"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedna stvar koju sada radiš"
+          }
+        }
+      }
+    },
+    "welcome.tour.progress": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "welcome.tour.showit": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show it"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokaži"
+          }
+        }
+      }
+    },
+    "welcome.tour.skip": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip tour"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči obilazak"
+          }
+        }
+      }
+    },
+    "welcome.tour.steps.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Break a task into tiny steps below. The next open step becomes the first move. Drop files or emails here too."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Razbij zadatak na male korake ispod. Sljedeći otvoreni korak postaje prvi potez. Ovdje možeš spustiti i datoteke ili mailove."
+          }
+        }
+      }
+    },
+    "welcome.tour.steps.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start small"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kreni malo"
+          }
+        }
+      }
+    },
+    "welcome.tour.stuck.body": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls picks one task for you. Triage fills in what new tasks are missing, one at a time."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impuls bira jedan zadatak umjesto tebe. Triaža popuni ono što novim zadacima fali, jedan po jedan."
+          }
+        }
+      }
+    },
+    "welcome.tour.stuck.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you are stuck"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kad zapneš"
           }
         }
       }

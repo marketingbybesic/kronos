@@ -92,7 +92,8 @@ enum PaletteResults {
         return PaletteGroup.allCases.compactMap { group -> (PaletteGroup, [PaletteItem])? in
             guard var rows = byGroup[group], !rows.isEmpty else { return nil }
             rows.sort { $0.score != $1.score ? $0.score > $1.score : $0.order < $1.order }
-            let capped = Array(rows.prefix(maxRowsPerGroup)).map(\.item)
+            // The bulk group is uncapped: Delete is its LAST row (audit D14) and a cap of 8 hid it.
+            let capped = Array(group == .bulk ? rows : Array(rows.prefix(maxRowsPerGroup))).map(\.item)
             return (group, capped)
         }
     }

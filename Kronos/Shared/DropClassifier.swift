@@ -17,7 +17,7 @@ import UniformTypeIdentifiers
 /// (KronosCore/Coach/AppleNotesBridge.swift). `title` is always non-empty (falls back to a
 /// generic placeholder) so a chip never renders blank.
 public struct DropClassification: Equatable, Sendable {
-    public enum Kind: String, Sendable { case appleNote, file, folder, web, text }
+    public enum Kind: String, Sendable { case appleNote, file, folder, web, text, email }
 
     public let kind: Kind
     public let title: String
@@ -84,6 +84,9 @@ public enum DropClassifier {
         if isNotesDrag(item) {
             return classifyNotes(item)
         }
+        if let urlString = item.urlString, urlString.lowercased().hasPrefix("message:") {
+            return classifyMail(item, url: urlString)
+        }
         if let urlString = item.urlString, let noteID = noteID(fromURLString: urlString) {
             return DropClassification(kind: .appleNote, title: noteTitle(for: item) ?? noteID, payload: noteID, isVerifiedID: true)
         }
@@ -118,6 +121,14 @@ public enum DropClassifier {
 
     private static func isNotesDrag(_ item: DropItem) -> Bool {
         !knownNotesTypeIdentifiers.isDisjoint(with: Set(item.typeIdentifiers))
+    }
+
+    /// An Apple Mail message: Mail puts a `message:` URL on the drag for each message (it
+    /// opens exactly that message). Title = the item's text when it is not the URL itself.
+    private static func classifyMail(_ item: DropItem, url: String) -> DropClassification {
+        let firstLine = item.text?.split(separator: "\n", maxSplits: 1).first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        let title = firstLine.isEmpty || firstLine.lowercased().hasPrefix("message:") ? "Email" : firstLine
+        return DropClassification(kind: .email, title: title, payload: url)
     }
 
     /// A Notes drag with no readable text still yields a stable link (the app can open Notes

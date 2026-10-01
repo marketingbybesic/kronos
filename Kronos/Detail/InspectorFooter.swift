@@ -7,6 +7,7 @@ import KronosCore
 struct InspectorFooter: View {
     let model: AppModel
     let task: KTask
+    @State private var savedAsTemplate = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
@@ -22,6 +23,25 @@ struct InspectorFooter: View {
                 }
             }
             .font(Typo.meta)
+            .foregroundStyle(Tok.textTertiary)
+
+            // Quiet text control like Delete: snapshots this task and its steps (no dates) as a
+            // template for quick add `/name` and the palette. Saved under the task title at once
+            // (no naming step; Settings > Data renames it).
+            Button {
+                guard !savedAsTemplate, let tpl = model.store.makeTemplate(from: task.id) else { return }
+                TemplateStore.shared.add(tpl)
+                // Inline confirmation, not the undo pill: that pill's Undo would undo the last
+                // STORE edit, which saving a template is not.
+                savedAsTemplate = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedAsTemplate = false }
+            } label: {
+                Text(String(localized: savedAsTemplate ? "detail.template.saved" : "detail.template.save"))
+                    .frame(height: Metrics.minHit, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .font(Typo.meta)
+            .buttonStyle(.plain)
             .foregroundStyle(Tok.textTertiary)
 
             // Shell-level pill (KUndoPill.swift / AppShellView) so it shows regardless of

@@ -20,8 +20,9 @@ public enum Tok {
     public static let raised  = Color.black
     /// Popovers/menus/sheets lift one step off pure black so they read as floating;
     /// elevation is still carried by border + shadow, never by this fill alone.
-    /// OLED black applies everywhere, floating surfaces included (the menu-bar popover
-    /// already was). Kept as its own token so the decision stays in one place.
+    /// OLED black applies everywhere, floating surfaces included — a deliberate design decision, re-confirmed
+    /// 29.09.2026 after a rev-18 draft had turned it grey (#1B1B1F). Kept as its own token so
+    /// the decision stays in one place.
     public static let overlay = Color.black
 
     // MARK: Borders — the only way elevation and control boundaries read on true black.
@@ -133,9 +134,9 @@ public enum Metrics {
     public static var controlCompact: CGFloat { 28 * DSScale.density }
     public static var controlRegular: CGFloat { 32 * DSScale.density }
 
-    public static var rowHeight: CGFloat         { 36 * DSScale.density }   // list row, spec B3
+    public static var rowHeight: CGFloat         { 40 * DSScale.density }   // list row, spec B3 (rev18: 36→40 for readability)
     public static var rowHeightDense: CGFloat    { 28 * DSScale.density }
-    public static var rowHeightDrag: CGFloat     { 36 * DSScale.density }
+    public static var rowHeightDrag: CGFloat     { 40 * DSScale.density }
     public static var groupHeaderHeight: CGFloat { 28 * DSScale.density }
     public static let toolbarHeight: CGFloat     = 44
     public static let composerHeight: CGFloat    = 44

@@ -20,15 +20,21 @@ import AppKit
 import UniformTypeIdentifiers
 import KronosCore
 
-/// One task-scoped drop target: attach as `.kContextLinkDrop(task:model:)` on a row, the Now
-/// card or the inspector header. Shows a brief hover highlight while something draggable is
-/// over it; the actual link write happens once the drop completes.
+/// Where an attachment drop lands: the task itself, or one of its subtasks.
+enum AttachmentTarget {
+    case task(UUID)
+    case subtask(KSubtask)
+}
+
+/// One drop target: attach as `.kContextLinkDrop(taskID:model:)` on a row, the Now card or the
+/// inspector, or `.kContextLinkDrop(subtask:model:)` on a subtask row. Shows a brief hover
+/// highlight while something draggable is over it; the links are written once the drop completes.
 struct ContextLinkDropModifier: ViewModifier {
-    let taskID: UUID
+    let target: AttachmentTarget
     let model: AppModel
     @State private var isTargeted = false
 
-    private static let acceptedTypes: [UTType] = [.fileURL, .url, .plainText, .text, .item]
+    static let acceptedTypes: [UTType] = [.fileURL, .url, .plainText, .text, .item]
 
     func body(content: Content) -> some View {
         content
@@ -39,31 +45,61 @@ struct ContextLinkDropModifier: ViewModifier {
                 }
             }
             .onDrop(of: Self.acceptedTypes, isTargeted: $isTargeted) { providers in
-                // Tried FIRST, synchronously, before the drag session can be torn down: the
-                // reliable AppKit route for a live Finder drag (the NSItemProvider path below
-                // was silently loading nothing for real drops). `FileDropPasteboard.fileURLs`
-                // takes the pasteboard as a parameter so the self-test can hand it a private
-                // named pasteboard instead of the real system drag pasteboard.
-                if let url = FileDropPasteboard.fileURLs(from: NSPasteboard(name: .drag)).first {
-                    Self.write(FileDropPasteboard.fields(for: url).contextLink, taskID: taskID, model: model)
-                    return true
-                }
-                guard let provider = providers.first else { return false }
-                Task { await Self.classify(provider) { link in
-                    Self.write(link, taskID: taskID, model: model)
-                } }
-                return true
+                Self.accept(providers, target: target, model: model)
             }
     }
 
-    /// Never writes a link with an empty reference: an empty-text `DropClassifier` fallback
-    /// used to reach here and get stored as `link://web|Untitled|` — a chip that can never
-    /// open. Nothing usable loaded -> nothing is written; the
-    /// existing debug type-identifier logger (`NotesDropPasteboardLog`, Kronos/Links/) is the
-    /// place to look at what the source actually offered.
-    private static func write(_ link: ContextLink, taskID: UUID, model: AppModel) {
-        guard !link.reference.isEmpty else { return }
-        model.store.update(taskID) { $0.notes = link.appending(to: $0.notes) }
+    /// The whole drop routine, shared by every attachment target (the subtask row calls it
+    /// from its own drop delegate). Reads the SYSTEM drag pasteboard synchronously first,
+    /// before the drag session can be torn down (the NSItemProvider path was silently loading
+    /// nothing for real Finder drops): every dragged Mail message, else EVERY dragged
+    /// file/folder (the old code kept only `.first`). Kronos's own subtask-reorder drag is
+    /// refused so it can never become a text attachment.
+    static func accept(_ providers: [NSItemProvider], target: AttachmentTarget, model: AppModel) -> Bool {
+        let pasteboard = NSPasteboard(name: .drag)
+        DropTypesLog.append(pasteboard)
+        guard MailDropPasteboard.subtaskID(from: pasteboard) == nil else { return false }
+        if let links = links(fromDragPasteboard: pasteboard) {
+            write(links, to: target, model: model)
+            return true
+        }
+        guard !providers.isEmpty else { return false }
+        Task {
+            var links: [ContextLink] = []
+            for provider in providers {
+                if let link = await classify(provider) { links.append(link) }
+            }
+            await MainActor.run { write(links, to: target, model: model) }
+        }
+        return true
+    }
+
+    /// Mail messages or files/folders straight off the drag pasteboard; nil when it holds
+    /// neither (web links, text, Notes go through the provider path).
+    static func links(fromDragPasteboard pasteboard: NSPasteboard) -> [ContextLink]? {
+        let mail = MailDropPasteboard.messages(from: pasteboard)
+        if !mail.isEmpty {
+            return mail.map {
+                ContextLink(kind: .email, reference: $0.url,
+                            displayName: $0.subject ?? String(localized: "detail.links.email.untitled"))
+            }
+        }
+        let files = FileDropPasteboard.fileURLs(from: pasteboard)
+        return files.isEmpty ? nil : files.map { FileDropPasteboard.fields(for: $0).contextLink }
+    }
+
+    /// One store write (= one undo step) for the whole drop. Never writes a link with an
+    /// empty reference: an empty-text fallback used to be stored as `link://web|Untitled|`,
+    /// a chip that can never open.
+    static func write(_ links: [ContextLink], to target: AttachmentTarget, model: AppModel) {
+        let usable = links.filter { !$0.reference.isEmpty }
+        guard !usable.isEmpty else { return }
+        switch target {
+        case .task(let id):
+            model.store.update(id) { t in t.notes = usable.reduce(t.notes) { $1.appending(to: $0) } }
+        case .subtask(let s):
+            model.store.updateSubtaskNotes(s.id, notes: usable.reduce(s.notes) { $1.appending(to: $0) })
+        }
         model.didMutate()
     }
 
@@ -75,7 +111,7 @@ struct ContextLinkDropModifier: ViewModifier {
     /// Fallback path only — `body(content:)` tries the drag pasteboard directly first, since
     /// this NSItemProvider route is the one that was silently loading nothing live (see file
     /// doc comment).
-    static func classify(_ provider: NSItemProvider, apply: @escaping (ContextLink) -> Void) async {
+    static func classify(_ provider: NSItemProvider) async -> ContextLink? {
         let typeIdentifiers = provider.registeredTypeIdentifiers
         async let fileURL = loadFileURL(provider)
         async let url = loadURL(provider)
@@ -103,9 +139,8 @@ struct ContextLinkDropModifier: ViewModifier {
         }
         let item = DropItem(typeIdentifiers: typeIdentifiers, fileURLString: fileURLResult,
                             urlString: urlResult, text: textResult, isDirectory: isDirectory)
-        let classification = DropClassifier.classify(item)
-        let link = contextLink(from: classification)
-        await MainActor.run { apply(link) }
+        if textResult?.hasPrefix(MailDropPasteboard.subtaskDragPrefix) == true { return nil }
+        return contextLink(from: DropClassifier.classify(item))
     }
 
     /// `.file`/`.folder` store a security-scoped bookmark (base64, since `ContextLink`'s
@@ -128,6 +163,8 @@ struct ContextLinkDropModifier: ViewModifier {
             let reference = bookmarkBase64(forPath: c.payload) ?? c.payload
             let kind: ContextLink.Kind = c.kind == .folder ? .folder : .file
             return ContextLink(kind: kind, reference: reference, displayName: c.title)
+        case .email:
+            return ContextLink(kind: .email, reference: c.payload, displayName: c.title)
         case .text:
             // No dedicated Core "text" kind (plan: a task carries at most one context link;
             // a bare-text drop still needs a chip) — stored as a `.web` link with an empty
@@ -196,7 +233,7 @@ extension View {
     /// Accepts a dropped Apple Note, file, folder, URL or text and links it to `taskID`
     /// (feature M). Mount on a task row, the inspector header, or the Now card.
     func kContextLinkDrop(taskID: UUID, model: AppModel) -> some View {
-        modifier(ContextLinkDropModifier(taskID: taskID, model: model))
+        modifier(ContextLinkDropModifier(target: .task(taskID), model: model))
     }
 }
 
@@ -205,5 +242,24 @@ extension FileDropPasteboard.Fields {
     /// `ContextLink` it stores.
     var contextLink: ContextLink {
         ContextLink(kind: isDirectory ? .folder : .file, reference: reference, displayName: displayName)
+    }
+}
+
+/// One line per attachment drop — type NAMES only, never contents — in
+/// `<store folder>/drop-types.log`, so a source that offers something unexpected (a future
+/// Mail) is diagnosable from a single try. Capped: past 64 KB the file starts over.
+enum DropTypesLog {
+    static func append(_ pasteboard: NSPasteboard) {
+        let url = KronosStore.containerDirectory().appendingPathComponent("drop-types.log")
+        let line = ISO8601DateFormatter().string(from: Date()) + " " + MailDropPasteboard.typesSummary(pasteboard) + "\n"
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        if size > 64_000 || !FileManager.default.fileExists(atPath: url.path) {
+            try? Data(line.utf8).write(to: url)
+            return
+        }
+        guard let handle = try? FileHandle(forWritingTo: url) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data(line.utf8))
     }
 }

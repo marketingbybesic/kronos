@@ -133,8 +133,8 @@ public struct KSidebarRow: View {
         return isSelected || isHovering ? Tok.textPrimary : Tok.textSecondary
     }
 
-    /// Calm hides counts until the row is hovered; the column keeps its width either way.
-    private var countOpacity: Double { chromaMode == .calm && !isHovering ? 0 : 1 }
+    /// Counts are always visible; Calm mode was removed in rev18.
+    private var countOpacity: Double { 1 }
 
     // MARK: iconsAndText — full row
     private var fullBody: some View {

@@ -14,9 +14,9 @@ import UniformTypeIdentifiers
 ///
 /// Order: General, Appearance, Coach, Ordo, Notes (Capture & Notes), AI, MCP ("Claude
 /// access" — settings.tab.mcp is already localised to that name, no rename needed), Data,
-/// Shortcuts.
+/// Shortcuts, About.
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, appearance, coach, ordo, notes, ai, mcp, data, shortcuts
+    case general, appearance, coach, ordo, notes, ai, mcp, data, shortcuts, about
     var id: String { rawValue }
 
     var titleKey: String {
@@ -30,6 +30,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .mcp: return "settings.tab.mcp"
         case .data: return "settings.tab.data"
         case .shortcuts: return "settings.tab.shortcuts"
+        case .about: return "settings.tab.about"
         }
     }
     var icon: String {
@@ -48,6 +49,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .mcp: return "server"
         case .data: return "database"
         case .shortcuts: return "keyboard"
+        case .about: return "info"
         }
     }
 }
@@ -56,6 +58,7 @@ struct SettingsScreen: View {
     let model: AppModel
     @State private var tab: SettingsTab = .general
     @State private var aiController = AISettingsController()
+    @FocusState private var paneFocused: Bool
     private let mcpStatus: MCPStatusProviding
 
     init(model: AppModel) {
@@ -81,6 +84,10 @@ struct SettingsScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(Tok.bg)
+        // Default 900x640, user-resizable down to 900x560 (the Startup and Restore sections sat below the old fixed fold).
+        .frame(minWidth: 900, idealWidth: 900, maxWidth: .infinity, minHeight: 560, idealHeight: 640, maxHeight: .infinity)
+        // The Settings scene opens wherever AppKit last put it, often on the OTHER display.
+        .background(WindowWidthReader { SettingsWindowPlacer.shared.attach($0) })
         .onAppear {
             // Snapshot-only: the "settings.ai" screen must show a passed Test result (G4),
             // and AISettingsController.runTest() is a no-op network call under
@@ -152,11 +159,18 @@ struct SettingsScreen: View {
                     case .mcp: SettingsMCPTab(status: mcpStatus)
                     case .data: SettingsDataTab(model: model)
                     case .shortcuts: SettingsShortcutsTab()
+                    case .about: SettingsAboutTab()
                     }
                 }
                 .padding(Space.x6)
                 .frame(width: geo.size.width, alignment: .leading)
             }
+            // Focusable so Down/PageDown/Space scroll the pane from the keyboard; a new tab starts at the top.
+            .focusable()
+            .focused($paneFocused)
+            .focusEffectDisabled()
+            .id(tab)
+            .onAppear { paneFocused = true }
         }
     }
 }
@@ -168,6 +182,9 @@ struct SettingsScreen: View {
 struct SettingsGeneralTab: View {
     let model: AppModel
     @State private var languagePref: KronosLocale.Preference = KronosLocale.preference
+    /// The language in force when this tab opened: the relaunch row only matters once the
+    /// user has moved away from it (nothing else in General needs a relaunch).
+    @State private var initialLanguagePref: KronosLocale.Preference = KronosLocale.preference
     @State private var soundsEnabled: Bool = UserDefaults.standard.object(forKey: "kronos.sounds.enabled") == nil
         ? true : UserDefaults.standard.bool(forKey: "kronos.sounds.enabled")
     @State private var launchStatus: SMAppServiceStatus = LaunchAtLogin.currentStatus()
@@ -191,17 +208,19 @@ struct SettingsGeneralTab: View {
                 .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
                 .onChange(of: languagePref) { _, newValue in KronosLocale.preference = newValue }
             }
-            // Always shown, calmly: switching language only fully applies after a relaunch
-            // (String(localized:) resolves through the bundle's fixed-at-launch preferred
-            // localization — KronosLocale.swift). The help text states the fact; the button
-            // is the verb that acts on it, so the two must not repeat the same words.
-            SettingsHelpRow {
-                Text(String(localized: "settings.general.language.relaunch"))
-                    .font(Typo.meta)
-                    .foregroundStyle(Tok.textTertiary)
-                Spacer()
-                Button(String(localized: "settings.general.restart")) { relaunch() }
-                    .kButton(.secondary, size: .compact)
+            // Shown only after the language was actually changed: it only fully applies after
+            // a relaunch (String(localized:) resolves through the bundle's fixed-at-launch
+            // preferred localization — KronosLocale.swift). The help text states the fact; the
+            // button is the verb that acts on it, so the two must not repeat the same words.
+            if languagePref != initialLanguagePref {
+                SettingsHelpRow {
+                    Text(String(localized: "settings.general.language.relaunch"))
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                    Spacer()
+                    Button(String(localized: "settings.general.restart")) { relaunch() }
+                        .kButton(.secondary, size: .compact)
+                }
             }
 
             SettingsRow(label: String(localized: "settings.general.permissions")) {
@@ -212,12 +231,9 @@ struct SettingsGeneralTab: View {
             }
 
             SettingsRow(label: String(localized: "settings.general.sidebar")) {
-                KSidebarModeToggle(mode: Binding(
-                    get: { model.sidebarIconsOnly ? .iconsOnly : .iconsAndText },
-                    set: { newMode in
-                        model.sidebarIconsOnly = (newMode == .iconsOnly)
-                        model.persist()
-                    }
+                SidebarModePicker(iconsOnly: Binding(
+                    get: { model.sidebarIconsOnly },
+                    set: { model.sidebarIconsOnly = $0; model.persist() }
                 ))
             }
 
@@ -328,9 +344,10 @@ struct SettingsGeneralTab: View {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.audio]
         panel.allowsMultipleSelection = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard CustomSoundPrefs.setCustom(url, for: cue) != nil else { return }
-        customCueRefresh &+= 1
+        panel.presentOnKeyWindow { url in
+            guard CustomSoundPrefs.setCustom(url, for: cue) != nil else { return }
+            customCueRefresh &+= 1
+        }
     }
 
     private func toggleLaunchAtLogin(_ on: Bool) {
@@ -347,5 +364,79 @@ struct SettingsGeneralTab: View {
         NSWorkspace.shared.openApplication(at: url, configuration: config) { _, _ in
             DispatchQueue.main.async { NSApp.terminate(nil) }
         }
+    }
+}
+
+/// Text-labelled twin of the design system's icon-only `KSidebarModeToggle`: in Settings the
+/// choice has to be readable without hovering, so each segment says what the sidebar will show.
+private struct SidebarModePicker: View {
+    @Binding var iconsOnly: Bool
+
+    var body: some View {
+        HStack(spacing: Space.x1) {
+            segment(String(localized: "sidebar.mode.icons"), isOn: iconsOnly, value: true)
+            segment(String(localized: "sidebar.mode.full"), isOn: !iconsOnly, value: false)
+        }
+        .padding(Space.x1)
+        .background(Tok.controlFill)
+        .kBorder(Tok.borderControl, radius: Radius.control)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+    }
+
+    private func segment(_ label: String, isOn: Bool, value: Bool) -> some View {
+        Button {
+            withAnimation(Motion.curve(Motion.medium)) { iconsOnly = value }
+        } label: {
+            Text(label)
+                .font(Typo.meta)
+                .foregroundStyle(isOn ? Tok.textPrimary : Tok.textTertiary)
+                .lineLimit(1)
+                .padding(.horizontal, Space.x3)
+                .frame(height: Metrics.controlCompact - 4)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.control - Space.x1, style: .continuous)
+                        .fill(isOn ? Tok.selectedFill : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+
+/// Puts the Settings window on the screen that holds the main window, once per open (not on every
+/// focus change, so dragging it elsewhere afterwards sticks until it is closed and reopened).
+@MainActor
+final class SettingsWindowPlacer {
+    static let shared = SettingsWindowPlacer()
+    private weak var window: NSWindow?
+    private var needsPlacement = true
+    private var tokens: [NSObjectProtocol] = []
+
+    func attach(_ window: NSWindow?) {
+        guard let window, window !== self.window else { return }
+        self.window = window
+        needsPlacement = true
+        let nc = NotificationCenter.default
+        tokens = [
+            nc.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.placeIfNeeded() }
+            },
+            nc.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.needsPlacement = true }
+            },
+        ]
+        placeIfNeeded()
+    }
+
+    private func placeIfNeeded() {
+        guard needsPlacement, let window else { return }
+        needsPlacement = false
+        // The shell window is titled "Kronos" (KronosApp's Window scene); absent = leave AppKit's choice.
+        guard let main = NSApp.windows.first(where: { $0 !== window && $0.title == "Kronos" && $0.isVisible }),
+              let screen = main.screen, screen != window.screen else { return }
+        let area = screen.visibleFrame
+        window.setFrameOrigin(NSPoint(x: area.midX - window.frame.width / 2, y: area.midY - window.frame.height / 2))
     }
 }

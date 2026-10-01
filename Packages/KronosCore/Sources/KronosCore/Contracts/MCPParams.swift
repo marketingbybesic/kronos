@@ -224,10 +224,12 @@ public enum MCPParams {
         public var labels: [String]?
         public var depth: MCPDepth?
         public var estimateMinutes: Int??
+        /// w22e: ids this task waits on; [] clears, omitted leaves alone.
+        public var waitsOn: [UUID]?
 
         enum CodingKeys: String, CodingKey {
             case id, title, notes, firstMove, project, priority
-            case status, due, labels, depth, estimateMinutes
+            case status, due, labels, depth, estimateMinutes, waitsOn
         }
 
         public init(id: UUID,
@@ -240,7 +242,9 @@ public enum MCPParams {
                     due: String?? = nil,
                     labels: [String]? = nil,
                     depth: MCPDepth? = nil,
-                    estimateMinutes: Int?? = nil) {
+                    estimateMinutes: Int?? = nil,
+                    waitsOn: [UUID]? = nil) {
+            self.waitsOn         = waitsOn
             self.id              = id
             self.title           = title
             self.notes           = notes
@@ -263,6 +267,7 @@ public enum MCPParams {
             status   = try c.decodeIfPresent(MCPStatus.self, forKey: .status)
             labels   = try c.decodeIfPresent([String].self, forKey: .labels)
             depth    = try c.decodeIfPresent(MCPDepth.self, forKey: .depth)
+            waitsOn  = try c.decodeIfPresent([UUID].self, forKey: .waitsOn)
             // Present-but-null must survive as .some(nil) so "clear the due
             // date" is not silently read as "do not touch the due date".
             firstMove = c.contains(.firstMove)
@@ -284,6 +289,7 @@ public enum MCPParams {
             try c.encodeIfPresent(status, forKey: .status)
             try c.encodeIfPresent(labels, forKey: .labels)
             try c.encodeIfPresent(depth, forKey: .depth)
+            try c.encodeIfPresent(waitsOn, forKey: .waitsOn)
             if let v = firstMove       { try c.encode(v, forKey: .firstMove) }
             if let v = project         { try c.encode(v, forKey: .project) }
             if let v = due             { try c.encode(v, forKey: .due) }

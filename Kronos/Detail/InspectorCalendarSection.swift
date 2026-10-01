@@ -31,14 +31,6 @@ struct InspectorCalendarBlockRow: View {
 
     private var link: TaskCalendarLink? { TaskCalendarLink.find(in: task.notes) }
 
-    /// `KAllowAccessRow` (Settings' own full-window-width component — off-limits to edit,
-    /// ui-common.md) squeezed into `KPropertyRow`'s ~280pt value column at the inspector's
-    /// narrow width overlapped its own text and button (caught on the 420pt HR screenshot
-    /// read: "Kronos nema pristup kalendaru" wrapped under a floating "Dopusti pristup
-    /// kalendaru" pill, on top of the row below it). Fixed by giving the not-granted state
-    /// the section's FULL width — its own caption + full-bleed row, like First move/Steps —
-    /// instead of forcing it through the label+value split that only the compact one-line
-    /// "granted" states actually fit.
     var body: some View {
         // Root cause of a prior "Unlink does nothing" bug: `task` is re-fetched fresh from
         // `model.store` by the PARENT (InspectorScreen) on every `body` call, but nothing in
@@ -50,30 +42,16 @@ struct InspectorCalendarBlockRow: View {
         // own state was correct all along (`unlink()` -> `TaskCalendarLink.removing(from:)` ->
         // `model.didMutate()`); it just never got told to redraw with it.
         let _ = model.version
-        VStack(alignment: .leading, spacing: Space.x2) {
-            InspectorSectionCaption(String(localized: "detail.calendar.section"))
-            switch model.coach.calendarAccess {
-            case .notDetermined, .denied:
-                KAllowAccessRow(
-                    message: String(localized: "empty.calendar.access"),
-                    buttonTitle: model.coach.calendarAccess == .denied
-                        ? String(localized: "settings.calendars.opensystem")
-                        : String(localized: "settings.calendars.grant")
-                ) {
-                    if model.coach.calendarAccess == .denied {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    } else {
-                        Task { await model.coach.requestCalendarAccess() }
-                    }
-                }
-            case .granted:
+        // Not granted (or denied): nothing per task. The Permissions window owns the one
+        // "Allow calendar access" call to action; repeating it inside every task was noise.
+        if model.coach.calendarAccess == .granted {
+            VStack(alignment: .leading, spacing: Space.x2) {
+                InspectorSectionCaption(String(localized: "detail.calendar.section"))
                 grantedContent
             }
+            .task(id: task.id) { autoLinkIfMatched() }
+            .onAppear { if forceExpandedOnAppear { isExpanded = true } }
         }
-        .task(id: task.id) { autoLinkIfMatched() }
-        .onAppear { if forceExpandedOnAppear { isExpanded = true } }
     }
 
     /// One quiet summary line — the linked block, or an "N blocks today" count when nothing

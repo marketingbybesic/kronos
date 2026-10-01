@@ -26,5 +26,6 @@ enum KronosIntents {
         // the same rule applies here since both talk to system daemons outside the sandbox).
         guard !SnapshotHarness.isRequested else { return }
         KronosShortcuts.updateAppShortcutParameters()
+        FocusFilterState.install(model: model)
     }
 }

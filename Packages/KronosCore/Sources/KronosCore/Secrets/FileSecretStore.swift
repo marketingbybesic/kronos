@@ -22,7 +22,9 @@ public struct FileSecretStore: SecretStoring {
         if let directory { self.directory = directory; return }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        self.directory = base.appendingPathComponent("Kronos/secrets", isDirectory: true)
+        self.directory = base
+            .appendingPathComponent(KronosStore.folderName(bundleID: Bundle.main.bundleIdentifier), isDirectory: true)
+            .appendingPathComponent("secrets", isDirectory: true)
     }
 
     /// Names are fixed identifiers chosen by the app; anything else is refused rather than

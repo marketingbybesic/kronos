@@ -18,6 +18,13 @@ struct KronosApp: App {
         .commands {
             KronosCommands(model: appDelegate.model)
             CommandGroup(replacing: .help) {
+                Button(String(localized: "welcome.menu.tour")) {
+                    TourCenter.shared.start(model: appDelegate.model)
+                }
+                Button(String(localized: "welcome.menu.starthere")) {
+                    OnboardingCenter.shared.reopen(model: appDelegate.model)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
                 Button(String(localized: "welcome.menu.show")) {
                     WelcomeWindowController.show()
                 }
@@ -32,6 +39,7 @@ struct KronosApp: App {
         Settings {
             SettingsScreen(model: appDelegate.model)
         }
+        .defaultSize(width: 900, height: 640)
     }
 }
 
@@ -45,8 +53,12 @@ struct KronosApp: App {
 /// match those exact raw strings.
 private struct KronosCommands: Commands {
     let model: AppModel
+    /// `.hotkey(id)` reads the registry when this body is evaluated; without a dependency on
+    /// something that changes, a rebind in Settings left the menu showing the old key until relaunch.
+    @State private var hotkeyTick = HotkeyTick()
 
     var body: some Commands {
+        let _ = hotkeyTick.count
         CommandGroup(replacing: .newItem) {
             Button(String(localized: "menu.file.newtask")) {
                 NotificationCenter.default.post(name: .kronosNewTaskRequested, object: nil)
@@ -71,8 +83,14 @@ private struct KronosCommands: Commands {
             // the item would be evaluated once with an empty stack and stay greyed out for
             // good. Undo has no time limit; only the pill expires.
             Button(String(localized: "menu.edit.undo")) {
-                // While typing, Cmd-Z belongs to the text field.
-                if let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canUndo == true {
+                // A custom-undo pill (pin/unpin) owns Cmd-Z while it is up.
+                if UndoToastCenter.shared.performCustomUndo() { return }
+                // While typing, Cmd-Z belongs to the text field — unless the undo pill is up: the
+                // user just completed/moved something and the pill promises that Cmd-Z undoes
+                // IT, not the last keystroke in a field that still holds focus (live test 30.09.:
+                // completing a row after typing a subtask left the task done and undid the text).
+                if UndoToastCenter.shared.current == nil,
+                   let text = NSApp.keyWindow?.firstResponder as? NSTextView, text.undoManager?.canUndo == true {
                     text.undoManager?.undo()
                 } else {
                     model.store.undo()
@@ -121,8 +139,6 @@ private struct KronosCommands: Commands {
                 .hotkey("window.chroma.focus")
             Button(String(localized: "chroma.mode.full")) { model.chromaMode = .full }
                 .hotkey("window.chroma.full")
-            Button(String(localized: "chroma.mode.calm")) { model.chromaMode = .calm }
-                .hotkey("window.chroma.calm")
 
             Divider()
 
@@ -146,6 +162,11 @@ private struct KronosCommands: Commands {
             }
             .hotkey("window.palette")
 
+            Button(String(localized: "settings.shortcuts.all")) {
+                NotificationCenter.default.post(name: .kronosKeymapRequested, object: nil)
+            }
+            .hotkey("window.keymap")
+
             Button(String(localized: "timeblocks.title")) {
                 model.isTimeBlocksOpen = true
             }
@@ -164,4 +185,18 @@ private struct KronosCommands: Commands {
             }
         }
     }
+}
+
+/// Bumps `count` whenever `HotkeyRegistry.changed` fires, so a Commands body that reads it rebuilds.
+@MainActor @Observable
+private final class HotkeyTick {
+    var count = 0
+    @ObservationIgnored private nonisolated(unsafe) var token: NSObjectProtocol?
+    init() {
+        // queue: .main: the notification can be posted from any thread (selector observers run on the poster).
+        token = NotificationCenter.default.addObserver(forName: HotkeyRegistry.changed, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.count += 1 }
+        }
+    }
+    deinit { if let token { NotificationCenter.default.removeObserver(token) } }
 }

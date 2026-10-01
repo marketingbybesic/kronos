@@ -90,14 +90,15 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
     /// "Menu bar shows" composes with the task title per the Settings > Ordo choice.
     private func resolvedFocus() -> (id: UUID, title: String, firstMove: String?, subtask: String?)? {
         if let blockID = TimeBlocksModel(model: model).blockFocusTaskID, let task = model.store.task(blockID) {
-            return (task.id, task.title, task.firstMove, task.nextOpenSubtask?.title)
+            return (task.id, task.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
         }
         if let pinID = model.pinnedFocusTaskID, let task = model.store.task(pinID) {
-            return (task.id, task.title, task.firstMove, task.nextOpenSubtask?.title)
+            return (task.id, task.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
         }
         let focus = model.ordoFocus
         guard let id = focus.taskID else { return nil }
-        return (id, focus.title, focus.firstMove, model.store.task(id)?.nextOpenSubtask?.title)
+        guard let task = model.store.task(id) else { return (id, focus.title, focus.firstMove, nil) }
+        return (id, focus.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
     }
 
     private func render() {
@@ -189,7 +190,8 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
             return
         }
         let localX = sender.convert(event.locationInWindow, from: nil).x
-        if MenuBarHitRegion.region(forX: localX, circleWidth: circleWidth) == .circle {
+        let imageOrigin = max(0, (sender.bounds.width - (sender.image?.size.width ?? 0)) / 2)
+        if MenuBarHitRegion.region(forX: localX, circleWidth: circleWidth, imageOrigin: imageOrigin, slop: Space.x2) == .circle {
             completeFromBar()
         } else {
             showPopover(focusCapture: false)
@@ -230,6 +232,7 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(rootView: PopoverContent(model: model, focusCaptureOnAppear: focusCapture))
         self.popover = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NotificationCenter.default.post(name: .kronosOrdoPopoverShown, object: nil)
     }
 
     private func showMenu() {

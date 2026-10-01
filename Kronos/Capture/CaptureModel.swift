@@ -33,6 +33,15 @@ final class CaptureModel {
     /// Which model is currently being asked, shown as "Asking <model>…" while `isUpgrading` —
     /// set right before the request starts, read only by the status line.
     private(set) var askingModel: String?
+    /// True while the review list came from Apple Reminders rather than pasted text: the status
+    /// line then says so instead of talking about AI, and AI actions have no text to work on.
+    private(set) var fromReminders = false
+    /// The paste step's "From Reminders" feedback (CaptureModel+Reminders.swift).
+    enum RemindersState: Equatable { case idle, reading, empty, denied }
+    var remindersState: RemindersState = .idle
+    /// Injectable so a snapshot or test never touches EventKit.
+    var remindersProvider: any RemindersProviding = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
+        ? FixtureReminders(access: .denied) : EventKitReminders.shared
 
     private var extractTask: Task<Void, Never>?
 
@@ -176,6 +185,33 @@ final class CaptureModel {
         }
     }
 
+    /// "From Reminders": every open reminder becomes one proposed row (title, notes, due day;
+    /// the list name picks a project only when one of that name already exists). Same review
+    /// step as pasted text, so nothing is created until the user ticks and confirms, and no AI
+    /// call is made: the items are already structured.
+    func showReminders(_ items: [ReminderItem]) {
+        let ordered = RemindersMapping.ordered(items)
+        guard !ordered.isEmpty else { return }
+        let names = projectNames
+        let foldedOpen = Set(existingOpenTitles.map(KTextFold.fold))
+        extractTask?.cancel()
+        isUpgrading = false
+        rows = ordered.map { item in
+            CaptureRow(proposal: ProposedTask(
+                title: item.title,
+                projectName: RemindersMapping.matchProject(listName: item.listName, projectNames: names),
+                dueDay: item.due.map { Day.from($0, calendar: KronosLocale.calendar) },
+                notes: item.notes,
+                sourceLine: item.title,
+                isDuplicateOfOpenTask: foldedOpen.contains(KTextFold.fold(item.title))))
+        }
+        droppedLineCount = 0
+        isDeterministic = true
+        extractReason = nil
+        fromReminders = true
+        step = .review
+    }
+
     // MARK: Editing (review step)
 
     func setTicked(_ id: UUID, _ ticked: Bool) {
@@ -214,6 +250,7 @@ final class CaptureModel {
     // MARK: Back to paste
 
     func backToPaste() {
+        fromReminders = false
         step = .paste
     }
 
@@ -232,7 +269,7 @@ final class CaptureModel {
             guard case .project(let id) = model.scope else { return nil }
             return model.store.allProjects(includeArchived: true).first { $0.id == id }
         }()
-        model.store.groupedUndo("Create Tasks") {
+        model.store.groupedUndo(String(localized: "undo.capture.create")) {
             let created = model.store.createMany(acceptedRows.map(\.proposal), defaultProject: defaultProject)
             // `createMany` returns tasks in the same order as its input (Store/TaskStore+Capture.swift
             // iterates `for proposal in proposals { ... created.append(task) }`), so zipping by

@@ -118,17 +118,22 @@ struct ListRowView: View {
                   onToggle: { ListCompletion.toggle(task, store: model.store, model: model) },
                   onSelect: onSelect) {
             HStack(spacing: Space.x1) {
-                if !task.orderedSubtasks.isEmpty {
-                    Button {
-                        withAnimation(Motion.curve(Motion.fast)) { subtasksExpanded.toggle() }
-                    } label: {
-                        Icon(subtasksExpanded ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
-                            .foregroundStyle(Tok.textTertiary)
-                            .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
-                            .contentShape(Rectangle())   // inside the label: the glyph alone is a 10 pt target
+                // Fixed left gutter: the chevron (or nothing) always takes the same width, so titles
+                // align whether or not a row has subtasks.
+                ZStack {
+                    Color.clear.frame(width: Metrics.minHit, height: Metrics.minHit)
+                    if !task.orderedSubtasks.isEmpty {
+                        Button {
+                            withAnimation(Motion.curve(Motion.fast)) { subtasksExpanded.toggle() }
+                        } label: {
+                            Icon(subtasksExpanded ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
+                                .foregroundStyle(Tok.textTertiary)
+                                .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
+                                .contentShape(Rectangle())   // inside the label: the glyph alone is a 10 pt target
+                        }
+                        .buttonStyle(.plain)
+                        .uiTestAnchor("arrow." + task.title)
                     }
-                    .buttonStyle(.plain)
-                    .uiTestAnchor("arrow." + task.title)
                 }
                 titleView
             }
@@ -263,22 +268,13 @@ struct ListRowView: View {
         }
         .frame(width: SlotWidth.priority, alignment: .trailing)
         .help(ViewOptionsMapper.priorityName(task.priority))
-        // `KPriority.none` draws nothing at rest — a faint hover-only affordance, matching
-        // the deadline/effort slots, rather than four dim bars on every unprioritised row.
-        // Swift trap (macos-1): `task.priority == .none` on a NON-OPTIONAL KPriority is the
-        // enum case, not Optional.none — no unwrap needed, but the explicit `KPriority.none`
-        // spelling below removes any doubt at the call site.
-        .opacity(task.priority == KPriority.none && !isHovering ? 0 : 1)
+        // Calm rows (F6): bars at rest only for high and urgent; every other level is a hover-only
+        // affordance so the menu stays reachable.
+        .opacity(task.priority == .high || task.priority == .urgent || isHovering ? 1 : 0)
     }
 
-    /// Effort keeps its dots plus the short size code (XS…XL) when set — unlike priority,
-    /// the size code is compact enough not to be the noise priority's full word was. Same
-    /// glyph-outside-the-label fix as `priorityMenu` above. Unlike priority/deadline, an
-    /// unset effort still draws its dim 5-dot placeholder at rest: those two slots hiding
-    /// entirely at rest was already the design,
-    /// but the effort column doing the same left an ~180px dead gap between the priority
-    /// bars and the deadline on every row with no effort — the inspector and Capture
-    /// (InspectorScreen.swift:238, CaptureReviewRow.swift:210) never hide it either.
+    /// Effort dots draw only for a set effort (F6: no five empty slots on every row); an unset one
+    /// is a hover-only affordance. Same glyph-outside-the-label fix as `priorityMenu` above.
     private var effortMenu: some View {
         Menu {
             ForEach(KEffort.allCases, id: \.self) { e in
@@ -298,6 +294,7 @@ struct ListRowView: View {
         .overlay {
             KEffortIndicator(level: task.effort.rawValue, of: 5, label: ViewOptionsMapper.effortName(task.effort), showLabel: task.effort != .none)
                 .allowsHitTesting(false)
+                .opacity(task.effort != .none || isHovering ? 1 : 0)
         }
         .frame(width: SlotWidth.effort, alignment: .trailing)
         .help(ViewOptionsMapper.effortName(task.effort))
@@ -322,7 +319,7 @@ struct ListRowView: View {
             ZStack(alignment: .trailing) {
                 Color.clear.frame(width: SlotWidth.deadline, height: 1)
                 if task.dueDay != nil {
-                    KDeadlineLabel(text: deadlineText, carryDays: task.carryDays(today: today), isDone: task.status == .done)
+                    KDeadlineLabel(text: deadlineText, carryDays: 0, isDone: task.status == .done)
                 } else if isHovering {
                     Icon("calendar", size: Metrics.iconS).foregroundStyle(Tok.textDisabled)
                 }
@@ -346,7 +343,9 @@ struct ListRowView: View {
         guard let due = task.dueDay else { return "" }
         let delta = due - today
         switch delta {
-        case ..<0: return ""
+        // Overdue says so in one calm word: the "8d" carry pill read as a guilt counter (audit F6),
+        // but dropping it left an overdue row looking like a task with no deadline at all.
+        case ..<0: return String(localized: "viewoptions.due.overdue")
         case 0: return String(localized: "list.filter.due.today")
         default: return "\(delta)d"
         }
@@ -356,7 +355,7 @@ struct ListRowView: View {
     private var deadlineTooltip: String {
         guard let due = task.dueDay else { return String(localized: "list.filter.due.none") }
         let carry = task.carryDays(today: today)
-        let dateText = Day.iso(due)
+        let dateText = ViewOptionsMapper.mediumDate(due)
         let dueText = String(format: String(localized: "list.row.tooltip.due"), dateText)
         guard carry > 0 else { return dueText }
         let carried = KPlural.hr(carry, one: String(localized: "a11y.carry.count.one"), few: String(localized: "a11y.carry.count.few"), many: String(localized: "a11y.carry.count.many"))
@@ -406,7 +405,7 @@ struct ListRowView: View {
 
     private func subtaskRow(_ sub: KSubtask) -> some View {
         HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: sub.isDone, size: Metrics.listCheckboxSize) {
+            KCheckbox(isChecked: sub.isDone, size: Metrics.listCheckboxSize, label: sub.title) {
                 model.store.toggleSubtask(sub.id)
                 model.didMutate()
             }
@@ -458,6 +457,7 @@ struct ListRowView: View {
                 Button(ViewOptionsMapper.priorityName(p)) { model.store.setPriority(task.id, p); model.didMutate() }
             }
         }
+        ListRowStatusMenu(task: task, model: model)
         Menu(String(localized: "ctx.task.effort")) {
             ForEach(KEffort.allCases, id: \.self) { e in
                 Button(ViewOptionsMapper.effortName(e)) { model.store.setEffort(task.id, e); model.didMutate() }
@@ -482,7 +482,7 @@ struct ListRowView: View {
         parts.append(ViewOptionsMapper.priorityName(task.priority))
         if let due = task.dueDay {
             parts.append(due <= today ? String(localized: "a11y.row.due.overdue")
-                                       : String(format: String(localized: "a11y.row.due.value"), Day.iso(due)))
+                                       : String(format: String(localized: "a11y.row.due.value"), ViewOptionsMapper.mediumDate(due)))
         }
         if let project = task.project { parts.append(project.name) }
         let progress = task.subtaskProgress

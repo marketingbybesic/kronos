@@ -27,38 +27,53 @@ public struct KChip<Leading: View>: View {
     }
 
     public var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: Space.x1) {
-                leading()
-                Text(text)
-                    .font(Typo.meta)
-                    .foregroundStyle(isHovering ? Tok.textPrimary : Tok.textSecondary)
-                    .lineLimit(1)
-                switch trailing {
-                case .none: EmptyView()
-                case .chevron:
-                    Icon("chevron-down", size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
-                case .clear:
-                    Button(action: { (onTrailingTap ?? onTap)() }) {
-                        Icon("x", size: Metrics.iconXS)
-                            .foregroundStyle(isHovering ? Tok.textPrimary : Tok.textTertiary)
+        // Two SIBLING buttons for a removable chip, never a Button inside a Button: SwiftUI
+        // flattens the inner one away, so VoiceOver (and AXPress) could not reach the remove
+        // control at all.
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                HStack(spacing: Space.x1) {
+                    leading()
+                    Text(text)
+                        .font(Typo.meta)
+                        .foregroundStyle(isHovering ? Tok.textPrimary : Tok.textSecondary)
+                        .lineLimit(1)
+                    if trailing == .chevron {
+                        Icon("chevron-down", size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
                     }
-                    .buttonStyle(.plain)
-                    .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
                 }
+                // Padding, height and hit shape INSIDE the label: a plain-style button is
+                // pressable only on its label's pixels, so with these outside only the
+                // text/glyph took a click.
+                .padding(.leading, Space.x2)
+                .padding(.trailing, trailing == .clear ? Space.x1 : Space.x2)
+                .frame(height: 24)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusable(true, interactions: .activate)
+            .focused($isFocused)
+            .accessibilityLabel(text)
+            .accessibilityAddTraits(.isButton)
+            if trailing == .clear {
+                Button(action: { (onTrailingTap ?? onTap)() }) {
+                    Icon("x", size: Metrics.iconXS)
+                        .foregroundStyle(isHovering ? Tok.textPrimary : Tok.textTertiary)
+                        .frame(width: Metrics.minHit, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, Space.x2)
+                .accessibilityLabel(String(format: String(localized: "a11y.chip.remove"), text))
+                .accessibilityAddTraits(.isButton)
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, Space.x2)
-        .frame(height: 24)
         .background(isHovering ? Tok.hoverFill : Tok.raised)
         .kBorder(isHovering ? Tok.borderStrong : Tok.borderControl, radius: Radius.chip)
         .clipShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         .kFocusRing(isFocused, radius: Radius.chip)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
-        .focusable(true, interactions: .activate)
-        .focused($isFocused)
         .animation(Motion.hover, value: isHovering)
     }
 }

@@ -43,6 +43,11 @@ targets:
     sources:
       - path: Kronos
         excludes: ["**/.DS_Store"]
+      # Used by Settings > MCP "Connect all local AI tools". optional: the public export drops
+      # scripts/private, and the button then says node/script are unavailable instead of failing.
+      - path: scripts/public/connect-harnesses.mjs
+        optional: true
+        buildPhase: resources
     dependencies:
       - package: KronosCore
         product: KronosCore
@@ -51,6 +56,12 @@ targets:
       - sdk: EventKit.framework
       - sdk: Network.framework
       - sdk: ServiceManagement.framework
+      # MCP bridge, embedded at Kronos.app/Contents/MacOS/kronos-mcp and signed on copy.
+      - target: kronos-mcp
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     info:
       path: Kronos/Info.plist
       properties:
@@ -71,9 +82,38 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSCalendarsFullAccessUsageDescription: "Kronos reads your calendar to show how much free time today has. Nothing leaves this Mac."
+        NSRemindersFullAccessUsageDescription: "Kronos reads your open reminders so you can turn them into tasks. Nothing is changed in Reminders and nothing leaves this Mac."
         NSAppleEventsUsageDescription: "Kronos reads the Apple Notes you choose so it can turn them into tasks and give a task its context. Nothing is changed in Notes and nothing leaves this Mac unless you use an online AI model."
         NSSupportsAutomaticTermination: false
         NSSupportsSuddenTermination: false
+        # macOS integration without a developer program (Kronos/App/URLScheme.swift, ServicesProvider.swift,
+        # DockMenu.swift, BackupOpen.swift).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.besic.kronos.url
+            CFBundleURLSchemes: [kronos]
+            CFBundleTypeRole: Editor
+        NSServices:
+          - NSMenuItem:
+              default: Add to Kronos
+            NSMessage: addToKronos
+            NSPortName: Kronos
+            NSSendTypes: [NSStringPboardType, public.utf8-plain-text]
+          - NSMenuItem:
+              default: Capture in Kronos
+            NSMessage: captureInKronos
+            NSPortName: Kronos
+            NSSendTypes: [NSStringPboardType, public.utf8-plain-text]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Kronos backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [com.besic.kronos.backup]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.besic.kronos.backup
+            UTTypeDescription: Kronos backup
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [kronos.json]
         # Filled by the "Stamp build id" post-compile script with the git short hash (falls
         # back to "dev" outside a git checkout) — Settings > General shows it after the version
         # so a stale build is obvious at a glance (owner tested a stale build once).
@@ -146,6 +186,30 @@ targets:
         # (.gitignore) and optional — Release builds fine without it, ad hoc signed.
         # xcconfig include must come from a real file: `#include? "Local.xcconfig"` (the `?`
         # makes it optional) keeps a from-scratch checkout building with nothing to create.
+
+  kronos-mcp:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/kronos-mcp
+    configFiles:
+      Release: Release.xcconfig
+    settings:
+      base:
+        PRODUCT_NAME: kronos-mcp
+        PRODUCT_BUNDLE_IDENTIFIER: com.besic.kronos.mcp
+        SKIP_INSTALL: YES
+      configs:
+        Alpha:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Kronos Dev"
+          ENABLE_HARDENED_RUNTIME: NO
+          DEVELOPMENT_TEAM: ""
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_COMPILATION_MODE: wholemodule
+          CODE_SIGN_STYLE: Manual
+          ENABLE_HARDENED_RUNTIME: NO
 
 schemes:
   Kronos:

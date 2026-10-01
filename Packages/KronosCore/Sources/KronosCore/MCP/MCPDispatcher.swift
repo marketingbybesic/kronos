@@ -31,14 +31,16 @@ public final class MCPDispatcher {
 
     // MARK: - JSON-RPC entry point
 
-    /// Handles one already-parsed request. Returns `nil` for a notification
-    /// (`id == nil`), which gets no reply per JSON-RPC 2.0.
+    /// Newest first. `initialize` echoes the client's version when it is one of these.
+    public static let supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
+
+    /// Handles one already-parsed request. Returns `nil` when nothing is sent back: a
+    /// notification (`notifications/*`, with or without an id) or a client response.
     public func handle(_ request: MCPRequest) -> MCPResponse? {
+        if request.isClientResponse || request.method.hasPrefix("notifications/") { return nil }
         switch request.method {
         case "initialize":
-            return .success(id: request.id, resultJSON: encode(initializeResult()))
-        case "notifications/initialized":
-            return nil
+            return .success(id: request.id, resultJSON: encode(initializeResult(for: request)))
         case "ping":
             return .success(id: request.id, resultJSON: Data("{}".utf8))
         case "tools/list":
@@ -50,12 +52,66 @@ public final class MCPDispatcher {
         }
     }
 
+    /// What the transport sends back for one HTTP body.
+    public struct Reply: Sendable {
+        public let status: Int          // 200, or 202 with no body
+        public let body: Data?
+        /// True when the body contained a tools/call that can change the store.
+        public let mutated: Bool
+    }
+
+    /// Transport-independent: parses a body (single request or a batch array, which 2025-03-26
+    /// allows and newer versions merely stop sending), dispatches, and returns the HTTP reply.
+    public func handleBody(_ body: Data) -> Reply {
+        let obj: Any
+        do { obj = try JSONSerialization.jsonObject(with: body, options: [.fragmentsAllowed]) }
+        catch { return Reply(status: 200, body: MCPResponse.failure(id: nil, .parseError).encoded(), mutated: false) }
+
+        var mutated = false
+        func one(_ o: Any) -> MCPResponse? {
+            do {
+                let req = try MCPRequest.parse(object: o)
+                if isMutating(req) { mutated = true }
+                return handle(req)
+            } catch let e as MCPTransportError {
+                return .failure(id: nil, e)
+            } catch {
+                return .failure(id: nil, .invalidRequest)
+            }
+        }
+        if let batch = obj as? [Any] {
+            if batch.isEmpty { return Reply(status: 200, body: MCPResponse.failure(id: nil, .invalidRequest).encoded(), mutated: false) }
+            let replies = batch.compactMap(one).map { $0.encoded() }
+            guard !replies.isEmpty else { return Reply(status: 202, body: nil, mutated: mutated) }
+            var out = Data("[".utf8)
+            out.append(replies.reduce(into: Data()) { acc, d in
+                if !acc.isEmpty { acc.append(Data(",".utf8)) }
+                acc.append(d)
+            })
+            out.append(Data("]".utf8))
+            return Reply(status: 200, body: out, mutated: mutated)
+        }
+        guard let response = one(obj) else { return Reply(status: 202, body: nil, mutated: mutated) }
+        return Reply(status: 200, body: response.encoded(), mutated: mutated)
+    }
+
+    /// Reads (list/get/ordo_get/rules_list) must not make the app refresh every list.
+    private func isMutating(_ request: MCPRequest) -> Bool {
+        guard request.method == "tools/call",
+              let call = try? JSONDecoder().decode(ToolCallEnvelope.self, from: request.paramsData),
+              let tool = MCPTool(rawValue: call.name) else { return false }
+        switch tool {
+        case .listTasks, .getTask, .ordoGet, .rulesList: return false
+        default: return true
+        }
+    }
+
     private func handleToolsCall(_ request: MCPRequest) -> MCPResponse {
         guard let call = try? JSONDecoder().decode(ToolCallEnvelope.self, from: request.paramsData) else {
             return .failure(id: request.id, .invalidParams)
         }
         guard let tool = MCPTool(rawValue: call.name) else {
-            return .failure(id: request.id, .methodNotFound)
+            return .invalidParams(id: request.id, message: "Unknown tool: \(call.name)")
         }
         let outcome = dispatch(tool, arguments: call.arguments ?? Data("{}".utf8))
         return .success(id: request.id, resultJSON: encode(outcome.envelope))
@@ -63,9 +119,12 @@ public final class MCPDispatcher {
 
     // MARK: - initialize / tools/list bodies
 
-    private func initializeResult() -> [String: AnyEncodable] {
-        [
-            "protocolVersion": AnyEncodable("2025-06-18"),
+    private func initializeResult(for request: MCPRequest) -> [String: AnyEncodable] {
+        let asked = (try? JSONSerialization.jsonObject(with: request.paramsData) as? [String: Any])?["protocolVersion"] as? String
+        let version = asked.flatMap { Self.supportedProtocolVersions.contains($0) ? $0 : nil }
+            ?? Self.supportedProtocolVersions[0]
+        return [
+            "protocolVersion": AnyEncodable(version),
             "capabilities": AnyEncodable(["tools": ["listChanged": false]]),
             "serverInfo": AnyEncodable(["name": "kronos", "title": "Kronos", "version": "0.1.0"]),
             "instructions": AnyEncodable(
@@ -139,9 +198,12 @@ struct AnyEncodable: Encodable {
         var container = encoder.singleValueContainer()
         switch value {
         case let v as String: try container.encode(v)
-        case let v as Bool: try container.encode(v)
-        case let v as Int: try container.encode(v)
-        case let v as Double: try container.encode(v)
+        // NSNumber first: `0 as? Bool` / `1 as? Bool` succeed on Darwin, which turned every
+        // 0 and 1 from JSONSerialization into false/true. Only a real CFBoolean is a Bool.
+        case let n as NSNumber:
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { try container.encode(n.boolValue) }
+            else if CFNumberIsFloatType(n) { try container.encode(n.doubleValue) }
+            else { try container.encode(n.int64Value) }
         case let v as [String: Any]:
             var keyed = encoder.container(keyedBy: DynamicKey.self)
             for (k, v) in v { try keyed.encode(AnyEncodable(v), forKey: DynamicKey(stringValue: k)!) }

@@ -139,16 +139,16 @@ struct AppleNotesBridgeTests {
         #expect(found?.displayName == "Q4 | Plan.pdf") // pipe in the name survives escaping
         #expect(withLink.contains("Some task notes"))
 
-        // Re-linking to a different kind replaces, never accumulates.
+        // Wave 18: a second attachment ACCUMULATES (several chips), it no longer replaces.
         let web = ContextLink(kind: .web, reference: "https://example.com/doc", displayName: "Example doc")
         let relinked = web.appending(to: withLink)
-        #expect(ContextLink.find(in: relinked)?.kind == .web)
-        #expect(relinked.components(separatedBy: "\n").filter { $0.hasPrefix("link://") }.count == 1)
+        #expect(ContextLink.findAll(in: relinked).map(\.kind) == [.file, .web])
+        #expect(relinked.components(separatedBy: "\n").filter { $0.hasPrefix("link://") }.count == 2)
 
         // A note link and a context link coexist independently on the same text.
         let withBoth = NoteLink.appending("note-1", to: relinked)
         #expect(NoteLink.find(in: withBoth) == "note-1")
-        #expect(ContextLink.find(in: withBoth)?.kind == .web)
+        #expect(ContextLink.findAll(in: withBoth).map(\.kind) == [.file, .web])
     }
 
     @Test func contextLinkFindReturnsNilWithoutLink() {

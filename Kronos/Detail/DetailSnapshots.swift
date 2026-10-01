@@ -41,6 +41,8 @@ enum DetailSnapshots {
             // seeding through the real service.
             "inspector.triaged": AnyView(TriagedSnapshotHost(model: model)),
             "inspector.links": AnyView(LinksSnapshotHost(model: model)),
+            // Same task with the Details disclosure open: every field one click away.
+            "inspector.details": AnyView(LinksSnapshotHost(model: model, detailsOpen: true)),
             // The "Vremenski blok" row (InspectorCalendarBlockRow). `model.coach` always
             // wraps the real `EventKitCalendar()` (UIContract.swift — no fixture-injection
             // seam reaches this row), so a harness process shows whatever that machine's
@@ -66,6 +68,13 @@ enum DetailSnapshots {
             "inspector.notelink.picker": AnyView(NoteLinkPickerSnapshotHost(model: model, state: .loaded)),
             "inspector.notelink.picker.empty": AnyView(NoteLinkPickerSnapshotHost(model: model, state: .empty)),
             "inspector.notelink.picker.denied": AnyView(NoteLinkPickerSnapshotHost(model: model, state: .denied)),
+            // w22e: Waits on (real inspector, Details open, blocked task) and its picker content.
+            "inspector.waitson": AnyView(WaitsOnSnapshotHost(model: model)),
+            "inspector.waitson.picker": AnyView(WaitsOnSnapshotHost(model: model, showPicker: true)),
+            // w22e: Settings > Data with three templates (in-memory fixture list).
+            "settings.templates": AnyView(TemplatesSnapshotHost(model: model)),
+            "quickadd.templates": AnyView(QuickAddTemplatesSnapshotHost()),
+            "quickadd.templates.typed": AnyView(QuickAddTemplatesSnapshotHost(typed: "/wee")),
         ]
     }
 }
@@ -109,12 +118,13 @@ private struct TriagedSnapshotHost: View {
 /// showing both rows together is the real maximum state, not a partial one.
 private struct LinksSnapshotHost: View {
     let model: AppModel
+    var detailsOpen = false
     @State private var task: KTask?
 
     var body: some View {
         Group {
             if let task {
-                InspectorScreen(model: model)
+                InspectorScreen(model: model, previewDetailsOpen: detailsOpen)
                     .onAppear { model.selectedTaskID = task.id }
             } else {
                 Color.clear
@@ -198,7 +208,7 @@ private struct BlockSnapshotHost: View {
     var body: some View {
         Group {
             if let task {
-                InspectorScreen(model: model, previewCalendarBlockExpanded: forceExpanded)
+                InspectorScreen(model: model, previewCalendarBlockExpanded: forceExpanded, previewDetailsOpen: true)
                     .onAppear { model.selectedTaskID = task.id }
             } else {
                 Color.clear

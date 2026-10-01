@@ -27,7 +27,7 @@ enum QuickAddCreate {
         let names = all.map(\.name)
         let parser = QuickAddParser()
         var made: [KTask] = []
-        model.store.groupedUndo("quick add") {
+        model.store.groupedUndo(String(localized: "undo.quickadd")) {
             for item in TaskOutline.parse(text) {
                 let result = parser.parse(item.line, projects: names, today: today)
                 guard !result.title.isEmpty else { continue }

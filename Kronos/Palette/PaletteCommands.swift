@@ -19,6 +19,7 @@ enum PaletteCommands {
 
     static func all(model: AppModel) -> [PaletteCommand] {
         var commands: [PaletteCommand] = []
+        commands += bulkCommands(model: model)
         commands += taskCommands
         commands += createCommands
         commands += coachCommands(model: model)
@@ -47,7 +48,9 @@ enum PaletteCommands {
     // MARK: Task — applies to model.selectedTaskID (the contract's one notion of "current task")
 
     private static var taskCommands: [PaletteCommand] {
-        let hasSelection: (AppModel) -> Bool = { $0.selectedTaskID != nil }
+        // With 2+ rows selected the single-task rows would act on the anchor alone, which reads
+        // as a bug; the bulk group (bulkCommands) takes over for that case.
+        let hasSelection: (AppModel) -> Bool = { $0.selectedTaskID != nil && $0.selectedIDs.count < 2 }
         return [
             // No shortcuts claimed on complete/snooze/priority/re-triage below: spec §2.2/§2.3
             // assigns ⌘⇧D, H, 0-4, ⌘R as list-scope single-key shortcuts, but TaskListScreen.swift
@@ -183,6 +186,66 @@ enum PaletteCommands {
         ]
     }
 
+    // MARK: Bulk — only while the list holds a multi-selection (`model.selectedIDs`, 2+ rows).
+    // Same `ListBulk.apply` the floating bar uses, so one undo step per command. Titles carry
+    // the count through literal one/few/many keys (Croatian needs three forms).
+
+    private static func bulkCommands(model: AppModel) -> [PaletteCommand] {
+        let n = model.selectedIDs.count
+        guard n > 1 else { return [] }
+        let today = Day.today(calendar: KronosLocale.calendar)
+        func command(_ id: String, _ title: String, _ glyph: String, _ change: ListBulk.Change) -> PaletteCommand {
+            PaletteCommand(id: "bulk.\(id)", literalTitle: title, glyph: glyph, group: .bulk,
+                            isAvailable: { $0.selectedIDs.count > 1 }) { ListBulk.apply(change, model: $0) }
+        }
+        var rows: [PaletteCommand] = [
+            command("complete", plural(n, one: String(localized: "palette.bulk.complete.one"),
+                                       few: String(localized: "palette.bulk.complete.few"),
+                                       many: String(localized: "palette.bulk.complete.many"), nil),
+                    "check-square", .toggleDone),
+        ]
+        let dueTitle = { (name: String) in
+            plural(n, one: String(localized: "palette.bulk.due.one"), few: String(localized: "palette.bulk.due.few"),
+                   many: String(localized: "palette.bulk.due.many"), name)
+        }
+        for (id, name, day) in [("today", String(localized: "deadline.quick.today"), today),
+                                ("tomorrow", String(localized: "deadline.quick.tomorrow"), today + 1),
+                                ("nextweek", String(localized: "deadline.quick.nextweek"), today + 7)] {
+            rows.append(command("due." + id, dueTitle(name), "calendar", .due(day)))
+        }
+        for p in KPriority.allCases {
+            rows.append(command("priority.\(p.rawValue)",
+                                plural(n, one: String(localized: "palette.bulk.priority.one"),
+                                       few: String(localized: "palette.bulk.priority.few"),
+                                       many: String(localized: "palette.bulk.priority.many"), ViewOptionsMapper.priorityName(p)),
+                                "flag", .priority(p)))
+        }
+        for project in model.store.allProjects() {
+            rows.append(command("move.\(project.id)",
+                                plural(n, one: String(localized: "palette.bulk.move.one"),
+                                       few: String(localized: "palette.bulk.move.few"),
+                                       many: String(localized: "palette.bulk.move.many"), project.name),
+                                "folder", .project(project)))
+        }
+        // Delete is LAST in the group, so Down+Return from the top can never delete (audit D14).
+        rows.append(command("delete", plural(n, one: String(localized: "palette.bulk.delete.one"),
+                                             few: String(localized: "palette.bulk.delete.few"),
+                                             many: String(localized: "palette.bulk.delete.many"), nil),
+                            "x", .delete))
+        return rows
+    }
+
+    /// Picks the CLDR category's literal pattern; `%1$lld` is the count, `%2$@` the optional name.
+    private static func plural(_ n: Int, one: String, few: String, many: String, _ name: String?) -> String {
+        let pattern: String
+        switch KPluralCategory.category(for: n, isCroatian: KronosLocale.languageCode == "hr") {
+        case .one: pattern = one
+        case .few: pattern = few
+        case .many: pattern = many
+        }
+        return String(format: pattern, n, name ?? "")
+    }
+
     // MARK: Create
 
     private static var createCommands: [PaletteCommand] {
@@ -190,6 +253,10 @@ enum PaletteCommands {
             PaletteCommand(id: "create.task", titleKey: "list.new", glyph: "plus",
                             shortcut: ["⌘", "N"], group: .create) { _ in
                 NotificationCenter.default.post(name: .kronosNewTaskRequested, object: nil)
+            },
+            PaletteCommand(id: "create.fromtemplate", titleKey: "palette.template.new", glyph: "plus",
+                            group: .create) { _ in
+                NotificationCenter.default.post(name: Notification.Name("kronosNewFromTemplate"), object: nil)
             },
         ]
     }
@@ -312,7 +379,7 @@ enum PaletteCommands {
     /// truthful about what fires. `KChromaModeSwitch`'s own name/glyph helpers are reused so
     /// the palette row can never drift from Settings' General tab wording.
     private static var chromaCommands: [PaletteCommand] {
-        let digits: [ChromaMode: String] = [.focus: "1", .full: "2", .calm: "3"]
+        let digits: [ChromaMode: String] = [.focus: "1", .full: "2"]
         return ChromaMode.allCases.compactMap { mode in
             guard let digit = digits[mode] else { return nil }
             return PaletteCommand(id: "chroma.\(mode.rawValue)", literalTitle: KChromaModeSwitch.name(mode),
@@ -327,10 +394,10 @@ enum PaletteCommands {
 
     private static var sessionCommands: [PaletteCommand] {
         [
-            // Spec §2.1 assigns ⌘I to Impuls, but KronosApp.swift's actually-registered ⌘I opens
-            // the inspector instead — no shortcut is claimed here so the keymap sheet does not
-            // show a duplicate/incorrect ⌘I row.
+            // Impuls' real binding is the registry's `window.impuls` (⇧⌘I by default; ⌘I is the
+            // inspector). Read live, so a rebind in Settings shows here too, never a stale cap.
             PaletteCommand(id: "session.impuls", titleKey: "menu.task.impuls", glyph: "sparkles",
+                            shortcut: (HotkeyRegistry.current(for: "window.impuls"))?.displayKeys ?? [],
                             group: .session) { model in
                 model.isImpulsOpen = true
             },

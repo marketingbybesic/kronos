@@ -1,0 +1,3 @@
+/* Services menu entries declared in project.yml (NSServices). The key is the English NSMenuItem default. */
+"Add to Kronos" = "Dodaj u Kronos";
+"Capture in Kronos" = "Uhvati u Kronosu";

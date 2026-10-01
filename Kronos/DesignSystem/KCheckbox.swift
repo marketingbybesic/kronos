@@ -29,9 +29,15 @@ public struct KCheckbox: View {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.kRowHovered) private var isRowHovered
 
-    public init(isChecked: Bool, size: CGFloat = Metrics.statusCircle, onToggle: @escaping () -> Void) {
+    /// What VoiceOver says for this checkbox; nil keeps the generic "Status". A call site that
+    /// has the row's title should pass it, since a list of N unnamed "Status" boxes is useless.
+    var label: String?
+
+    public init(isChecked: Bool, size: CGFloat = Metrics.statusCircle, label: String? = nil,
+                onToggle: @escaping () -> Void) {
         self.isChecked = isChecked
         self.size = size
+        self.label = label
         self.onToggle = onToggle
     }
 
@@ -90,9 +96,14 @@ public struct KCheckbox: View {
         .animation(Motion.hover, value: isHovering)
         .animation(Motion.hover, value: isRowHovered)
         .animation(Motion.complete, value: isChecked)
-        .accessibilityLabel(String(localized: "viewoptions.field.status"))
+        // One explicit element: inside a focusable / gesture-bearing ancestor (the inspector's
+        // sub-step row) the live VoiceOver pass found no element for this control, so it
+        // declares itself rather than relying on the Button's inferred node.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label ?? String(localized: "viewoptions.field.status"))
         .accessibilityValue(String(localized: isChecked ? "status.done" : "status.todo"))
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { if isEnabled { onToggle() } }
     }
 }
 

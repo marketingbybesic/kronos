@@ -39,23 +39,25 @@ struct ImpulsScreen: View {
     var body: some View {
         ZStack {
             Tok.bg
-            VStack(spacing: Space.x5) {
-                energyRow
+            VStack(spacing: Space.x4) {
                 content
+                if mode == .morning || current != nil { energyRow }
             }
             .padding(Space.x6)
             .frame(maxWidth: 520)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Hugs its content: a full-height black column with empty bands above and below the
+        // card read as a broken screen (user report); the shell centres it.
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
         .focusable(true)
         .focusEffectDisabled()
         .focused($isFocused)
         .onAppear {
             isFocused = true
-            // The last energy chosen today, if any — asking again from scratch every time
-            // Impuls opens the same day re-asks a question already answered. A new day (or
-            // no prior answer) keeps the .mid default.
-            if let remembered = ImpulsEnergyMemory.todayEnergy() { energy = remembered }
+            // No question before the task: the card shows at once from the last energy chosen
+            // today, else a time-of-day default. Energy is a small "change" row under the card.
+            energy = Self.defaultEnergy()
             reload()
         }
         // Re-evaluate on every store mutation (project convention: SwiftData models are
@@ -65,9 +67,9 @@ struct ImpulsScreen: View {
         // parent's), so without this the very first render would be built from whatever
         // was in the store before the seed landed.
         .onChange(of: model.version) { _, _ in reload() }
-        .onKeyPress("1") { energy = .low; reload(); return .handled }
-        .onKeyPress("2") { energy = .mid; reload(); return .handled }
-        .onKeyPress("3") { energy = .high; reload(); return .handled }
+        .onKeyPress("1") { setEnergy(.low); return .handled }
+        .onKeyPress("2") { setEnergy(.mid); return .handled }
+        .onKeyPress("3") { setEnergy(.high); return .handled }
         .onKeyPress(.return) { start(); return .handled }
         .onKeyPress(.rightArrow) { another(); return .handled }
         .onKeyPress("a") { another(); return .handled }
@@ -76,11 +78,27 @@ struct ImpulsScreen: View {
 
     // MARK: Energy question
 
+    /// Hour 12 under the snapshot harness so shots do not depend on the clock.
+    static func defaultEnergy() -> KEnergyLevel {
+        let hermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
+        let hour = hermetic ? 12 : KronosLocale.calendar.component(.hour, from: Date())
+        let remembered = ImpulsEnergyMemory.todayEnergy().flatMap { ImpulsDefaults.Energy(rawValue: $0.rawValue) }
+        return KEnergyLevel(rawValue: ImpulsDefaults.energy(remembered: remembered, hour: hour).rawValue) ?? .mid
+    }
+
+    /// Remembered on every change (not only on Start) so a change survives the next open.
+    private func setEnergy(_ level: KEnergyLevel) {
+        guard energy != level else { return }
+        energy = level
+        ImpulsEnergyMemory.rememberToday(level)
+        reload()
+    }
+
     private var energyRow: some View {
         HStack(spacing: Space.x2) {
             Text(String(localized: "impuls.energy.prompt"))
-                .font(Typo.heading)
-                .foregroundStyle(Tok.textPrimary)
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textTertiary)
             Spacer()
             energyButton(.low, title: String(localized: "energy.low"))
             energyButton(.mid, title: String(localized: "energy.mid"))
@@ -91,9 +109,7 @@ struct ImpulsScreen: View {
     private func energyButton(_ level: KEnergyLevel, title: String) -> some View {
         let selected = energy == level
         return Button(title) {
-            guard energy != level else { return }
-            energy = level
-            reload()
+            setEnergy(level)
         }
         .kButton(selected ? .secondary : .ghost, size: .compact)
         .kBorder(selected ? Tok.borderActive : .clear, radius: Radius.control)
@@ -136,7 +152,7 @@ struct ImpulsScreen: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Ranking + mentor lifecycle
@@ -226,7 +242,10 @@ struct ImpulsScreen: View {
         // and the menu bar all follow it (they all read `model.focusTaskID`, which prefers
         // `pinnedFocusTaskID` over the automatic Ordo pick).
         model.pinnedFocusTaskID = current.task.id
-        model.scope = .inbox
+        switch ImpulsDefaults.startScope(projectID: current.task.projectID) {
+        case .project(let id): model.scope = .project(id)
+        case .all: model.scope = .all
+        }
         model.didMutate()
         ImpulsEnergyMemory.rememberToday(energy)
         close()

@@ -34,15 +34,29 @@ enum OptionChordDecider {
     /// cached default, so a rebind takes effect on the very next keypress.
     static func decide(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags,
                         bindings: [(id: String, binding: HotkeyBinding)],
-                        isRecording: Bool, keyWindowKind: KeyWindowKind) -> OptionChordDecision {
+                        isRecording: Bool, keyWindowKind: KeyWindowKind,
+                        characters: String? = nil) -> OptionChordDecision {
         // Device-independent, minus capsLock/numericPad/function — a user with caps lock on
         // (or using a numeric-pad-adjacent key) still gets the chord; those three flags are
         // not part of any Kronos binding's identity.
         let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
             .subtracting([.capsLock, .numericPad, .function])
-        guard let match = bindings.first(where: { $0.binding.option
+        let optionMatch = bindings.first(where: { $0.binding.option
             && OptionChordDecider.virtualKeyCode(for: $0.binding.key) == keyCode
-            && OptionChordDecider.eventFlags(for: $0.binding) == flags }) else { return .pass }
+            && OptionChordDecider.eventFlags(for: $0.binding) == flags })
+        // Symbol keys (Cmd-/ and Cmd-\): the printed character moves between layouts ("/" is
+        // keycode 44 on US but 27 on Croatian, where keycode 44 prints "-"), and SwiftUI's menu
+        // equivalent did not fire Cmd-/ for a user on the HR layout. Match what the layout PRODUCES
+        // (charactersIgnoringModifiers), plus backslash's own physical key, which the keymap
+        // sheet displays through the live layout (Ž on HR).
+        let symbolMatch = bindings.first(where: { b in
+            guard !b.binding.option, b.binding.key == "/" || b.binding.key == "backslash",
+                  OptionChordDecider.eventFlags(for: b.binding) == flags else { return false }
+            let symbol = b.binding.key == "/" ? "/" : "\\"
+            if characters == symbol { return true }
+            return b.binding.key == "backslash" && keyCode == 42
+        })
+        guard let match = optionMatch ?? symbolMatch else { return .pass }
 
         if isRecording { return .standDown("recording") }
         guard keyWindowKind == .kronosMain else { return .standDown("wrong-window") }

@@ -109,7 +109,9 @@ struct TriageFlowView: View {
 
     var body: some View {
         ZStack {
-            Tok.bg
+            // No full-window `Tok.bg` here: the shell's scrim already dims the list, and an
+            // opaque fill turned the whole window black behind the card (live audit 30.09.),
+            // unlike every sibling overlay (Impuls/Capture/palette) which keeps the context.
             VStack(spacing: Space.x5) {
                 header
                 if let current {
@@ -118,12 +120,15 @@ struct TriageFlowView: View {
                     KPanel {
                         KEmptyState(icon: "check-square", title: String(localized: "triage.flow.empty"),
                                    actionTitle: String(localized: "triage.flow.hint.close"), onAction: onClose)
-                            .frame(maxWidth: .infinity, minHeight: 360)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, Space.x6)
                     }
                 }
             }
             .padding(Space.x6)
             .frame(maxWidth: Metrics.impulsCardWidth)
+            .background(Tok.bg, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .kBorder(Tok.hairline, radius: Radius.card)
         }
         // G5 "centriraj": the shell's overlay (AppShellView.swift:57-60) pins this view to the
         // top with `alignment: .top` padding — the same treatment as the palette, which reads
@@ -323,21 +328,28 @@ struct TriageFlowView: View {
 
                 if let reason = suggestion?.reason {
                     HStack(spacing: Space.x2) {
+                        // One line each: the HR reason ("Kao 3 slična Globex Campaign zadatka")
+                        // wrapped into two lines next to the AI row (live audit 30.09.).
                         Text(localizedNeighbourReason(reason, isNeighbourSourced: suggestionSource != .ai))
                             .font(Typo.meta)
                             .foregroundStyle(Tok.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                         if let suggestionSource {
                             Text(suggestionSource == .ai ? String(localized: "triage.flow.source.ai")
                                                           : String(localized: "triage.flow.source.neighbours"))
                                 .font(Typo.meta)
                                 .foregroundStyle(Tok.textTertiary)
+                                .lineLimit(1)
+                                .layoutPriority(-1)
                         }
                         Spacer(minLength: 0)
-                        aiStateRow
                     }
                 }
 
-                if suggestion?.reason == nil { HStack { Spacer(minLength: 0); aiStateRow } }
+                // The AI state gets its own trailing row: sharing the reason's line squeezed
+                // the HR text down to "i…" / "AI nije odg…" on the 470 pt card.
+                if aiEnabled, model.ai != nil { HStack { Spacer(minLength: 0); aiStateRow } }
 
                 VStack(spacing: 0) {
                     KPropertyRow(String(localized: "viewoptions.field.priority")) {
@@ -356,26 +368,21 @@ struct TriageFlowView: View {
                         projectMenu(for: task)
                     }
                 }
-                .frame(minHeight: Metrics.controlRegular * 5)   // G5 "povecaj visinu": room for the date field opening inline
 
                 keyHints
             }
-            .frame(minHeight: 420)   // G5: taller than the old card, still one screen, no scroll
+            // Hugs its content (user feedback: the fixed 420 pt minimum read as a full-height
+            // sheet with empty bands). The inline date field grows the card when it opens.
         }
         .id(task.id)   // fresh @State-free identity per card so hover/menu state resets
     }
 
     // aiStateRow moved to TriageAIState.swift (file split for the 500-line lint gate).
 
-    // Two rows: the field hints (what each key sets) on top, the flow hints (accept/skip/
-    // close) on the bottom. Each hint is a flow item (cap(s) + label) that moves to the
-    // next line as one piece when the card is too narrow for the whole row — a plain
-    // HStack let SwiftUI compress a multi-alternative cap's text instead (wrapped mid-word).
+    // Default legend is accept/skip only; the field keys reveal on hover or while ⌥ is held
+    // (TriageKeyLegend). Every key still works whether or not it is shown.
     private var keyHints: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            KKeyHintRow(fieldHints)
-            KKeyHintRow(flowHints)
-        }
+        TriageKeyLegend(fieldHints: fieldHints, flowHints: flowHints)
     }
 
     private var fieldHints: [(keys: [String], label: String)] {

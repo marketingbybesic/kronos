@@ -38,22 +38,38 @@ struct BackupScheduler {
         let now = clock()
         let name = "kronos-\(dayFormatter.string(from: now)).json"
         let url = directory.appendingPathComponent(name)
+        snapshotStoreIfNeeded(day: dayFormatter.string(from: now))
         guard !FileManager.default.fileExists(atPath: url.path) else { prune(); return nil }
-        let envelope = JSONExporter(store: store).makeEnvelope(now: now)
+        var envelope = JSONExporter(store: store).makeEnvelope(now: now)
+        let templates = TemplateStore.shared.templates
+        if !templates.isEmpty { envelope.templates = templates }
         try? BackupFile.write(envelope, to: url)
         prune()
         return url
     }
 
-    /// Deletes the oldest files beyond `keep`, sorted by filename (which is the date).
+    /// Also keeps today's copy of the live SQLite store (`kronos-<day>.store`), the thing
+    /// Settings > Data > "Restore from backup" lists. Taken with SQLite's online-backup API, so
+    /// it is consistent while the app has the store open. A failure is silent: the JSON backup
+    /// above is still written, and the next launch tries again.
+    private func snapshotStoreIfNeeded(day: String, live: URL = KronosStore.storeURL()) {
+        let dest = directory.appendingPathComponent("kronos-\(day).store")
+        guard !FileManager.default.fileExists(atPath: dest.path) else { return }
+        try? BackupRestore.snapshot(from: live, to: dest)
+    }
+
+    /// Deletes the oldest files beyond `keep`, sorted by filename (which is the date). JSON and
+    /// store copies are counted separately, so each keeps its own 14.
     func prune() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: directory, includingPropertiesForKeys: nil) else { return }
-        let backups = files.filter { $0.lastPathComponent.hasPrefix("kronos-") && $0.pathExtension == "json" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        guard backups.count > keep else { return }
-        for url in backups.prefix(backups.count - keep) {
-            try? FileManager.default.removeItem(at: url)
+        for ext in ["json", "store"] {
+            let backups = files.filter { $0.lastPathComponent.hasPrefix("kronos-") && $0.pathExtension == ext }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            guard backups.count > keep else { continue }
+            for url in backups.prefix(backups.count - keep) {
+                try? FileManager.default.removeItem(at: url)
+            }
         }
     }
 }

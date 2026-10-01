@@ -29,10 +29,34 @@ enum SettingsSnapshots {
                 SettingsMCPTab(status: FakeMCPStatusProvider(isRunning: true, port: 47311))
             }),
             "settings.data": AnyView(SettingsTabPreview { SettingsDataTab(model: model) }),
+            "settings.data.restore": AnyView(SettingsTabPreview {
+                RestoreFromBackupSection(model: model, fixture: restoreFixture)
+            }),
+            "settings.data.restore.confirm": AnyView(SettingsTabPreview {
+                RestoreFromBackupSection(model: model, fixture: restoreFixture, pending: restoreFixture[1])
+            }),
             "settings.shortcuts": AnyView(SettingsScreen(model: model, initialTab: .shortcuts)),
+            "settings.about": AnyView(SettingsScreen(model: model, initialTab: .about)),
+            "settings.about.update": AnyView(SettingsTabPreview {
+                SettingsAboutTab(initial: .done(.available(
+                    version: "1.1.0", page: URL(string: "https://github.com/marketingbybesic/kronos/releases")!)))
+            }),
         ]
     }
 }
+
+/// Fictional backup list for the restore shots: fixed dates and sizes, never real files.
+private let restoreFixture: [StoreBackupEntry] = {
+    let day: TimeInterval = 86_400
+    let base = Date(timeIntervalSince1970: 1_790_000_000)
+    func url(_ name: String) -> URL { URL(fileURLWithPath: "/fixture/Backups/\(name)") }
+    return [
+        StoreBackupEntry(url: url("kronos-2026-09-30.store"), date: base, bytes: 2_516_582),
+        StoreBackupEntry(url: url("kronos-2026-09-29.store"), date: base - day, bytes: 2_490_368),
+        StoreBackupEntry(url: url("pre-restore-20260928-181500.store"), date: base - 2 * day, bytes: 2_461_696),
+        StoreBackupEntry(url: url("kronos-2026-09-27.store"), date: base - 3 * day, bytes: 2_408_448),
+    ]
+}()
 
 /// Wraps a single tab's content in the same scroll/padding shell SettingsScreen gives it,
 /// so a standalone tab snapshot matches what it looks like inside the real window.

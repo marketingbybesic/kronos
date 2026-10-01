@@ -66,7 +66,12 @@ struct CommandPaletteView: View {
             selectedID = selectFirstTaskOnAppear
                 ? flatItems.first { if case .task = $0 { return true }; return false }?.id ?? flatItems.first?.id
                 : flatItems.first?.id
-            isFieldFocused = true
+            // Not on the same turn: the field is not in the responder chain yet when onAppear
+            // runs, so the focus request was lost and ⌘K typed into whatever had focus before
+            // (live test 30.09.: nothing). One hop later it lands; re-asserted once more in
+            // case the list's inline field re-took focus in between.
+            DispatchQueue.main.async { isFieldFocused = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { isFieldFocused = true }
         }
         .onChange(of: query) { _, _ in selectedID = flatItems.first?.id }
     }
@@ -98,8 +103,7 @@ struct CommandPaletteView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(groups, id: \.group) { entry in
-                    KSectionHeader(String(localized: String.LocalizationValue(entry.group.titleKey)))
-                        .padding(.horizontal, Space.x2)
+                    sectionHeader(String(localized: String.LocalizationValue(entry.group.titleKey)))
                     if entry.group == .task {
                         taskRows(entry.items)
                     } else {
@@ -113,7 +117,22 @@ struct CommandPaletteView: View {
             .padding(.horizontal, Space.x2)
             .padding(.vertical, Space.x2)
         }
-        .frame(maxHeight: 360)
+        .frame(maxHeight: 420)
+    }
+
+    /// Palette-sized group label. `KSectionHeader` is the sidebar's (20 pt above, 6 below, 28 pt
+    /// tall), which stacked into ~60 pt gaps between palette groups and pushed the last group's
+    /// rows below the fold, leaving a bare header at the bottom edge. Token spacing only.
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(Typo.caption)
+            .textCase(.uppercase)
+            .tracking(Tracking.caption)
+            .foregroundStyle(Tok.textTertiary)
+            .padding(.horizontal, Space.x2)
+            .padding(.top, Space.x3)
+            .padding(.bottom, Space.x1)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func taskRows(_ items: [PaletteItem]) -> some View {
@@ -231,6 +250,12 @@ struct CommandPaletteView: View {
         case .some(.downArrow):
             move(1); return true
         default: break
+        }
+        // The footer row advertises Cmd-/; nothing handled it while the field had focus (audit D16).
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers == "/" {
+            isShowingKeymap = true
+            return true
         }
         if event.keyCode == 48 { // Tab
             cycleGroup(forward: !event.modifierFlags.contains(.shift))

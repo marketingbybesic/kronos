@@ -12,21 +12,24 @@ struct InspectorScreen: View {
     /// `AppDelegate.shared?.autoTriage` seam is unreachable from a harness process. Always
     /// nil on the real screen.
     var previewTriageFill: TriageFillDisplay?? = nil
-    /// Snapshot-only: forces the "Vremenski blok" disclosure open for `inspector.block.open`
-    /// (`InspectorCalendarBlockRow`'s own doc comment explains why a harness can't seed fake
-    /// unlinked blocks). Always false on the real screen.
+    /// Snapshot-only: forces the "Vremenski blok" disclosure open. Always false on the real screen.
     var previewCalendarBlockExpanded: Bool = false
+    /// Snapshot-only: Details open without touching UserDefaults. Always false on the real screen.
+    var previewDetailsOpen: Bool = false
+    /// Remembered across tasks and launches: a user who opens Details wants it open everywhere.
+    @AppStorage("kronos.inspector.detailsOpen") private var detailsOpen = false
     @State private var titleDraft: String = ""
     @State private var notesDraft: String = ""
     @State private var firstMoveDraft: String = ""
     @State private var loadedTaskID: UUID?
-    @State private var requestNoteLinkOpen = false
     @FocusState private var focus: Field?
 
     enum Field: Hashable { case title, notes, subtaskAdd, firstMove }
 
-    init(model: AppModel, previewTriageFill: TriageFillDisplay?? = nil, previewCalendarBlockExpanded: Bool = false) {
+    init(model: AppModel, previewTriageFill: TriageFillDisplay?? = nil, previewCalendarBlockExpanded: Bool = false,
+         previewDetailsOpen: Bool = false) {
         self.model = model
+        self.previewDetailsOpen = previewDetailsOpen
         self.previewTriageFill = previewTriageFill
         self.previewCalendarBlockExpanded = previewCalendarBlockExpanded
     }
@@ -44,12 +47,12 @@ struct InspectorScreen: View {
         // SidebarArchived.swift, MenuBarOrdoController.swift, QuickAddPanelView.swift all do
         // this explicitly) — `task` here is re-fetched fresh from `model.store` on every
         // `body` call, but nothing in this file ever read `model.version`, so `@Observable`
-        // had no reason to call `body` again after `model.didMutate()` and the row kept
-        // showing the pre-unlink state until some unrelated state change (a hover, a focus
-        // change) happened to force a redraw.
+        // had no reason to re-run `body` after `model.didMutate()` (stale row until a redraw).
         let _ = model.version
         Group {
-            if let task {
+            if model.selectedIDs.count > 1 {
+                BulkSelectionPanel(model: model)
+            } else if let task {
                 content(for: task)
             } else {
                 KEmptyState(icon: "check-square",
@@ -59,8 +62,6 @@ struct InspectorScreen: View {
             }
         }
         .background(Tok.bg)
-        // Commit any pending edit BEFORE the selection changes, so a keystroke never
-        // lands on the wrong task and nothing typed is lost.
         .onChange(of: model.selectedTaskID) { oldID, _ in
             if let oldID { commitDrafts(for: oldID) }
             loadDrafts()
@@ -69,38 +70,29 @@ struct InspectorScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: .kronosLinkNoteRequested)) { note in
             guard let taskID = note.userInfo?["taskID"] as? UUID else { return }
             model.selectedTaskID = taskID
-            requestNoteLinkOpen = true
+            model.noteLinkPickerOpen = true
         }
     }
-
     private func content(for task: KTask) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Space.x4) {
+            VStack(alignment: .leading, spacing: Space.x4 + Space.x3) {
                 header(task)
                 firstMoveSection(task)
+                    .tourAnchor(.inspectorFirstMove)
                 attributesRow(task)
-                // One continuous borderless property list (style G): Status, Project,
-                // Labels, Depth, Estimate, Repeat share the same label column and row
-                // rhythm with no group boxes — a hairline is the only separator, and
-                // only where the fields genuinely group (metadata vs. sizing vs. repeat).
                 VStack(alignment: .leading, spacing: 0) {
-                    InspectorStatusSection(model: model, task: task)
-                    KHairline()
-                    InspectorDepthEstimateSection(model: model, task: task)
-                    KHairline()
-                    InspectorRecurrenceSection(model: model, task: task)
-                    KHairline()
-                    VStack(alignment: .leading, spacing: 0) {
-                        InspectorNoteLinkRow(model: model, task: task, requestOpen: $requestNoteLinkOpen)
-                        InspectorContextLinksRow(model: model, task: task)
+                    // Unlinked: the Notes header owns "Link Apple note"; this row only hosts its picker.
+                    if NoteLink.find(in: task.notes) != nil {
+                        InspectorNoteLinkRow(model: model, task: task, requestOpen: .constant(false))
                     }
+                    InspectorContextLinksRow(model: model, task: task)
                 }
-                InspectorCalendarBlockRow(model: model, task: task, forceExpandedOnAppear: previewCalendarBlockExpanded)
                 InspectorStepsSection(model: model, task: task)
                 notesSection(task)
                 if let rationale = task.triageRationale, !rationale.isEmpty {
                     rationalePanel(rationale)
                 }
+                detailsSection(task)
                 InspectorFooter(model: model, task: task)
             }
             // Without an explicit width, a wide child (a Menu's .fixedSize() label, an
@@ -137,7 +129,7 @@ struct InspectorScreen: View {
                     .font(Typo.display)
                     .tracking(Tracking.tight)
                     .foregroundStyle(Tok.textPrimary)
-                    .lineLimit(1...6)
+                    .lineLimit(1...3) .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .focused($focus, equals: .title)
                     .onSubmit { commitTitle(task) }
@@ -149,17 +141,34 @@ struct InspectorScreen: View {
                         focus = nil
                     }
             }
-            // KCheckbox's own layout width is Metrics.minHit (its hit-box), not its
-            // visual circle size — using the circle's size here left this control 8pt
-            // short of the title's actual x (caught in review: control at x=80, title
-            // at x=100 in the 2x screenshot).
-            HStack(spacing: Space.x3) {
-                focusPinControl(task)
-                InspectorRetriageControl(model: model, task: task)
-            }
-            .padding(.leading, Metrics.minHit + Space.x2)
+            // KCheckbox's own layout width is Metrics.minHit (its hit-box), not its visual
+            // circle size, so the triage line below indents by that plus the gap.
             InspectorTriageFillRow(model: model, task: task, previewFill: previewTriageFill)
                 .padding(.leading, Metrics.minHit + Space.x2)
+        }
+    }
+
+    // MARK: Details — everything that is not the task itself, behind one disclosure
+
+    /// One click reaches every field (status, project, labels, depth, estimate, repeat, time
+    /// block, focus, re-triage); the default view stays title, first move, the three
+    /// first-class attributes, links, subtasks and notes. One borderless property list
+    /// (style G): a hairline only where the fields genuinely group.
+    private func detailsSection(_ task: KTask) -> some View {
+        InspectorDetailsDisclosure(isOpen: previewDetailsOpen ? .constant(true) : $detailsOpen) {
+            VStack(alignment: .leading, spacing: 0) {
+                InspectorStatusSection(model: model, task: task)
+                KHairline()
+                InspectorDepthEstimateSection(model: model, task: task)
+                KHairline()
+                InspectorRecurrenceSection(model: model, task: task)
+                KHairline()
+                InspectorCalendarBlockRow(model: model, task: task, forceExpandedOnAppear: previewCalendarBlockExpanded)
+                HStack(spacing: Space.x3) {
+                    focusPinControl(task)
+                    InspectorRetriageControl(model: model, task: task)
+                }
+            }
         }
     }
 
@@ -215,7 +224,7 @@ struct InspectorScreen: View {
     // stale); otherwise the field really is `task.firstMove` and really saves.
 
     private func firstMoveSection(_ task: KTask) -> some View {
-        let display = FirstMoveLogic.display(nextOpenSubtaskTitle: task.nextOpenSubtask?.title, firstMove: task.firstMove)
+        let display = FirstMoveLogic.display(for: task)
         return VStack(alignment: .leading, spacing: Space.x2) {
             InspectorSectionCaption(String(localized: "detail.firstmove"))
             KPanel {
@@ -232,8 +241,18 @@ struct InspectorScreen: View {
                                 .font(Typo.meta)
                                 .foregroundStyle(Tok.textTertiary)
                         }
-                    case .editable:
-                        TextField(String(localized: "detail.firstmove.placeholder"), text: $firstMoveDraft, axis: .vertical)
+                    case .fromAttachment(let suggestion):
+                        VStack(alignment: .leading, spacing: Space.x1) {
+                            Text(suggestion.localized)
+                                .font(Typo.body)
+                                .foregroundStyle(Tok.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(String(localized: "detail.firstmove.fromattachment.hint"))
+                                .font(Typo.meta)
+                                .foregroundStyle(Tok.textTertiary)
+                        }
+                    case .editable(_, let hint):
+                        TextField(hint?.localized ?? String(localized: "detail.firstmove.placeholder"), text: $firstMoveDraft, axis: .vertical)
                             .textFieldStyle(.plain)
                             .font(Typo.body)
                             .foregroundStyle(Tok.textPrimary)
@@ -244,7 +263,7 @@ struct InspectorScreen: View {
                                 if old == .firstMove, new != .firstMove { commitFirstMove(task) }
                             }
                             .kOnEscapeRevert(active: focus == .firstMove) {
-                                firstMoveDraft = task.firstMove ?? ""
+                                firstMoveDraft = Self.editableFirstMove(task)
                                 focus = nil
                             }
                     }
@@ -265,7 +284,7 @@ struct InspectorScreen: View {
 
     private func commitFirstMove(_ task: KTask) {
         let trimmed = firstMoveDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != (task.firstMove ?? "") else { return }
+        guard trimmed != Self.editableFirstMove(task) else { return }
         model.store.setFirstMove(task.id, trimmed.isEmpty ? nil : trimmed)
         model.didMutate()
     }
@@ -311,7 +330,7 @@ struct InspectorScreen: View {
                     }
                 }
             } leading: {
-                KEffortIndicator(level: task.effort.rawValue, of: 5, label: nil, showLabel: false)
+                if task.effort != .none { KEffortIndicator(level: task.effort.rawValue, of: 5, label: nil, showLabel: false) }  // unset: just the quiet dash
             }
         }
     }
@@ -332,7 +351,7 @@ struct InspectorScreen: View {
                     }
                 }
             } leading: {
-                KPriorityIndicator(level: task.priority.rawValue, of: 4, label: task.priority.displayName, size: 14)
+                if task.priority != .none { KPriorityIndicator(level: task.priority.rawValue, of: 4, label: task.priority.displayName, size: 14) }
             }
             .accessibilityLabel(String(localized: "viewoptions.field.priority"))
             .accessibilityValue(task.priority.displayName)
@@ -369,12 +388,10 @@ struct InspectorScreen: View {
             HStack {
                 InspectorSectionCaption(String(localized: "detail.notes"))
                 Spacer()
-                // The same "Link Apple note" affordance also lives here, next to the notes
-                // editor itself, not only on the note-link row above — hidden once a note is
-                // already linked (that row above already owns Unlink).
+                // The one "Link Apple note" button; hidden once a note is linked.
                 if NoteLink.find(in: task.notes) == nil {
                     Button {
-                        requestNoteLinkOpen = true
+                        model.noteLinkPickerOpen = true
                     } label: {
                         HStack(spacing: Space.x2) {
                             Icon("note.text", size: Metrics.iconS)
@@ -440,7 +457,14 @@ struct InspectorScreen: View {
         loadedTaskID = task.id
         titleDraft = task.title
         notesDraft = InspectorNotesText.visible(task.notes)
-        firstMoveDraft = task.firstMove ?? ""
+        firstMoveDraft = Self.editableFirstMove(task)
+    }
+
+    /// The stored move as the field shows it: a generic placeholder sentence counts as empty,
+    /// so the hint ("Review: <title>") shows instead; committing clears the placeholder.
+    private static func editableFirstMove(_ task: KTask) -> String {
+        guard let move = task.firstMove, !DeterministicFirstMove.isGenericTemplate(move) else { return "" }
+        return move
     }
 
     private func commitDrafts(for id: UUID) {
@@ -448,19 +472,19 @@ struct InspectorScreen: View {
         let trimmedTitle = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         let mergedNotes = InspectorNotesText.merging(visibleDraft: notesDraft, controlLinesFrom: t.notes)
         let trimmedFirstMove = firstMoveDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        var changed = false
-        model.store.update(id) { task in
-            if !trimmedTitle.isEmpty, trimmedTitle != t.title { task.title = trimmedTitle; changed = true }
-            if mergedNotes != t.notes { task.notes = mergedNotes; changed = true }
-            // Only a task with no open subtask actually owns this field (FirstMoveLogic) —
-            // committing it while a subtask is driving the display would silently overwrite
-            // firstMove with a draft that was never shown as editable.
-            if t.nextOpenSubtask == nil, trimmedFirstMove != (t.firstMove ?? "") {
-                task.firstMove = trimmedFirstMove.isEmpty ? nil : trimmedFirstMove
-                changed = true
+        let titleChanged = !trimmedTitle.isEmpty && trimmedTitle != t.title
+        let notesChanged = mergedNotes != t.notes
+        let firstMoveChanged = t.nextOpenSubtask == nil && trimmedFirstMove != Self.editableFirstMove(t)   // only a task with no open subtask owns firstMove
+        // Root cause of "first Cmd-Z does nothing" after Space/H: selection change runs this and
+        // `store.update` ALWAYS pushes an undo step, burying the complete/snooze step under a no-op.
+        if titleChanged || notesChanged || firstMoveChanged {
+            model.store.update(id) { task in
+                if titleChanged { task.title = trimmedTitle }
+                if notesChanged { task.notes = mergedNotes }
+                if firstMoveChanged { task.firstMove = trimmedFirstMove.isEmpty ? nil : trimmedFirstMove }
             }
+            model.didMutate()
         }
-        if changed { model.didMutate() }
         notesAutosaveWork?.cancel()
     }
 }

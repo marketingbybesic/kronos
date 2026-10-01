@@ -106,6 +106,7 @@ public final class TaskStore: TaskStoring {
         /// archiving had been undone, so filters kept hiding it.
         var projectID: UUID?, areaID: UUID?, isProjectArchived: Bool
         var recurrenceRule: String?, seriesID: UUID?
+        var waitsOnIDs: String
         var labels: [KLabel]
         var subtaskStates: [(id: UUID, title: String, isDone: Bool, sortIndex: Double)]
 
@@ -122,6 +123,7 @@ public final class TaskStore: TaskStoring {
             projectID = t.projectID; areaID = t.areaID
             isProjectArchived = t.isProjectArchived
             recurrenceRule = t.recurrenceRule; seriesID = t.seriesID
+            waitsOnIDs = t.waitsOnIDs
             labels = t.labels ?? []
             subtaskStates = (t.subtasks ?? []).map { ($0.id, $0.title, $0.isDone, $0.sortIndex) }
         }
@@ -139,6 +141,7 @@ public final class TaskStore: TaskStoring {
             t.projectID = projectID; t.areaID = areaID
             t.isProjectArchived = isProjectArchived
             t.recurrenceRule = recurrenceRule; t.seriesID = seriesID
+            t.waitsOnIDs = waitsOnIDs
             t.labels = labels
             for state in subtaskStates {
                 if let s = (t.subtasks ?? []).first(where: { $0.id == state.id }) {

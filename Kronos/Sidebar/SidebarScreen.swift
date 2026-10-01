@@ -72,6 +72,7 @@ struct SidebarScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Metrics.sidebarRowVGap) {
                     fixedScopesSection
+                        .tourAnchor(.sidebarLists)
                     areasSection
                     SidebarSavedViewsSection(model: model)
                     SidebarArchivedSection(model: model,
@@ -88,6 +89,7 @@ struct SidebarScreen: View {
             Spacer(minLength: 0)
             KHairline()
             footer
+                .tourAnchor(.sidebarPower)
         }
         // A VStack sizes to its widest child's IDEAL width, and `.frame(maxWidth: .infinity)`
         // on a row only expands to whatever width the parent already decided to offer — it
@@ -256,10 +258,10 @@ struct SidebarScreen: View {
             select(.project(project.id))
         }
         // The quiet "context folders exist" hint (ledger: a small mapped glyph at the
-        // tertiary tone, no badge, no count — hidden in Calm mode per the coach's "never a
-        // count of what is late/pending" copy rule extended to folder noise).
+        // tertiary tone, no badge, no count). Calm mode was removed in rev18; the glyph
+        // now shows whenever the sidebar is in icons-and-text mode.
         .overlay(alignment: .trailing) {
-            if hasLinkedFolders(project), model.chromaMode != .calm, !model.sidebarIconsOnly {
+            if hasLinkedFolders(project), !model.sidebarIconsOnly {
                 Icon("folder", size: Metrics.iconS)
                     .foregroundStyle(Tok.textDisabled)
                     .padding(.trailing, Metrics.sidebarRowTrailing + Space.x4)
@@ -325,18 +327,6 @@ struct SidebarScreen: View {
 
     // MARK: Footer
 
-    private var chromaModeBinding: Binding<ChromaMode> {
-        Binding(get: { model.chromaMode }, set: { model.chromaMode = $0 })
-    }
-
-    /// The rail's single-button mode cycle (Focus -> Full -> Calm -> Focus); the full sidebar
-    /// uses `KChromaModeSwitch`'s own three-way picker instead.
-    private func nextChromaMode(after mode: ChromaMode) -> ChromaMode {
-        let all = ChromaMode.allCases
-        let i = all.firstIndex(of: mode) ?? 0
-        return all[(i + 1) % all.count]
-    }
-
     /// An icon that opens the full keyboard-shortcuts reference on click.
     private var keymapButton: some View {
         Button {
@@ -378,19 +368,7 @@ struct SidebarScreen: View {
                 model.isImpulsOpen = true
             }
             if model.sidebarIconsOnly {
-                // The rail has no room for the mode switch's three segments side by side
-                // (it clips at 56pt) — a single icon button cycles the mode instead, showing
-                // the CURRENT mode's own icon, same pattern as the sidebar-mode toggle below it.
-                // The collapse/expand icon belongs all the way to the right, not at the
-                // start, so it is the LAST icon in the footer.
-                Button {
-                    withAnimation(Motion.select) { model.chromaMode = nextChromaMode(after: model.chromaMode) }
-                } label: {
-                    Icon(KChromaModeSwitch.icon(model.chromaMode), size: Metrics.iconM)
-                }
-                .kButton(.icon)
-                .accessibilityLabel(KChromaModeSwitch.name(model.chromaMode))
-                .help(KChromaModeSwitch.hint(model.chromaMode))
+                // The colour mode is a setting (Settings > Appearance), not a footer action.
                 settingsButton
                 Button {
                     model.sidebarIconsOnly = false
@@ -403,10 +381,9 @@ struct SidebarScreen: View {
                 .help(String(localized: "sidebar.mode.full"))
             } else {
                 // One aligned row instead of two stacked ones, which used to read as
-                // leftovers: colour modes, keyboard, settings, then collapse LAST — the
+                // leftovers: keyboard, settings, then collapse LAST — the
                 // hide-sidebar icon belongs all the way to the right, not at the start.
                 HStack(spacing: Space.x1) {
-                    KChromaModeSwitch(mode: chromaModeBinding)
                     Spacer(minLength: Space.x2)
                     keymapButton
                     settingsButton

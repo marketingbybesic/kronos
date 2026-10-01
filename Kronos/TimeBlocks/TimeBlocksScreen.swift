@@ -66,7 +66,7 @@ struct TimeBlocksScreen: View {
                 if tasks.isEmpty {
                     emptyState
                 } else {
-                    taskList(tasks)
+                    taskList(tasks, blockProjectID: entry.projectID)
                 }
             } else {
                 emptyState
@@ -206,12 +206,12 @@ struct TimeBlocksScreen: View {
     // columnMode from Kronos/List/**, outside this leaf's OWNS; the brief allows a leaf-owned
     // row when reuse would require editing/depending on that file).
 
-    private func taskList(_ tasks: [KTask]) -> some View {
+    private func taskList(_ tasks: [KTask], blockProjectID: UUID?) -> some View {
         ScrollView {
             KPanel {
                 VStack(spacing: 0) {
                     ForEach(tasks, id: \.id) { task in
-                        TimeBlockTaskRow(task: task, model: model)
+                        TimeBlockTaskRow(task: task, model: model, blockProjectID: blockProjectID)
                             .uiTestAnchor("timeblocks.row." + task.title)
                         if task.id != tasks.last?.id { KHairline() }
                     }
@@ -237,11 +237,20 @@ struct TimeBlocksScreen: View {
 private struct TimeBlockTaskRow: View {
     let task: KTask
     let model: AppModel
+    /// The project the block itself resolves to. The block title already names it, so a task in
+    /// that project must not repeat its name and glyph on every row; a task from another
+    /// project (linked directly) still shows where it lives.
+    let blockProjectID: UUID?
     @State private var isHovering = false
+
+    private var project: KProject? {
+        guard let project = task.project, project.id != blockProjectID else { return nil }
+        return project
+    }
 
     var body: some View {
         HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: task.status == .done, size: Metrics.listCheckboxSize) {
+            KCheckbox(isChecked: task.status == .done, size: Metrics.listCheckboxSize, label: task.title) {
                 if task.status == .done { model.store.reopen(task.id) } else { model.store.complete(task.id) }
                 model.didMutate()
             }
@@ -254,7 +263,7 @@ private struct TimeBlockTaskRow: View {
                     .truncationMode(.tail)
                 // Quiet meta line (art-direction: "give rows an ... inline project name" so the
                 // list carries information, not air) — only when there is something to say.
-                if let project = task.project {
+                if let project {
                     Text(project.name)
                         .font(Typo.meta)
                         .foregroundStyle(Tok.textTertiary)
@@ -262,7 +271,7 @@ private struct TimeBlockTaskRow: View {
                 }
             }
             Spacer(minLength: Space.x2)
-            if let project = task.project {
+            if let project {
                 KProjectGlyph(icon: project.icon, colorHex: project.colorHex, size: Metrics.iconM, carrier: .other)
             }
         }

@@ -27,8 +27,14 @@ private extension Color {
 enum QuickAddSnapshots {
     static func screens(model: AppModel) -> [String: AnyView] {
         [
-            // Empty field: shows the plain-word legend (G2).
-            "quickadd.panel": AnyView(QuickAddPanelView(model: model, onSubmit: {}, onClose: {})),
+            // Empty field: legend collapsed, one example line as the placeholder (D8).
+            "quickadd.panel": AnyView(QuickAddPanelView(model: model, seedLegendPinned: false, onSubmit: {}, onClose: {})),
+            // "Show syntax" opened on an empty field: the full legend.
+            "quickadd.panel.legend": AnyView(QuickAddPanelView(model: model, seedLegendPinned: true, onSubmit: {}, onClose: {})),
+            // Restored draft: text present with the faint "Draft" caption (selection is AppKit-only).
+            "quickadd.panel.draft": AnyView(QuickAddPanelView(
+                model: model, seedText: "Call the accountant about Q3", seedIsDraft: true, seedLegendPinned: false,
+                onSubmit: {}, onClose: {})),
             // Seeded text that hits every token kind at once (project, label, priority,
             // effort, date) so the parsed-chip row is fully exercised (G2/G3).
             "quickadd.panel.parsed": AnyView(SeededQuickAddPanel(model: model)),

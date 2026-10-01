@@ -69,7 +69,7 @@ struct ListViewOptionsPopoverContent: View {
     // MARK: - Filter
 
     private func filterSection(_ opts: ViewOptions) -> some View {
-        let rules = ViewOptionsMapper.filterRules(from: opts.filter, projectName: projectName, areaName: areaName, labelName: labelName)
+        let rules = ViewOptionsMapper.filterRules(from: opts.filter, compact: true, projectName: projectName, areaName: areaName, labelName: labelName)
         let binding = Binding<[KFilterRule]>(
             get: { rules },
             set: { newRules in applyRuleEdit(newRules, previous: rules, opts: opts) }

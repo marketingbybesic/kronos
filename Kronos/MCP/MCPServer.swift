@@ -237,12 +237,17 @@ public final class MCPServer {
             respond(connection, status: path == "/mcp" ? 405 : 404, body: nil)
             return
         }
+        // Browser pages can reach loopback (DNS rebinding); curl / SDK clients send no Origin.
+        guard MCPEndpointFile.isOriginAllowed(headerFields["origin"]) else {
+            respond(connection, status: 403, body: nil); return
+        }
         // A nil token (the RNG or the Keychain write failed when this was first generated)
         // must reject every request, the same as a wrong one — never treat "no token
         // available" as "no auth required".
         guard let expectedToken = token,
               BearerAuth.isAuthorized(header: headerFields["authorization"], expectedToken: expectedToken) else {
-            respond(connection, status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8))
+            respond(connection, status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8),
+                    extraHeaders: #"WWW-Authenticate: Bearer realm="Kronos""#)
             return
         }
 
@@ -250,33 +255,21 @@ public final class MCPServer {
     }
 
     private func handleJSONRPC(_ connection: NWConnection, body: Data) {
-        let mcpRequest: MCPRequest
-        do {
-            mcpRequest = try MCPRequest.parse(body)
-        } catch let e as MCPTransportError {
-            respond(connection, status: 200, body: MCPResponse.failure(id: nil, e).encoded())
-            return
-        } catch {
-            respond(connection, status: 200, body: MCPResponse.failure(id: nil, .parseError).encoded())
-            return
+        // Framing, batches, 202 for notifications / client responses: all in Core (testable).
+        let reply = dispatcher.handleBody(body)
+        respond(connection, status: reply.status, body: reply.body)
+        if reply.mutated {
+            NotificationCenter.default.post(name: .kronosStoreDidChangeExternally, object: nil)
         }
-
-        guard let response = dispatcher.handle(mcpRequest) else {
-            // A notification (e.g. notifications/initialized) gets no
-            // JSON-RPC body, only an empty 202, per the MCP transport spec.
-            respond(connection, status: 202, body: nil)
-            return
-        }
-        respond(connection, status: 200, body: response.encoded())
-        NotificationCenter.default.post(name: .kronosStoreDidChangeExternally, object: nil)
     }
 
-    private func respond(_ connection: NWConnection, status: Int, body: Data?) {
+    private func respond(_ connection: NWConnection, status: Int, body: Data?, extraHeaders: String? = nil) {
         let payload = body ?? Data()
         let statusText = Self.statusText(status)
         var head = "HTTP/1.1 \(status) \(statusText)\r\n"
         head += "Content-Type: application/json\r\n"
         head += "Content-Length: \(payload.count)\r\n"
+        if let extraHeaders { head += extraHeaders + "\r\n" }
         head += "Connection: close\r\n\r\n"
         var full = Data(head.utf8)
         full.append(payload)
@@ -291,6 +284,7 @@ public final class MCPServer {
         case 202: return "Accepted"
         case 400: return "Bad Request"
         case 401: return "Unauthorized"
+        case 403: return "Forbidden"
         case 404: return "Not Found"
         case 405: return "Method Not Allowed"
         case 411: return "Length Required"

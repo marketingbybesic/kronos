@@ -39,6 +39,22 @@ struct ApplyTriageTests {
         #expect(after.needsTriage == false)
     }
 
+    @Test func applyTriageNeverWritesATitleRestatementAsFirstMove() throws {
+        let store = try makeStore()
+        let title = "ACME: 4 podstranice dobivaju gumb"
+        let t = store.create(title: title)
+        let r = TriageResult(project: nil, priority: 3, due: nil, depth: .deep,
+                             estimateMinutes: 45, energyKind: .creative,
+                             firstMove: "Review: \(title)", labels: [],
+                             rationale: "", proposedRule: nil, effort: .m,
+                             reason: nil, version: 1)
+        let filled = store.applyTriage(r, to: t.id)
+        #expect(!filled.contains(.firstMove))
+        #expect(store.task(t.id)!.firstMove == nil)
+        #expect(FirstMoveRestatement.restates(title, title: title))
+        #expect(!FirstMoveRestatement.restates("Open Figma and duplicate the frame.", title: title))
+    }
+
     @Test func applyTriageRespectsAllowedFields() throws {
         let store = try makeStore()
         let t = store.create(title: "Design the onboarding screen")

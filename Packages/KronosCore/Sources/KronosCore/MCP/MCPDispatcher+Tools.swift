@@ -72,10 +72,11 @@ extension MCPDispatcher {
         let hasMore = offset + page.count < total
         let nextCursor = hasMore ? encodeCursor(offset: offset + page.count, signature: signature) : nil
 
+        let blockedIDs = store.blockedIDs(in: page)
         let tasks: [AnyEncodable] = page.map { t in
             params.fields == .full
-                ? AnyEncodable(jsonObject(MCPTaskFull(t, today: day)))
-                : AnyEncodable(jsonObject(MCPTaskCompact(t)))
+                ? AnyEncodable(jsonObject(MCPTaskFull(t, today: day, blocked: blockedIDs.contains(t.id))))
+                : AnyEncodable(jsonObject(MCPTaskCompact(t, blocked: blockedIDs.contains(t.id))))
         }
 
         // Built in typed steps: as one chained expression this exceeded the type-checker budget.
@@ -169,7 +170,7 @@ extension MCPDispatcher {
             let task: MCPTaskFull
             let subtasks: [MCPSubtaskDTO]
         }
-        return .ok(Result(task: MCPTaskFull(t, today: today()),
+        return .ok(Result(task: MCPTaskFull(t, today: today(), blocked: store.isBlocked(t.id)),
                           subtasks: t.orderedSubtasks.map { MCPSubtaskDTO($0, taskID: t.id) }))
     }
 
@@ -245,7 +246,7 @@ extension MCPDispatcher {
             let task: MCPTaskFull
             let protectedFields: [String]
         }
-        return .ok(Result(created: true, task: MCPTaskFull(final, today: today()),
+        return .ok(Result(created: true, task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id)),
                           protectedFields: Array(params.protectedFields).sorted()))
     }
 
@@ -328,6 +329,9 @@ extension MCPDispatcher {
             if let depth = params.depth { t.depth = depth.kDepth }
             if let est = params.estimateMinutes { t.estimateMinutes = est }
         }
+        if let ids = params.waitsOn, !store.setWaitsOnNoUndo(params.id, ids) {
+            sideEffects.append("waitsOnDropped")  // self, unknown, duplicate or cycle-closing ids
+        }
 
         guard let final = store.task(params.id) else {
             return .error(.internalError, message: "task vanished during update")
@@ -337,7 +341,7 @@ extension MCPDispatcher {
             let task: MCPTaskFull
             let sideEffects: [String]
         }
-        return .ok(Result(updated: true, task: MCPTaskFull(final, today: today()), sideEffects: sideEffects))
+        return .ok(Result(updated: true, task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id)), sideEffects: sideEffects))
     }
 
     // MARK: - complete_task
@@ -363,7 +367,7 @@ extension MCPDispatcher {
             let openSubtasksLeft: Int
         }
         let openLeft = (final.subtasks ?? []).filter { !$0.isDone }.count
-        return .ok(Result(completed: true, task: MCPTaskFull(final, today: today()), openSubtasksLeft: openLeft))
+        return .ok(Result(completed: true, task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id)), openSubtasksLeft: openLeft))
     }
 
     // MARK: - delete_task / restore_task

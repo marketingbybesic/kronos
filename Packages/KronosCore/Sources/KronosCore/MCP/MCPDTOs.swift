@@ -30,6 +30,8 @@ public struct MCPTaskCompact: Codable, Sendable {
     public let priority: MCPPriority
     public let dueDay: String?
     public let projectName: String?
+    /// w22e: present (true) only while the task waits on an open task; absent otherwise.
+    public let blocked: Bool?
 }
 
 /// Full task shape for `fields: .full`, `get_task`, and every tool that
@@ -56,6 +58,9 @@ public struct MCPTaskFull: Codable, Sendable {
     public let updatedAt: Date
     public let completedAt: Date?
     public let deletedAt: Date?
+    /// w22e: ids this task waits on (absent when none) and `blocked: true` while any is open.
+    public let waitsOn: [UUID]?
+    public let blocked: Bool?
 }
 
 public struct MCPSubtaskDTO: Codable, Sendable {
@@ -99,18 +104,19 @@ public struct MCPLabelRef: Codable, Sendable {
 // MARK: - Builders
 
 extension MCPTaskCompact {
-    init(_ t: KTask) {
+    init(_ t: KTask, blocked isBlocked: Bool = false) {
         id = t.id
         title = t.title
         status = MCPStatus(t.status)
         priority = MCPPriority(t.priority)
         dueDay = t.dueDay.map(Day.iso)
         projectName = t.project?.name
+        blocked = isBlocked ? true : nil
     }
 }
 
 extension MCPTaskFull {
-    init(_ t: KTask, today: Int) {
+    init(_ t: KTask, today: Int, blocked isBlocked: Bool = false) {
         id = t.id
         title = t.title
         notes = t.notes
@@ -133,6 +139,8 @@ extension MCPTaskFull {
         updatedAt = t.updatedAt
         completedAt = t.completedAt
         deletedAt = t.deletedAt
+        waitsOn = t.waitsOnIDs.isEmpty ? nil : t.waitsOn
+        blocked = isBlocked ? true : nil
     }
 }
 

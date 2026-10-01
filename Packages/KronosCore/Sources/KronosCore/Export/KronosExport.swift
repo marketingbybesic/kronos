@@ -29,11 +29,16 @@ public struct KronosExportEnvelope: Codable, Equatable {
     public var rules: [ExportedRule]
     public var savedViews: [ExportedSavedView]
     public var tasks: [ExportedTask]
+    /// w22e: task templates (app-owned JSON file). Optional: older builds ignore the key, older
+    /// files simply lack it.
+    public var templates: [TaskTemplate]?
 
     public init(format: String = "kronos", version: Int = 1, exportedAt: Date,
                 areas: [ExportedArea] = [], projects: [ExportedProject] = [],
                 labels: [ExportedLabel] = [], rules: [ExportedRule] = [],
-                savedViews: [ExportedSavedView] = [], tasks: [ExportedTask] = []) {
+                savedViews: [ExportedSavedView] = [], tasks: [ExportedTask] = [],
+                templates: [TaskTemplate]? = nil) {
+        self.templates = templates
         self.format = format
         self.version = version
         self.exportedAt = exportedAt
@@ -178,11 +183,14 @@ public struct ExportedSubtask: Codable, Equatable {
     public var sortIndex: Double
     public var createdAt: Date
     public var updatedAt: Date
+    /// The subtask's attachment lines. Optional so a file written before subtasks had notes
+    /// still imports (missing ⇒ "").
+    public var notes: String?
 
     public init(id: UUID, title: String, isDone: Bool, sortIndex: Double,
-                createdAt: Date, updatedAt: Date) {
+                createdAt: Date, updatedAt: Date, notes: String? = nil) {
         self.id = id; self.title = title; self.isDone = isDone; self.sortIndex = sortIndex
-        self.createdAt = createdAt; self.updatedAt = updatedAt
+        self.createdAt = createdAt; self.updatedAt = updatedAt; self.notes = notes
     }
 }
 
@@ -224,6 +232,9 @@ public struct ExportedTask: Codable, Equatable {
     public var projectID: UUID?
     public var labelIDs: [UUID]
     public var subtasks: [ExportedSubtask]
+    /// w22e: ids this task waits on. Optional so an older v1 file still imports (missing = none)
+    /// and a task with no dependencies exports byte-identically to before.
+    public var waitsOn: [UUID]?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -235,7 +246,9 @@ public struct ExportedTask: Codable, Equatable {
                 triageFeedback: String?, triageReviewedAt: Date?, needsTriage: Bool,
                 recurrenceRule: String?, seriesID: UUID?, calendarEventID: String?,
                 externalID: String?, source: String?, projectID: UUID?, labelIDs: [UUID],
-                subtasks: [ExportedSubtask], createdAt: Date, updatedAt: Date) {
+                subtasks: [ExportedSubtask], createdAt: Date, updatedAt: Date,
+                waitsOn: [UUID]? = nil) {
+        self.waitsOn = waitsOn
         self.id = id; self.title = title; self.notes = notes; self.firstMove = firstMove
         self.status = status; self.priority = priority; self.depth = depth
         self.effort = effort; self.dread = dread; self.energyKind = energyKind
@@ -284,6 +297,7 @@ public struct ExportedTask: Codable, Equatable {
         projectID = try c.decodeIfPresent(UUID.self, forKey: .projectID) ?? nil
         labelIDs = try c.decodeIfPresent([UUID].self, forKey: .labelIDs) ?? []
         subtasks = try c.decodeIfPresent([ExportedSubtask].self, forKey: .subtasks) ?? []
+        waitsOn = try c.decodeIfPresent([UUID].self, forKey: .waitsOn)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
     }

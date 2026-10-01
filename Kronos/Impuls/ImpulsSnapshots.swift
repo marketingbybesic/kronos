@@ -19,6 +19,7 @@ enum ImpulsSnapshots {
                 SeededImpulsScreen(model: model, seed: .midCandidate, aiRouter: ImpulsFixtureRouting.sampleRouter())
             ),
             "impuls.card.dread": AnyView(SeededImpulsScreen(model: model, seed: .dreadCandidate)),
+            "impuls.card.hrtitle": AnyView(SeededImpulsScreen(model: model, seed: .croatianTitle)),
             "impuls.empty": AnyView(SeededImpulsScreen(model: model, seed: .empty)),
             "impuls.morning": AnyView(SeededImpulsScreen(model: model, seed: .morningThree, mode: .morning)),
         ]
@@ -30,7 +31,7 @@ enum ImpulsSnapshots {
 /// then renders the real `ImpulsScreen` unmodified — the snapshot exercises the exact same
 /// code path the app ships, not a stand-in.
 private struct SeededImpulsScreen: View {
-    enum Seed { case midCandidate, dreadCandidate, empty, morningThree }
+    enum Seed { case midCandidate, dreadCandidate, croatianTitle, empty, morningThree }
 
     let model: AppModel
     let seed: Seed
@@ -72,6 +73,13 @@ private struct SeededImpulsScreen: View {
             model.store.setDepth(task.id, .shallow)
             // Left without a stored firstMove on purpose: exercises DeterministicFirstMove's
             // dread opener (spec §1.2/§2.3), which is what a real triage-less imported task hits.
+        case .croatianTitle:
+            // A Croatian title with notes and an estimate, no stored first move: the headline must
+            // follow the APP language, and the estimate chip must not carry a tilde (audit D6/D25).
+            let task = model.store.create(title: "ACME: na stranici \u{201E}Sve aktualne prilike ukratko\u{201C} maknuti stari tekst i dodati gumb za prijavu", notes: "Vidi bilješke", project: nil,
+                                          status: .todo, priority: .none, dueDay: nil)
+            model.store.setDepth(task.id, .shallow)
+            model.store.update(task.id) { $0.estimateMinutes = 10 }
         case .empty:
             break   // no open tasks left -> "No tasks yet" / "Nothing open" branch
         case .morningThree:

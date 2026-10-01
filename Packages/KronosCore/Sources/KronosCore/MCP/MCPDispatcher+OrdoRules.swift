@@ -65,7 +65,8 @@ extension MCPDispatcher {
             members = members.filter { KStatus.closed.contains($0.status) == false }
         }
         let sorted = members.sorted(by: Ordering.ordo)
-        let barTask = sorted.first { KStatus.active.contains($0.status) }
+        let blockedIDs = store.blockedIDs(in: sorted)
+        let barTask = sorted.first { KStatus.active.contains($0.status) && !blockedIDs.contains($0.id) }
         struct Entry: Encodable {
             let position: Int
             let ordoIndex: Double
@@ -74,7 +75,7 @@ extension MCPDispatcher {
         }
         let entries = sorted.enumerated().map { i, t in
             Entry(position: i + 1, ordoIndex: t.ordoIndex ?? 0, isBarTask: t.id == barTask?.id,
-                 task: MCPTaskCompact(t))
+                 task: MCPTaskCompact(t, blocked: blockedIDs.contains(t.id)))
         }
         struct Result: Encodable {
             let ordo: [Entry]

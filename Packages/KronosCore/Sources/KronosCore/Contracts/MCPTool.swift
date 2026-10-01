@@ -46,7 +46,7 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     public var toolDescription: String {
         switch self {
         case .listTasks:
-            return "List tasks with an optional filter. The response carries meta.areas, meta.projects and meta.labels so no separate lookup call is needed."
+            return "List tasks with an optional filter. The response carries meta.areas, meta.projects and meta.labels so no separate lookup call is needed. A task that waits on another open task carries blocked: true."
         case .getTask:
             return "Get one task in full, including notes, subtasks and triage info."
         case .createTask:
@@ -133,7 +133,8 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
                "due":{"type":["string","null"],"format":"date"},
                "labels":{"type":"array","items":{"type":"string"},"maxItems":10},
                "depth":{"type":"string","enum":["unknown","shallow","deep"]},
-               "estimateMinutes":{"type":["integer","null"],"minimum":1,"maximum":480}}}
+               "estimateMinutes":{"type":["integer","null"],"minimum":1,"maximum":480},
+               "waitsOn":{"type":"array","items":{"type":"string","format":"uuid"},"maxItems":20}}}
             """#
         case .completeTask:
             return #"""

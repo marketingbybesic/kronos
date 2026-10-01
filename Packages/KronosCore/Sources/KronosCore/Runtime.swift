@@ -77,7 +77,14 @@ public enum KronosStore {
         }
         return FileManager.default
             .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Kronos", isDirectory: true)
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+            .appendingPathComponent(folderName(bundleID: Bundle.main.bundleIdentifier), isDirectory: true)
+    }
+
+    /// The demo build (bundle id `com.besic.kronos.demo`) gets its OWN folder: the path was
+    /// hardcoded, so the demo opened — and migrated — the user's real store.
+    static func folderName(bundleID: String?) -> String {
+        bundleID?.hasSuffix(".demo") == true ? "Kronos Demo" : "Kronos"
     }
 
     /// The single place that decides whether `ModelConfiguration` mirrors to

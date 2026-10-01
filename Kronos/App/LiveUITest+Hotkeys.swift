@@ -86,7 +86,7 @@ extension LiveUITest {
         // key, plus the two named Shift-Cmd controls (capture already proven above as the
         // control; included again here for the table's completeness).
         let idsToTest = ["window.triage", "window.viewoptions", "window.timeblocks",
-                          "window.chroma.focus", "window.chroma.full", "window.chroma.calm",
+                          "window.chroma.focus", "window.chroma.full",
                           "window.impuls", "window.capture", "window.sidebar",
                           "window.goto.1", "window.goto.4"]
 
@@ -193,7 +193,6 @@ extension LiveUITest {
         case "window.timeblocks": return "\(model.isTimeBlocksOpen)"
         case "window.chroma.focus": return model.chromaMode == .focus ? "focus" : "not-focus"
         case "window.chroma.full": return model.chromaMode == .full ? "full" : "not-full"
-        case "window.chroma.calm": return model.chromaMode == .calm ? "calm" : "not-calm"
         case "window.sidebar": return "\(model.sidebarIconsOnly)"
         case "window.viewoptions": return "\(viewOptionsPings)"
         case "window.goto.1", "window.goto.4": return "\(model.scope)"
@@ -214,7 +213,7 @@ extension LiveUITest {
         case "window.impuls": model.isImpulsOpen = false
         case "window.capture": model.isCaptureOpen = false
         case "window.timeblocks": model.isTimeBlocksOpen = false
-        case "window.chroma.focus", "window.chroma.full", "window.chroma.calm": model.chromaMode = .full
+        case "window.chroma.focus", "window.chroma.full": model.chromaMode = .full
         default: break
         }
     }

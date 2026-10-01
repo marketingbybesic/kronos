@@ -21,6 +21,9 @@ public final class MCPLiveController: MCPStatusProviding {
     private let store: any TaskStoring
     private let ranking: any RankingProviding
     private var server: MCPServer?
+    private let endpointDirectory: URL
+    /// Keeps macOS from App-Napping the listener of a hidden (--mcp-background) app.
+    private var activity: NSObjectProtocol?
 
     /// Where the bearer token comes from. Passed straight through to `MCPServer`, which does
     /// not call it until the first request needs a token (see MCPServer.swift) — so enabling
@@ -31,7 +34,9 @@ public final class MCPLiveController: MCPStatusProviding {
     private let tokenProvider: @Sendable () -> String?
 
     public init(store: any TaskStoring, ranking: any RankingProviding,
-                tokenProvider: @escaping @Sendable () -> String? = { MCPKeychain.token() }) {
+                tokenProvider: @escaping @Sendable () -> String? = { MCPKeychain.token() },
+                endpointDirectory: URL = MCPEndpointFile.defaultDirectory()) {
+        self.endpointDirectory = endpointDirectory
         self.store = store
         self.ranking = ranking
         self.tokenProvider = tokenProvider
@@ -67,11 +72,16 @@ public final class MCPLiveController: MCPStatusProviding {
         isRunning = false
         port = nil
         lastError = nil
+        MCPEndpointFile.remove(directory: endpointDirectory)
+        if let activity { ProcessInfo.processInfo.endActivity(activity); self.activity = nil }
     }
 
     private func startServer() {
         guard server == nil else { return }
         let s = MCPServer(dispatcher: MCPDispatcher(store: store, ranking: ranking), tokenProvider: tokenProvider)
+        // The token lives in a 0600 file now (no Keychain dialog), so it is created the moment
+        // the server starts: the stdio bridge reads it before its first request.
+        _ = tokenProvider()
         s.start()
         server = s
         observe(s)
@@ -89,8 +99,18 @@ public final class MCPLiveController: MCPStatusProviding {
                 self.isRunning = s.isRunning
                 self.port = s.boundPort.map(Int.init)
                 self.lastError = s.lastError
-                if s.isRunning { return }
+                if s.isRunning {
+                    if self.activity == nil {
+                        self.activity = ProcessInfo.processInfo.beginActivity(options: .background, reason: "MCP server")
+                    }
+                    let bundleID = Bundle.main.bundleIdentifier ?? "com.besic.kronos"
+                    try? MCPEndpointFile.write(port: Int(s.boundPort ?? 47311), bundleID: bundleID,
+                                               directory: self.endpointDirectory)
+                    return
+                }
             }
+            // Every port refused: no stale endpoint file.
+            MCPEndpointFile.remove(directory: self?.endpointDirectory ?? MCPEndpointFile.defaultDirectory())
         }
     }
 }

@@ -1,7 +1,7 @@
 // Kronos/MenuBar/KOrdoPopoverG.swift
 // Style G content for the menu-bar Ordo popover's NOW section: FIRST MOVE label + first
 // move as the hero line, title under it, the project's glyph + name, a quiet Complete
-// control, "Not now" / Snooze, and the remaining count. A pin (Impuls Start / key F) shows
+// control, "Not now" / Snooze (no remaining count: F10). A pin (Impuls Start / key F) shows
 // an extra "Pinned" line and an Unpin action; completing a pinned task clears the pin
 // (handled by the caller). Kept apart from `KNowCard` (the list pane's own hero card)
 // because this one must fit a 380pt popover and needs the pinned-state affordance the Now
@@ -57,13 +57,6 @@ struct KOrdoPopoverG: View {
                     .fixedSize()
             }
             Spacer()
-            if let task {
-                Text(String(format: String(localized: "menubar.ordo.remaining"), "\(task.remaining)"))
-                    .font(Typo.count)
-                    .foregroundStyle(Tok.textTertiary)
-                    .lineLimit(1)
-                    .fixedSize()
-            }
         }
     }
 
@@ -132,14 +125,14 @@ struct KOrdoPopoverG: View {
                     Button(String(localized: "menubar.now.notnow"), action: onNotNow)
                         .buttonStyle(.plain)
                         .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
+                        .foregroundStyle(Tok.textSecondary)   // favourites: secondary, not tertiary
                         .fixedSize()
                 }
                 if let onSnooze {
                     Button(String(localized: "menubar.now.snooze"), action: onSnooze)
                         .buttonStyle(.plain)
                         .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
+                        .foregroundStyle(Tok.textSecondary)   // favourites: secondary, not tertiary
                         .fixedSize()
                 }
                 Spacer(minLength: 0)
@@ -153,7 +146,8 @@ struct KOrdoPopoverG: View {
                 Circle()
                     .strokeBorder(isHoveringComplete ? Tok.textPrimary : Tok.textSecondary, lineWidth: Metrics.strokeQuiet)
                     .background(Circle().fill(isHoveringComplete ? Tok.hoverFill : .clear))
-                    .overlay(Icon("check", size: Metrics.iconS).foregroundStyle(isHoveringComplete ? Tok.textPrimary : Tok.textSecondary))
+                    // Same affordance as the list Now card: empty ring, check only on hover.
+                    .overlay(Icon("check", size: Metrics.iconS).foregroundStyle(Tok.textPrimary).opacity(isHoveringComplete ? 1 : 0))
                     .frame(width: Metrics.controlCompact, height: Metrics.controlCompact)
                 Text(String(localized: "bar.menu.complete"))
                     .font(Typo.rowStrong)

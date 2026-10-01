@@ -45,12 +45,22 @@ struct NoteSplitterNotesTests {
     // a blank line (the realistic shape for "one paragraph per task", matching how sample notes
     // in CaptureFixtures are bullet-separated) is what actually closes a run.
     @Test func consecutivePlainLinesWithNoBlankLineAllJoinTheSameTasksNotes() {
-        let text = "Call Alex about the invoice\nHe asked for the PDF version\nBook flight to Zagreb"
+        let text = "Call Alex about the invoice\nHe asked for the PDF version.\nand wants it by Friday"
         let proposals = NoteSplitter.split(text, today: today)
         #expect(proposals.count == 1)
         #expect(proposals[0].title == "Call Alex about the invoice")
         let notes = NoteSplitter.notes(in: text)
-        #expect(notes[proposals[0].sourceLine] == "He asked for the PDF version\nBook flight to Zagreb")
+        #expect(notes[proposals[0].sourceLine] == "He asked for the PDF version.\nand wants it by Friday")
+    }
+
+    // The brain-dump shape: one short bare line per task, no bullets, no blank lines. Each line
+    // is a task of its own; a bare line is only notes when it reads as prose (see
+    // `NoteSplitter.readsAsProse`). Live test 30.09.: a three-line paste came back as one task.
+    @Test func shortBareLinesStayTasksOfTheirOwn() {
+        let text = "Pripremiti ponudu za Acme\nNazvati Ivana oko roka\nPoslati fakturu Globexu"
+        let proposals = NoteSplitter.split(text, today: today)
+        #expect(proposals.map(\.title) == ["Pripremiti ponudu za Acme", "Nazvati Ivana oko roka", "Poslati fakturu Globexu"])
+        #expect(NoteSplitter.notes(in: text).isEmpty)
     }
 
     @Test func aBulletedLineAfterATaskStaysASubtaskNeverNotes() {

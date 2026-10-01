@@ -36,6 +36,10 @@ public struct RankingEngine: Sendable {
         var pool = tasks.filter { t in
             KStatus.active.contains(t.status) && !t.isProjectArchived
         }
+        // w22e: a task waiting on an open task is not a next action. `tasks` is the caller's
+        // full live pool, so it also answers "is the blocker still open".
+        let blocked = DependencyGraph.blocked(in: pool, lookup: tasks)
+        if !blocked.isEmpty { pool = pool.filter { !blocked.contains($0.id) } }
         if !maxDeep {
             // Low/Mid energy: exclude deep tasks outright.
             pool = pool.filter { $0.depth != .deep }

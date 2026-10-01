@@ -10,12 +10,41 @@ import SwiftUI
 import KronosCore
 
 extension TaskListScreen {
+    // MARK: - Rebindable list keys
+
+    /// The character a rebindable list action is bound to NOW (the printed cap, so it follows
+    /// the keyboard layout like Settings shows it), lowercased; "" when unbound.
+    static func listKey(_ id: String) -> String {
+        HotkeyRegistry.current(for: id)?.displayKeys.last?.lowercased() ?? ""
+    }
+
+    /// Characters the list claims: the fixed priority digits (+ "o") and whatever the three
+    /// rebindable actions are bound to. A hardcoded "h/f/e" set made a rebind silently dead.
+    var listCharacterSet: CharacterSet {
+        _ = hotkeyRevision
+        let dynamic = ["list.snooze", "list.focuspin", "list.expandall"].map(Self.listKey).joined()
+        return CharacterSet(charactersIn: "o01234" + dynamic + dynamic.uppercased())
+    }
+
     // MARK: - Now card
+
+    /// Waiting and Someday hold tasks that are by definition not next, and an empty Inbox has
+    /// nothing to do now: the card would recommend the wrong thing (audit D2). Elsewhere the
+    /// card's task also stays in the rows below on purpose: keyboard navigation and the Ordo
+    /// publisher read those rows, and the card shows the first move while the row shows the title.
+    func showsNowCard(_ ctx: ListContext) -> Bool {
+        switch model.scope {
+        case .waiting, .someday: return false
+        case .inbox: return !ctx.rows.isEmpty
+        default: return true
+        }
+    }
 
     func nowCard(_ task: KTask, _ ctx: ListContext) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 withAnimation(Motion.curve(Motion.fast)) { isNowCardCollapsed.toggle() }
+                UserDefaults.standard.set(isNowCardCollapsed, forKey: "kronos.nowcard.collapsed")
             } label: {
                 HStack(spacing: Space.x1) {
                     Icon(isNowCardCollapsed ? "chevron-right" : "chevron-down", size: Metrics.iconXS)
@@ -29,8 +58,14 @@ extension TaskListScreen {
             .buttonStyle(.plain)
             .padding(.bottom, isNowCardCollapsed ? 0 : Space.x2)
             if !isNowCardCollapsed {
-                KNowCard(firstMove: task.firstMove, title: task.title, remaining: model.ordoFocus.remaining,
+                // Rev18 5A: breathe when overdue or high-priority so the First Move reads as
+                // urgent without colour. Reduce Motion is handled inside KNowCard itself.
+                let isAttention = (task.priority == .high || task.priority == .urgent)
+                    || (task.dueDay.map { $0 < Day.today() } ?? false)
+                // Same sentence as the inspector and the menu bar (Detail/FirstMoveText.swift).
+                KNowCard(firstMove: FirstMoveLogic.text(for: task), title: task.title,
                          projectIcon: task.project?.icon, projectColorHex: task.project?.colorHex, projectName: task.project?.name,
+                         attention: isAttention,
                          attributes: { nowCardAttributes(task) },
                          onComplete: { ListCompletion.toggle(task, store: model.store, model: model) })
                     .kContextLinkDrop(taskID: task.id, model: model)
@@ -40,9 +75,11 @@ extension TaskListScreen {
 
     @ViewBuilder
     func nowCardAttributes(_ task: KTask) -> some View {
-        KEffortIndicator(level: task.effort.rawValue, of: 5, label: ViewOptionsMapper.effortName(task.effort), showLabel: task.effort != .none)
+        if task.effort != .none {  // empty dots on the hero card are noise
+            KEffortIndicator(level: task.effort.rawValue, of: 5, label: ViewOptionsMapper.effortName(task.effort), showLabel: true)
+        }
         if let due = task.dueDay {
-            KDeadlineLabel(text: nowCardDeadlineText(due), carryDays: task.carryDays(today: Day.today()), isDone: task.status == .done)
+            KDeadlineLabel(text: nowCardDeadlineText(due), carryDays: 0, isDone: task.status == .done)  // no guilt counter on THE task (audit F10); the inspector keeps it
         }
     }
 

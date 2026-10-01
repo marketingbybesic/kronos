@@ -21,8 +21,10 @@ public final class OrdoEngine {
     }
 
     /// Bar target: first active-status row in ordo order.
+    /// w22e: a blocked task (waits on an open task) is skipped, it keeps its place in the queue.
     public var current: KTask? {
-        queue.first { KStatus.active.contains($0.status) }
+        let blocked = store.blockedIDs(in: nil)
+        return queue.first { KStatus.active.contains($0.status) && !blocked.contains($0.id) }
     }
 
     /// Complete from the Bar or the ORDO view. Posts .kronosDidCompleteFromBar.
