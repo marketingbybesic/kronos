@@ -16,8 +16,9 @@ import Observation
 import KronosCore
 
 // LAUNCHSCOPE-BEGIN (compiled standalone by scripts/launchscope-selftest.swift: keep it Foundation-only)
-/// Which list a normal launch opens on: the next thing, not an empty Inbox (F1). Hermetic runs
-/// (snapshots, self-tests, UI test, custom store dir) keep the old `.inbox` so they stay deterministic.
+/// Which list a normal launch opens on: Today when it has open tasks, then Inbox, then All (F1).
+/// Hermetic runs (snapshots, self-tests, UI test, custom store dir) keep `.inbox` so they stay
+/// deterministic.
 enum LaunchScopeChoice: Equatable { case inbox, today, all }
 
 enum LaunchScope {
@@ -26,8 +27,9 @@ enum LaunchScope {
     static func isHermetic(_ env: [String: String]) -> Bool { hermeticEnv.contains { env[$0] != nil } }
 
     static func pick(hermetic: Bool, inboxOpen: Int, todayOpen: Int) -> LaunchScopeChoice {
-        if hermetic || inboxOpen > 0 { return .inbox }
-        return todayOpen > 0 ? .today : .all
+        if hermetic { return .inbox }
+        if todayOpen > 0 { return .today }
+        return inboxOpen > 0 ? .inbox : .all
     }
 }
 // LAUNCHSCOPE-END
@@ -72,15 +74,20 @@ enum ListScope: Hashable, Codable, Sendable {
     }
 }
 
-/// Sort + filter + display options of one scope. The list screen owns editing it; the model
-/// persists it. All evaluation goes through Core (`KTaskSorter`, `KFilter.matches`).
-struct ViewOptions: Codable, Equatable, Sendable {
-    var sort: [KSortDescriptor] = KSortDescriptor.default
-    var filter: KFilter = .empty
-    var showCompleted: Bool = false
-
-    static let `default` = ViewOptions()
+/// Requests one area posts and another fulfils, by raw notification name (the raw strings are
+/// the contract; the names here are only this file's spelling of them). `userInfo["taskID"]`
+/// carries the task as a UUID where one is named.
+enum UIRequests {
+    /// Put keyboard focus in the inspector's title field (list Return). Esc there posts
+    /// `kronosFocusListRequested` and the list takes focus back.
+    static let focusInspectorTitle = Notification.Name("kronosFocusInspectorTitleRequested")
+    /// The list takes keyboard focus.
+    static let focusList = Notification.Name("kronosFocusListRequested")
 }
+
+// `ViewOptions` (sort + filter + display options of one scope, and the rules for editing them) lives
+// in KronosCore/Contracts/ViewOptions.swift; the model persists one per scope. All evaluation goes
+// through Core (`KTaskSorter`, `KFilter.matches`).
 
 /// The single shared UI state object. Created once by the app shell and handed to
 /// every screen. `@Observable`: views re-render on the properties they read.
@@ -93,6 +100,9 @@ final class AppModel {
     var scope: ListScope = .inbox
     /// The task open in the inspector. List writes, inspector reads.
     var selectedTaskID: UUID?
+    /// A subtask of `selectedTaskID` shown in the inspector's subtask mode, else nil. Ignored
+    /// (and cleared by the inspector) once the selected task is not its parent.
+    var inspectedSubtaskID: UUID?
     /// Multi-selection (⌘/⇧ click, ⌘A in the list). Empty unless 2+ rows are selected; when
     /// not empty it always contains `selectedTaskID`, which stays the anchor. Not persisted.
     var selectedIDs: Set<UUID> = []
@@ -141,6 +151,9 @@ final class AppModel {
     /// First task of the open list under its current sort + filter — what the menu bar shows
     /// (automatic Ordo). The list screen publishes it; the menu-bar screen reads it.
     private(set) var ordoFocus: OrdoFocus = .empty(listName: "")
+    /// Top of the list currently shown (name + first ids). "next" is its first eligible row, so
+    /// browsing another list changes it by design. Published by the list screen.
+    private(set) var shownListHead: ShownListHead = .empty
 
     /// The coach (settings, Ordo presets, calendar blocks). See CoachModel.swift.
     private(set) var coach: CoachModel!
@@ -171,6 +184,15 @@ final class AppModel {
         version &+= 1
     }
 
+    /// One user write: refresh every list and say what happened on the undo pill (⌘Z and the
+    /// pill's Undo revert it). Every user-initiated store write goes through this, so "did that
+    /// happen?" is always answered the same way; `didMutate()` alone is for refreshes nobody asked
+    /// for (an external change, a lingering row leaving).
+    func commit(_ message: String) {
+        didMutate()
+        UndoToastCenter.shared.show(message)
+    }
+
     /// A pin never outlives its task: done, deleted or gone clears it, so the automatic Ordo task
     /// takes over. Runs here because every UI mutation and every external change funnels through
     /// `didMutate()`, whichever screens are mounted.
@@ -187,6 +209,32 @@ final class AppModel {
         NotificationCenter.default.post(name: .kronosOrdoFocusDidChange, object: nil)
     }
 
+    /// Called by the list whenever the head of its rows changes. No-op when unchanged.
+    func publishShownListHead(_ head: ShownListHead) {
+        guard head != shownListHead else { return }
+        shownListHead = head
+    }
+
+    /// The first eligible task of the shown list head (pin first), nil when the head holds none.
+    var nextFromShownList: KTask? {
+        Self.next(from: shownListHead, pinned: pinnedFocusTaskID, store: store)
+    }
+
+    static func next(from head: ShownListHead, pinned: UUID?, store: TaskStore) -> KTask? {
+        let lookup = store.allTasks()
+        let rows = head.ids.compactMap { id in lookup.first { $0.id == id } }
+        return NextEligibility.pick(pinned: pinned, rows: rows, lookup: lookup)
+    }
+
+    /// The list a normal launch opens on, counted from the store (Today, then Inbox, then All).
+    static func launchScopeChoice(store: TaskStore, hermetic: Bool, today: Int) -> LaunchScopeChoice {
+        let tasks = store.allTasks()
+        func open(_ scope: ListScope) -> Int {
+            tasks.filter { KStatus.open.contains($0.status) && ScopeFilter.matches($0, scope: scope, today: today) }.count
+        }
+        return LaunchScope.pick(hermetic: hermetic, inboxOpen: open(.inbox), todayOpen: open(.today))
+    }
+
     /// Open Capture with text already pasted (nil = empty).
     func openCapture(with text: String? = nil) {
         pendingCaptureText = text
@@ -195,7 +243,16 @@ final class AppModel {
 
     // MARK: Per-scope view options
 
-    func options(for scope: ListScope) -> ViewOptions { optionsByScope[scope.storageKey] ?? .default }
+    /// What the list of `scope` shows: the options set on it, else the open saved view's own sort,
+    /// filter and display switch (so editing a saved view's options changes the list it shows), else
+    /// the defaults.
+    func options(for scope: ListScope) -> ViewOptions {
+        if let own = optionsByScope[scope.storageKey] { return own }
+        if case .savedView(let id) = scope, let view = store.allSavedViews().first(where: { $0.id == id }) {
+            return ViewOptions(sort: view.sortDescriptors, filter: view.filter, showCompleted: view.showDone)
+        }
+        return .default
+    }
 
     func setOptions(_ options: ViewOptions, for scope: ListScope) {
         optionsByScope[scope.storageKey] = options

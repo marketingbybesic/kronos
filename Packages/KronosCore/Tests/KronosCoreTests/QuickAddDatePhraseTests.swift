@@ -109,7 +109,7 @@ struct QuickAddDatePhraseTests {
             // --- short-word explicit misspelling list (< 7 chars, no DL rule) ---
             ("sjutra", 1), ("sutr", 1),
             // --- hand-table short forms ---
-            ("tmrw", 1), ("tmr", 1), ("2morrow", 1), ("tom", 1),
+            ("tmrw", 1), ("tmr", 1), ("2morrow", 1),
             // --- weekdays, English, full + abbreviated, strictly after today (Monday) ---
             ("tuesday", 1), ("tue", 1),
             ("wednesday", 2), ("wed", 2),
@@ -200,6 +200,15 @@ struct QuickAddDatePhraseTests {
             "Buy jam",                        // short word, no relation
             "jutra",                           // hr "mornings" — not a date word
             "Tomislav is coming",              // Croatian name, distance risk from "tomorrow"
+            "Call Tom",                        // common name, must never mean tomorrow
+            "Tom",                             // bare name as the whole input
+            "tom to call Ana about the sub",   // lowercase name mid-title, trailing hr "sub"
+            "Pozovi Tom",                      // hr sentence ending in the name
+            "Email Ned",                       // bare "ned" last token
+            "Nazvati Pet",                     // bare "pet" last token (name/word, no preposition)
+            "Poslati uto",                     // bare "uto" last token
+            "Rijesiti sri",                    // bare "sri" last token
+            "Provjeriti cet",                  // bare "cet" last token
             "Pay invoice 1.5",                 // version-number-shaped token, not a day.month date
             "Buy sub sandwich",                // bare 3-letter hr abbrev "sub" without swallowed preposition
             "Fix sri unit test",                // bare "sri" (hr abbrev for srijeda) mid-sentence
@@ -216,6 +225,23 @@ struct QuickAddDatePhraseTests {
             let p = parser.parse(input, projects: [], today: today)
             #expect(p.dueDay == nil, "input='\(input)' must not resolve a date")
         }
+    }
+
+    /// "Tom" is a common name: it keeps its place in the title and sets no date, while the
+    /// real short form "tmrw"/"tmr" still means tomorrow and is removed from the title.
+    @Test func tomIsANameNotTomorrow() {
+        let name = parser.parse("Call Tom", projects: [], today: today)
+        #expect(name.dueDay == nil)
+        #expect(name.title == "Call Tom")
+        let lower = parser.parse("tom birthday gift", projects: [], today: today)
+        #expect(lower.dueDay == nil)
+        #expect(lower.title == "tom birthday gift")
+        let short = parser.parse("Call Tom tmrw", projects: [], today: today)
+        #expect(short.dueDay == today + 1)
+        #expect(short.title == "Call Tom")
+        let short2 = parser.parse("Call Ana tmr", projects: [], today: today)
+        #expect(short2.dueDay == today + 1)
+        #expect(short2.title == "Call Ana")
     }
 
     /// Documented, accepted cost — NOT a negative. "Sutra" is Croatian for "tomorrow" and a

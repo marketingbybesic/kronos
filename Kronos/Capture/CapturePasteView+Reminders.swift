@@ -18,12 +18,14 @@ extension CapturePasteView {
     var remindersFeedback: some View {
         switch capture.remindersState {
         case .idle:
-            EmptyView()
+            // Once Reminders access exists, the one option of this source sits under the text area.
+            if capture.remindersProvider.access == .granted { RemindersCompleteToggle() }
         case .reading:
             Text(String(localized: "capture.reminders.loading"))
                 .font(Typo.meta).foregroundStyle(Tok.textTertiary)
         case .empty:
-            Text(String(localized: "capture.reminders.empty"))
+            Text(RemindersImport.lastImportAllKnown ? String(localized: "capture.reminders.nonew")
+                                                    : String(localized: "capture.reminders.empty"))
                 .font(Typo.meta).foregroundStyle(Tok.textTertiary)
         case .denied:
             HStack(spacing: Space.x3) {
@@ -39,5 +41,19 @@ extension CapturePasteView {
                 .fixedSize()
             }
         }
+    }
+}
+
+
+/// "Also mark them complete in Reminders": off by default, remembered, applied only to reminders
+/// whose task was just created.
+struct RemindersCompleteToggle: View {
+    @State private var isOn = RemindersImport.markComplete
+
+    var body: some View {
+        KToggleRow(String(localized: "capture.reminders.complete"),
+                   isOn: Binding(get: { isOn }, set: { isOn = $0; RemindersImport.markComplete = $0 }))
+            .help(String(localized: "capture.reminders.complete.help"))
+            .uiTestAnchor("capture.reminders.complete")
     }
 }

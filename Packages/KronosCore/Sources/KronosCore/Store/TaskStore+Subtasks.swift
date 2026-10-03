@@ -1,12 +1,11 @@
-// Part of TaskStore. `addSubtask` and `toggleSubtask` are a
-// pure move out of TaskStore+Mutations.swift (no renames, no behaviour
-// change) so both files stay well under 500 lines; `reorderSubtask`,
-// `renameSubtask` and `deleteSubtask` are later additions the inspector
-// needed and had to disable for want of an API.
+// Part of TaskStore: the step ("subtask") API under its original names.
 //
-// Extensions in a separate file cannot see `private` members, so the undo
-// plumbing these rely on (undoStack, redoStack, saveContext, appendIndex) is
-// internal rather than private. It is still not `public`.
+// A subtask is a child `KTask` (TaskStore+Hierarchy.swift). These methods keep the names the app,
+// MCP and the tests have always called, as thin wrappers over the task APIs: a step id IS a task
+// id, so toggling a step completes or reopens that task, its due day is `setDue`, its notes are
+// the task's notes, and so on. Each wrapper inherits the undo behaviour of the task API it calls
+// (one step, nothing pushed for a no-op). The step field editors use `mutateReversible`, whose
+// redo re-arms the undo, so Cmd-Z / Cmd-Shift-Z alternate in the step editor.
 
 import Foundation
 import SwiftData
@@ -14,161 +13,102 @@ import SwiftData
 @MainActor
 extension TaskStore {
 
-    /// Every subtask row in the store, ordered by the full tie-break chain.
-    /// Subtasks are fetched globally and filtered by id rather than through
-    /// `task.subtasks`, because a to-many relationship carries no order
-    /// (data-14) and the id lookup is what every mutation below needs.
-    func subtask(_ id: UUID) -> KSubtask? {
-        let d = FetchDescriptor<KSubtask>()
-        return ((try? context.fetch(d)) ?? []).first { $0.id == id }
-    }
+    // MARK: - Create
 
-    // MARK: - Create / toggle (moved verbatim from +Mutations)
-
+    /// Append a step to `taskID`. REGISTERS UNDO. Nil when the task is gone or is a subtask.
     @discardableResult
-    public func addSubtask(_ taskID: UUID, title: String) -> KSubtask? {
-        guard let t = task(taskID) else { return nil }
-        let s = KSubtask(title: title)
-        s.sortIndex = appendIndex(scope: .subtasks(t))
-        s.task = t
-        context.insert(s)
-        t.updatedAt = Date()
-        // Undo DETACHES the step rather than hard-deleting it, for the same
-        // reason `deleteSubtask` does: a deleted-and-saved model cannot be
-        // re-inserted, and a detached step is already invisible to every
-        // reader, all of which go through `orderedSubtasks`.
-        undoStack.append(("Add Step", { [weak self] in
-            guard let self else { return }
-            s.task = nil
-            self.saveContext()
-            self.redoStack.append(("Add Step", { [weak self] in
-                guard let self else { return }
-                s.task = self.taskIncludingDeleted(taskID)
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
-        return s
+    public func addSubtask(_ taskID: UUID, title: String) -> KTask? {
+        addChild(to: taskID, title: title)
     }
 
+    // MARK: - Done state
+
+    /// Flip one step: an open step is completed (`complete`, which also spawns the next
+    /// occurrence of a recurring step), a closed one reopened. REGISTERS UNDO (one step).
     public func toggleSubtask(_ id: UUID) {
-        guard let s = subtask(id) else { return }
-        let wasDone = s.isDone
-        s.isDone.toggle()
-        s.updatedAt = Date()
-        if !wasDone && !isMachineWrite {
-            NotificationCenter.default.post(name: .kronosSubtaskDidComplete, object: nil, userInfo: ["subtaskID": id])
+        guard let t = task(id) else { return }
+        if KStatus.closed.contains(t.status) {
+            reopen(id)
+        } else {
+            complete(id)   // announces .kronosSubtaskDidComplete for a subtask
         }
-        undoStack.append(("Check Step", { [weak self] in
-            guard let self else { return }
-            s.isDone = wasDone
-            self.saveContext()
-            self.redoStack.append(("Check Step", { [weak self] in
-                guard let self else { return }
-                s.isDone = !wasDone
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
     }
 
-    // MARK: - rev 4: rename / reorder / delete
+    // MARK: - Fields
 
-    /// REGISTERS UNDO (one step).
+    /// Retitle one step. REGISTERS UNDO; no-op when unchanged.
     public func renameSubtask(_ id: UUID, title: String) {
-        guard let s = subtask(id) else { return }
-        let before = s.title
-        guard before != title else { return }
-        s.title = title
-        s.updatedAt = Date()
-        undoStack.append(("Rename Step", { [weak self] in
-            guard let self else { return }
-            s.title = before
-            self.saveContext()
-            self.redoStack.append(("Rename Step", { [weak self] in
-                guard let self else { return }
-                s.title = title
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
+        guard let t = task(id), t.title != title else { return }
+        mutateReversible("Rename Step", id) { $0.title = title }
     }
 
-    /// Move `id` to sit directly before `before`, or to the end when `before`
-    /// is nil — the same between-index arithmetic `reorderOrdo` uses, within
-    /// one task's step list. REGISTERS UNDO (one step).
-    public func reorderSubtask(_ id: UUID, before targetID: UUID?) {
-        guard let moving = subtask(id), let owner = moving.task else { return }
-        let rows = owner.orderedSubtasks.map { (id: $0.id, idx: $0.sortIndex) }
-        let newIdx = betweenIndex(for: id, before: targetID, in: rows)
-        let oldIdx = moving.sortIndex
-        guard oldIdx != newIdx else { return }
-        moving.sortIndex = newIdx
-        moving.updatedAt = Date()
-        undoStack.append(("Reorder Steps", { [weak self] in
-            guard let self else { return }
-            moving.sortIndex = oldIdx
-            self.saveContext()
-            self.redoStack.append(("Reorder Steps", { [weak self] in
-                guard let self else { return }
-                moving.sortIndex = newIdx
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
-    }
-
-    /// Remove a step. REGISTERS UNDO (one step).
-    ///
-    /// Undo re-attaches the row rather than re-inserting a deleted model:
-    /// SwiftData does not guarantee a deleted-and-saved `PersistentModel` can
-    /// be reinserted (the same trap `RecurrenceSpawner` documents). The step
-    /// is detached from its task and its index remembered, so undo puts it
-    /// back exactly where it was.
-    public func deleteSubtask(_ id: UUID) {
-        guard let s = subtask(id), let owner = s.task else { return }
-        let ownerID = owner.id
-        let idx = s.sortIndex
-        s.task = nil
-        owner.updatedAt = Date()
-        undoStack.append(("Delete Step", { [weak self] in
-            guard let self else { return }
-            s.task = self.taskIncludingDeleted(ownerID)
-            s.sortIndex = idx
-            self.saveContext()
-            self.redoStack.append(("Delete Step", { [weak self] in
-                guard let self else { return }
-                s.task = nil
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
-    }
-
-    /// Update a subtask's notes text (used for attachments). REGISTERS UNDO.
+    /// Replace a step's notes (description and links). REGISTERS UNDO; no-op when unchanged.
     public func updateSubtaskNotes(_ id: UUID, notes: String) {
-        guard let s = subtask(id) else { return }
-        let oldNotes = s.notes
-        s.notes = notes
-        s.updatedAt = Date()
-        undoStack.append(("Update Subtask Notes", { [weak self] in
-            guard let self else { return }
-            s.notes = oldNotes
-            s.updatedAt = Date()
-            self.saveContext()
-            self.redoStack.append(("Update Subtask Notes", { [weak self] in
-                guard let self else { return }
-                s.notes = notes
-                s.updatedAt = Date()
-                self.saveContext()
-            }))
-        }))
-        redoStack.removeAll()
-        saveContext()
+        guard let t = task(id), t.notes != notes else { return }
+        mutateReversible("Update Subtask Notes", id) { $0.notes = notes }
+    }
+
+    /// Set or clear a step's due day. REGISTERS UNDO; no-op when unchanged.
+    public func setSubtaskDueDay(_ id: UUID, _ day: Int?) {
+        guard let t = task(id), t.dueDay != day else { return }
+        mutateReversible("Set Step Due", id) { r in
+            r.dueDay = day
+            if r.originalDueDay == nil { r.originalDueDay = day }
+        }
+    }
+
+    /// Set a step's priority. REGISTERS UNDO; no-op when unchanged.
+    public func setSubtaskPriority(_ id: UUID, _ priority: KPriority) {
+        guard let t = task(id), t.priority != priority else { return }
+        mutateReversible("Set Step Priority", id) { $0.priority = priority }
+    }
+
+    // MARK: - Order, delete
+
+    /// Move a step directly before `before` (a sibling), or to the end when nil.
+    /// REGISTERS UNDO (one step).
+    public func reorderSubtask(_ id: UUID, before targetID: UUID?) {
+        reorderChild(id, before: targetID)
+    }
+
+    /// Remove a step (soft delete, like any task). REGISTERS UNDO (one step).
+    public func deleteSubtask(_ id: UUID) {
+        guard task(id) != nil else { return }
+        softDelete(id)
+    }
+
+    // MARK: - Between levels
+
+    /// Promote a subtask to a top-level task at the end of the manual order. The row keeps its
+    /// id, every field, its project/area. Returns it, or nil when it is gone or not a subtask.
+    /// REGISTERS UNDO (one step).
+    @discardableResult
+    public func promoteSubtaskToTask(_ subtaskID: UUID) -> KTask? {
+        promoteSubtaskToTask(subtaskID, afterParent: false)
+    }
+
+    /// As `promoteSubtaskToTask(_:)`; `afterParent` places it directly behind its former parent.
+    /// REGISTERS UNDO (one step).
+    @discardableResult
+    public func promoteSubtaskToTask(_ subtaskID: UUID, afterParent: Bool) -> KTask? {
+        guard let t = task(subtaskID), t.isSubtask else { return nil }
+        do { try setParent(subtaskID, to: nil, at: afterParent ? .afterFormerParent : .end) }
+        catch { return nil }
+        return task(subtaskID)
+    }
+
+    /// Move a subtask under another task, at the end of its steps. A no-op (nothing pushed)
+    /// when the target is the current parent, a subtask, or either row is gone.
+    /// REGISTERS UNDO (one step).
+    public func reparentSubtask(_ subtaskID: UUID, under newParentID: UUID) {
+        guard let t = task(subtaskID), t.isSubtask, t.parentID != newParentID else { return }
+        try? setParent(subtaskID, to: newParentID, at: .end)
+    }
+
+    /// Make a task a subtask of `parentID` (Cmd-]). Its own subtasks follow it, in order, as
+    /// siblings under the new parent. Throws `TaskNestError` (nothing changed, nothing pushed).
+    /// REGISTERS UNDO (one step).
+    public func makeTaskSubtaskOf(_ taskID: UUID, parentID: UUID) throws {
+        try setParent(taskID, to: parentID, at: .end)
     }
 }

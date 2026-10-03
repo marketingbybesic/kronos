@@ -1,3 +1,4 @@
+#if os(macOS)
 // MCP. JSON-RPC 2.0 framing. Pure value types, no Network.framework here
 // so this file is unit-testable without a socket.
 //
@@ -146,3 +147,4 @@ public struct MCPResponse: Sendable {
         return (try? JSONSerialization.data(withJSONObject: obj)) ?? Data("{}".utf8)
     }
 }
+#endif

@@ -56,6 +56,8 @@ struct HotkeyRecorderField: View {
     let binding: HotkeyBinding
     let isOverridden: Bool
     var allowsBareKey = false
+    /// What the shortcut does ("Open Capture"); read by VoiceOver with the keys, so 40 recorders are not 40 identical buttons.
+    var actionName = ""
     let onRecorded: (HotkeyBinding) -> Void
     let onResetToDefault: () -> Void
     @State private var isRecording = false
@@ -82,6 +84,9 @@ struct HotkeyRecorderField: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(String(format: String(localized: "a11y.shortcut.recorder.label"), actionName))
+            .accessibilityValue(isRecording ? String(localized: "settings.shortcuts.recording") : binding.displayKeys.joined(separator: " "))
+            .accessibilityHint(String(localized: "a11y.shortcut.recorder.hint"))
             if isOverridden, !isRecording {
                 Button {
                     onResetToDefault()
@@ -93,6 +98,7 @@ struct HotkeyRecorderField: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "settings.shortcuts.resetrow"))
+                .accessibilityHint(actionName)
             }
         }
         .padding(.horizontal, Space.x1)

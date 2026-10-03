@@ -69,9 +69,12 @@ public enum PromptTemplates {
     - effort: integer 0-5 (0 none, 1 xs, 2 s, 3 m, 4 l, 5 xl) or null, your best size guess.
     - reason: string, at most 90 characters, or null. One short line a peer would say, such as
       "Like your other Acme tasks". No exclamation marks.
+    - dread: true, false or null. true ONLY when the task is one this person is likely to put
+      off because it involves a conflict, money they owe or are owed, or an apology. Plain
+      effort or length is not dread. null when you cannot tell.
 
-    Every key above is REQUIRED (effort and reason may be null, but the key must be present).
-    Omitting a key makes your reply unusable.
+    Every key above is REQUIRED (effort, reason and dread may be null, but the key must be
+    present). Omitting a key makes your reply unusable.
 
     A Croatian task classifies exactly the same way: title "Nazvati vodoinstalatera oko
     slavine, hitno" gets priority 4 (the word "hitno" = urgent), firstMove and rationale
@@ -82,7 +85,7 @@ public enum PromptTemplates {
     {"project":null,"priority":2,"due":null,"depth":"shallow","estimateMinutes":15,
      "energyKind":"admin","firstMove":"Open the invoice folder and find September.",
      "labels":[],"rationale":"One document and one email, no preparation needed.",
-     "effort":2,"reason":"Like your other admin tasks this month."}
+     "effort":2,"reason":"Like your other admin tasks this month.","dread":null}
 
     Return a single JSON object and nothing else.
     """
@@ -157,8 +160,8 @@ public enum PromptTemplates {
     3. At High energy, prefer deep work and higher priority.
     4. Otherwise keep the given order unless a house rule says otherwise.
 
-    The mentor line is ONE sentence, maximum 140 characters, written to a peer.
-    It says what the task is, not what the person should feel.
+    The mentor line is ONE sentence, maximum 90 characters, written to a peer.
+    It restates the reason given for that candidate, not what the person should feel. You are not told the task titles, so never name or guess the task.
     No encouragement. No exclamation marks. No em dashes. No second-person commands.
     No mention of streaks, falling behind, or how long something has been waiting.
       Good: "One ten-minute call, nothing after it."
@@ -174,7 +177,7 @@ public enum PromptTemplates {
     Return ONE JSON object with EXACTLY this key:
     - ranked: array of 1-5 objects, each with EXACTLY these keys:
       - position: integer, an index into the candidate list you were given. Never repeated.
-      - mentorLine: string, 1-140 characters, one sentence.
+      - mentorLine: string, 1-90 characters, one sentence.
 
     Both keys inside every ranked entry are REQUIRED.
 

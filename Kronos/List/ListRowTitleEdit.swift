@@ -43,6 +43,7 @@ extension ListRowView {
                 .strikethrough(task.status == .done)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .help(task.title)   // the whole title when the row cuts it short
                 .highPriorityGesture(TapGesture(count: 2).onEnded { beginTitleEdit() })
         }
     }
@@ -59,6 +60,6 @@ extension ListRowView {
         let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != task.title else { return }
         model.store.update(task.id) { $0.title = trimmed }
-        model.didMutate()
+        model.commit(String(format: String(localized: "list.pill.renamed"), trimmed))
     }
 }

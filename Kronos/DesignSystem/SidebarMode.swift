@@ -42,7 +42,7 @@ public struct KSidebarModeToggle: View {
             segment(.iconsAndText, icon: "list-ordered", label: String(localized: "sidebar.mode.full"))
         }
         .padding(2)
-        .background(Color.white.opacity(0.04))
+        .background(Tok.hoverFill)
         .kBorder(Tok.borderControl, radius: Radius.control)
         .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
     }
@@ -57,7 +57,7 @@ public struct KSidebarModeToggle: View {
                 .frame(width: Metrics.controlCompact, height: Metrics.controlCompact - 4)
                 .background(
                     RoundedRectangle(cornerRadius: Radius.control - 2, style: .continuous)
-                        .fill(isOn ? Color.white.opacity(0.10) : .clear)
+                        .fill(isOn ? Tok.pressedFill : .clear)
                 )
         }
         .buttonStyle(.plain)

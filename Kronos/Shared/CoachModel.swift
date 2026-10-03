@@ -61,6 +61,14 @@ final class CoachModel {
         store.save(s)
     }
 
+    // MARK: Energy
+
+    /// The ONE energy value of the day: Pick one, the morning plan and any other surface that ranks
+    /// by energy read and write this, so nothing asks twice. Today's answer, else a time-of-day default.
+    var energyToday: KEnergyLevel { ImpulsEnergyMemory.current() }
+
+    func setEnergyToday(_ level: KEnergyLevel) { ImpulsEnergyMemory.rememberToday(level) }
+
     // MARK: Ordo presets
 
     var presets: [OrdoPreset] { settings.presets }

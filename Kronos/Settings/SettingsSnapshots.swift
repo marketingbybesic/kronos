@@ -21,13 +21,11 @@ enum SettingsSnapshots {
         [
             "settings": AnyView(SettingsScreen(model: model, initialTab: .general)),
             "settings.appearance": AnyView(SettingsScreen(model: model, initialTab: .appearance)),
-            "settings.coach": AnyView(SettingsScreen(model: model, initialTab: .coach)),
-            "settings.ordo": AnyView(SettingsScreen(model: model, initialTab: .ordo)),
-            "settings.notes": AnyView(SettingsScreen(model: model, initialTab: .notes)),
+            "settings.planning": AnyView(SettingsScreen(model: model, initialTab: .planning)),
+            // Same tab under its former screen key (Coach was merged into Planning).
+            "settings.coach": AnyView(SettingsScreen(model: model, initialTab: .planning)),
             "settings.ai": AnyView(SettingsScreen(model: model, initialTab: .ai)),
-            "settings.mcp": AnyView(SettingsTabPreview {
-                SettingsMCPTab(status: FakeMCPStatusProvider(isRunning: true, port: 47311))
-            }),
+            "settings.mcp": AnyView(SettingsScreen(model: model, initialTab: .mcp)),
             "settings.data": AnyView(SettingsTabPreview { SettingsDataTab(model: model) }),
             "settings.data.restore": AnyView(SettingsTabPreview {
                 RestoreFromBackupSection(model: model, fixture: restoreFixture)
@@ -36,7 +34,6 @@ enum SettingsSnapshots {
                 RestoreFromBackupSection(model: model, fixture: restoreFixture, pending: restoreFixture[1])
             }),
             "settings.shortcuts": AnyView(SettingsScreen(model: model, initialTab: .shortcuts)),
-            "settings.about": AnyView(SettingsScreen(model: model, initialTab: .about)),
             "settings.about.update": AnyView(SettingsTabPreview {
                 SettingsAboutTab(initial: .done(.available(
                     version: "1.1.0", page: URL(string: "https://github.com/marketingbybesic/kronos/releases")!)))

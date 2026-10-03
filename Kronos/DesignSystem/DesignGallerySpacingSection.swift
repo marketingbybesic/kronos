@@ -35,7 +35,7 @@ struct DesignGallerySpacingSection: View {
                 .environment(\.kSidebarMode, .iconsAndText)
                 // Guideline through the icon column's centre, spanning both rows.
                 Rectangle()
-                    .fill(Tok.textDisabled.opacity(0.5))
+                    .fill(Tok.borderControl)
                     .frame(width: 1, height: Metrics.sidebarRowHeight * 2 + Metrics.sidebarRowVGap)
                     .offset(x: iconCentre)
                 ruler(width: 320, ticks: [

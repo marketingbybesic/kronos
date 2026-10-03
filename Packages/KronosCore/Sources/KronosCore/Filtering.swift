@@ -180,8 +180,9 @@ public struct KFilter: Codable, Equatable, Sendable {
             return task.areaID.map { areaIDs.contains($0) } ?? false
         case .labels:
             guard !labelIDs.isEmpty else { return nil }
-            // Multi-value: "any of these" positively, "none of these" negated.
-            return !Set((task.labels ?? []).map(\.id)).isDisjoint(with: labelIDs)
+            // Multi-value: "any of these" positively, "none of these" negated. A child is never
+            // a row of its own, so its parent answers for it (the row marks the child).
+            return task.selfOrChildCarriesAnyLabel(of: Set(labelIDs))
         case .due:
             return due == .any ? nil : matchesDue(task, today: today)
         case .dread:
@@ -189,15 +190,16 @@ public struct KFilter: Codable, Equatable, Sendable {
         case .hasNotes:
             return hasNotes.map { !task.notes.isEmpty == $0 }
         case .hasSubtasks:
-            return hasSubtasks.map { !(task.subtasks ?? []).isEmpty == $0 }
+            return hasSubtasks.map { !task.orderedChildren.isEmpty == $0 }
         case .isSomeday:
             return isSomeday.map { (task.status == .someday) == $0 }
         case .needsTriage:
             return needsTriage.map { task.needsTriage == $0 }
         case .text:
             guard !text.isEmpty else { return nil }
+            let needle = KTextFold.fold(text)
             let hay = KTextFold.fold(task.title) + " " + KTextFold.fold(task.notes)
-            return hay.contains(KTextFold.fold(text))
+            return hay.contains(needle) || task.titleOrSubtaskTitleContains(needle)
         }
     }
 
@@ -211,7 +213,8 @@ public struct KFilter: Codable, Equatable, Sendable {
     /// negated, then AND-combined with every other field exactly as before —
     /// negation is per field, never a blanket "NOT (whole filter)".
     public func matches(_ task: KTask, today: Int) -> Bool {
-        guard task.deletedAt == nil else { return false }
+        // A proposal an agent made and nobody has decided yet (reviewRaw 1) belongs to no list, view or search.
+        guard task.deletedAt == nil, task.reviewRaw != 1 else { return false }
         for field in Field.allCases {
             guard let hit = verdict(field, task, today: today) else { continue }
             if hit == isNegated(field) { return false }
@@ -221,15 +224,26 @@ public struct KFilter: Codable, Equatable, Sendable {
 
     private func matchesDue(_ task: KTask, today: Int) -> Bool {
         if due == .any { return true }
-        if due == .none { return task.dueDay == nil }
+        if due == .none { return task.effectiveDue == nil }
+
+        // The forward windows (today, next 7 days, this week, next 30 days) read the schedule
+        // day: the planned day when there is one, else the effective due day. The deadline
+        // windows (overdue, custom) always read the deadline itself.
+        switch due {
+        case .today:
+            return DueScope.isScheduledByToday(task, today: today)   // scheduled today or already carried
+        case .thisWeek, .next7, .next30:
+            guard let span = due.forwardDays else { return true }
+            return DueScope.isScheduled(task, from: today, through: today + span)
+        default:
+            break
+        }
 
         // Every remaining window requires a deadline, so an undated task can
         // never match one — including `.custom` with both bounds left open.
-        guard let d = task.dueDay else { return false }
+        guard let d = task.effectiveDue else { return false }
 
         switch due {
-        case .today:
-            return d <= today            // due today or already carried
         case .overdue:
             return d < today
         case .custom:
@@ -237,9 +251,7 @@ public struct KFilter: Codable, Equatable, Sendable {
             if let t = dueTo,   d > t { return false }
             return true
         default:
-            // thisWeek / next7 / next30 — a forward window from today.
-            guard let span = due.forwardDays else { return true }
-            return d >= today && d <= today + span
+            return true
         }
     }
 }

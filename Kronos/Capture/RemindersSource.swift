@@ -1,6 +1,8 @@
 // Kronos/Capture/RemindersSource.swift
-// Read-only access to the open reminders of every Reminders list, through EventKit. Nothing is
-// ever written back: Capture proposes tasks, the user ticks them, Reminders stays untouched.
+// Access to the open reminders of every Reminders list, through EventKit. Reading never changes
+// anything: Capture proposes tasks, the user ticks them, Reminders stays untouched. The one write is
+// the optional "also mark them complete in Reminders" (off by default, `markComplete`), run only
+// for reminders whose task was just created.
 //
 // Authorisation uses only `requestFullAccessToReminders()` (macOS 14+; the old
 // `requestAccess(to:)` silently denies). It is called from one place, the explicit "From
@@ -21,6 +23,9 @@ protocol RemindersProviding {
     var access: RemindersAccess { get }
     func requestAccess() async -> RemindersAccess
     func openReminders() async -> [ReminderItem]
+    /// Completes the reminders with these identifiers; returns how many were completed. Only called
+    /// after the person turned the option on and the matching tasks were created.
+    func markComplete(identifiers: [String]) async -> Int
 }
 
 @MainActor
@@ -68,11 +73,25 @@ final class EventKitReminders: RemindersProviding {
                 let items = (reminders ?? []).map { r in
                     ReminderItem(title: r.title ?? "", notes: r.notes,
                                  due: r.dueDateComponents.flatMap { calendar.date(from: $0) },
-                                 listName: r.calendar?.title ?? "")
+                                 listName: r.calendar?.title ?? "", id: r.calendarItemIdentifier)
                 }
                 continuation.resume(returning: items)
             }
         }
+    }
+}
+
+extension EventKitReminders {
+    func markComplete(identifiers: [String]) async -> Int {
+        guard access == .granted else { return 0 }
+        var done = 0
+        for id in identifiers {
+            guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder, !reminder.isCompleted else { continue }
+            reminder.isCompleted = true
+            if (try? store.save(reminder, commit: false)) != nil { done += 1 }
+        }
+        if done > 0 { try? store.commit() }
+        return done
     }
 }
 
@@ -83,4 +102,20 @@ struct FixtureReminders: RemindersProviding {
     var items: [ReminderItem] = []
     func requestAccess() async -> RemindersAccess { access }
     func openReminders() async -> [ReminderItem] { items }
+    func markComplete(identifiers: [String]) async -> Int { 0 }
+}
+
+/// Test double that remembers what it was asked to complete.
+@MainActor
+final class RecordingReminders: RemindersProviding {
+    var access: RemindersAccess = .granted
+    var items: [ReminderItem]
+    private(set) var completed: [String] = []
+    init(items: [ReminderItem]) { self.items = items }
+    func requestAccess() async -> RemindersAccess { access }
+    func openReminders() async -> [ReminderItem] { items }
+    func markComplete(identifiers: [String]) async -> Int {
+        completed += identifiers
+        return identifiers.count
+    }
 }

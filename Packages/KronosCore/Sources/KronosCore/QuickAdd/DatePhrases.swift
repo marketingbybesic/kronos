@@ -87,7 +87,7 @@ public enum DatePhrases {
         // the typo-tolerance rule (too short, or not a simple 1-2 edit distance).
         put(["today", "danas"], .offset(0))
         put(["tonight", "večeras", "veceras"], .offset(0))
-        put(["tomorrow", "sutra", "tmrw", "tmr", "2morrow", "tom", "sjutra", "sutr"], .offset(1))
+        put(["tomorrow", "sutra", "tmrw", "tmr", "2morrow", "sjutra", "sutr"], .offset(1))
         put(["prekosutra"], .offset(2))
         // weekday full/short names, English + Croatian, are supplied by QuickAddParser's own
         // `weekdayNames` table (kept there: `nextWeekday` already lives beside it and both are

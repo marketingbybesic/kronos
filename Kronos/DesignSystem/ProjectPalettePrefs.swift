@@ -8,6 +8,7 @@
 // the app (KColorSwatchPicker, KAccentPicker's project swatches) reflects a reorder/replace
 // immediately, not just the Settings tab that edits it.
 import SwiftUI
+import KronosCore
 
 /// One palette slot: the base swatch it started as, and an optional custom colour that has
 /// replaced it (nil = still the original swatch).
@@ -25,7 +26,7 @@ enum ProjectPalettePrefs {
     private static let key = "kronos.appearance.paletteOrder"
 
     private static var defaults: UserDefaults {
-        ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil ? .snapshotScratch : .standard
+        ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil ? .snapshotScratch : KronosEnv.defaults
     }
 
     /// The 12 base swatches in the user's chosen order, each with its override (if any).

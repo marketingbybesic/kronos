@@ -55,3 +55,81 @@ public enum BackupFile {
         guard format == "kronos" else { throw ReadError.wrongFormat(format) }
     }
 }
+
+/// Pure rules for the backups folder: what to prune, when the rolling copy is due, and how old the
+/// newest backup is. No file or clock access here, so a table of cases decides every outcome.
+public enum BackupPolicy {
+    /// The rolling copy, overwritten on resign-active and on quit. Never pruned.
+    public static let rollingStoreName = "kronos-today.store"
+    /// A backup older than this many days earns the calm warning in Settings > Data.
+    public static let staleAfterDays = 3
+    /// Daily files (`kronos-yyyy-MM-dd.json` / `.store`) kept per extension.
+    public static let dailyKeep = 14
+    /// Files written before a risky step. Pruned by age, but the newest few always stay.
+    public static let safetyPrefixes = ["pre-restore-", "pre-import-", "crash-", "emergency-", "pre-purge-"]
+    public static let safetyKeepNewest = 3
+    public static let safetyMaxAge: TimeInterval = 30 * 86_400
+    /// A leftover `.partial` (an interrupted snapshot) is removed after a day.
+    public static let partialMaxAge: TimeInterval = 86_400
+    /// Resign-active can fire many times an hour; the rolling copy is retaken at most this often.
+    public static let rollingMinInterval: TimeInterval = 300
+
+    public struct Entry: Equatable {
+        public var name: String
+        public var date: Date
+        public init(name: String, date: Date) { self.name = name; self.date = date }
+    }
+
+    public enum LastBackup: Equatable {
+        case never
+        case recent(secondsAgo: TimeInterval)
+        case stale(daysAgo: Int)
+    }
+
+    /// Names to delete. `entries` are the regular files directly in the folder (folders such as a
+    /// pre-migration copy are not passed in). A clock that is behind the newest file (a date
+    /// in the future) turns every age rule off; the per-extension daily count rule goes by the
+    /// date in the file name and still applies.
+    public static func pruneVictims(_ entries: [Entry], now: Date) -> [String] {
+        var victims: [String] = []
+        let clockBehind = entries.contains { $0.date > now.addingTimeInterval(60) }
+
+        for ext in ["json", "store"] {
+            let daily = entries.map(\.name).filter { isDaily($0) && $0.hasSuffix("." + ext) }.sorted(by: >)
+            if daily.count > dailyKeep { victims += daily.dropFirst(dailyKeep) }
+        }
+        guard !clockBehind else { return victims }
+
+        for prefix in safetyPrefixes {
+            let mine = entries.filter { $0.name.hasPrefix(prefix) && ($0.name.hasSuffix(".json") || $0.name.hasSuffix(".store")) }
+                .sorted { $0.date > $1.date }
+            for e in mine.dropFirst(safetyKeepNewest) where now.timeIntervalSince(e.date) > safetyMaxAge {
+                victims.append(e.name)
+            }
+        }
+        for e in entries where e.name.hasSuffix(".partial") && now.timeIntervalSince(e.date) > partialMaxAge {
+            victims.append(e.name)
+        }
+        return victims
+    }
+
+    /// `kronos-2026-10-02.json` / `.store`; not the rolling copy.
+    public static func isDaily(_ name: String) -> Bool {
+        name.range(of: #"^kronos-\d{4}-\d{2}-\d{2}\.(json|store)$"#, options: .regularExpression) != nil
+    }
+
+    /// The rolling copy is due when forced (quit), never taken, taken long enough ago, or the
+    /// clock is behind the last copy.
+    public static func rollingDue(last: Date?, now: Date, force: Bool) -> Bool {
+        guard !force, let last else { return true }
+        return now < last || now.timeIntervalSince(last) >= rollingMinInterval
+    }
+
+    public static func lastBackup(_ last: Date?, now: Date) -> LastBackup {
+        guard let last else { return .never }
+        let elapsed = now.timeIntervalSince(last)
+        if elapsed < 0 { return .recent(secondsAgo: 0) }
+        if elapsed >= Double(staleAfterDays) * 86_400 { return .stale(daysAgo: Int(elapsed / 86_400)) }
+        return .recent(secondsAgo: elapsed)
+    }
+}

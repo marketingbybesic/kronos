@@ -67,7 +67,7 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Kronos reads the Apple Notes you choose so it can turn them into tasks and give a task its context. Nothing is changed in Notes and nothing leaves this Mac unless you use an online AI model.</string>
+	<string>Kronos reads the Apple Notes you choose, and the page, message or file you are looking at in your browser, Mail or Finder when you capture it, so it can turn them into tasks and give a task its context. Nothing is changed in those apps and nothing leaves this Mac unless you use an online AI model.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Kronos reads your calendar to show how much free time today has. Nothing leaves this Mac.</string>
 	<key>NSHumanReadableCopyright</key>
@@ -106,6 +106,24 @@
 			<array>
 				<string>NSStringPboardType</string>
 				<string>public.utf8-plain-text</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Add link to Kronos</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>addLinkToKronos</string>
+			<key>NSPortName</key>
+			<string>Kronos</string>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.file-url</string>
+				<string>public.url</string>
+				<string>NSURLPboardType</string>
+				<string>NSFilenamesPboardType</string>
 			</array>
 		</dict>
 	</array>

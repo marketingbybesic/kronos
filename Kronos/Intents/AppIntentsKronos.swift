@@ -1,6 +1,6 @@
 // Kronos/Intents/AppIntentsKronos.swift
 //
-// The seven App Intents. Each one is a thin `perform()` that resolves `AppDelegate.shared`
+// The App Intents. Each one is a thin `perform()` that resolves `AppDelegate.shared`
 // (the intent runs in-process; macOS launches the app headless first if it was not already
 // running, since Kronos is not sandboxed and declares no separate intents extension) and
 // hands off to `IntentActions`, so the tested logic and the live logic are the same code.
@@ -25,12 +25,16 @@ enum KronosIntentError: Error, CustomLocalizedStringResourceConvertible {
     case appNotReady
     case emptyTitle
     case noFocusTask
+    case taskNotFound
+    case taskAlreadyDone
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .appNotReady: return "Kronos is still starting up."
         case .emptyTitle: return "That task has no text."
         case .noFocusTask: return "Nothing is in focus right now."
+        case .taskNotFound: return "That task is no longer in Kronos."
+        case .taskAlreadyDone: return "That task is already done."
         }
     }
 }
@@ -39,7 +43,7 @@ enum KronosIntentError: Error, CustomLocalizedStringResourceConvertible {
 
 struct AddTaskIntent: AppIntent {
     static var title: LocalizedStringResource = "Add a Task"
-    static var description = IntentDescription("Adds a task to Kronos using the same quick-add syntax as the app (#project, @label, !priority, ~effort, a date).")
+    static var description = IntentDescription("Adds a task to Kronos using the same quick-add syntax as the app (#project, @label, !priority, ~effort, a date), with optional notes, due date and link.")
 
     // GAP: stays "Task", a bare literal — AppIntents' own metadata processor rejects a
     // LocalizedStringResource pointed at our hand-rolled catalog (see KronosIntentEnums.swift's
@@ -47,17 +51,106 @@ struct AddTaskIntent: AppIntent {
     @Parameter(title: "Task")
     var text: String
 
+    // Optional default destination, matched with the same matcher as `#project` in the text.
+    @Parameter(title: "Project")
+    var project: String?
+
+    @Parameter(title: "Notes")
+    var notes: String?
+
+    // A date the task is due; a `!date` or "tomorrow" typed in the text is parsed too and wins.
+    @Parameter(title: LocalizedStringResource("Due Date"), kind: .date)
+    var due: Date?
+
+    @Parameter(title: LocalizedStringResource("Link"))
+    var url: URL?
+
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<TaskEntity> & ProvidesDialog {
         let model = try requireModel()
         let adapter = TaskStoringIntentAdapter(store: model.store, language: appLanguage())
-        guard let result = IntentActions.addTask(store: adapter, title: text, projectName: nil,
-                                                  priorityRaw: KPriority.none.rawValue, dueDay: nil)
+        let request = IntentNewTask(title: text, projectName: project, priorityRaw: KPriority.none.rawValue,
+                                    dueDay: due.map { Day.from($0, calendar: KronosLocale.calendar) },
+                                    notes: notes, link: url?.absoluteString)
+        guard let result = IntentActions.addTask(store: adapter, request: request)
         else { throw KronosIntentError.emptyTitle }
         model.didMutate()
         guard let task = model.store.task(result.id) else { throw KronosIntentError.emptyTitle }
-        let entity = TaskEntity(id: task.id, title: task.title, projectName: task.project?.name)
-        return .result(value: entity, dialog: IntentDialog(stringLiteral: result.confirmation))
+        return .result(value: TaskEntity(task), dialog: IntentDialog(stringLiteral: result.confirmation))
+    }
+}
+
+// MARK: - CompleteTask
+
+struct CompleteTaskIntent: AppIntent {
+    static var title: LocalizedStringResource = "Complete a Task"
+    static var description = IntentDescription("Completes the chosen task, with undo and the completion sound like in the app. A recurring task schedules its next instance.")
+
+    @Parameter(title: "Task")
+    var task: TaskEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let model = try requireModel()
+        guard model.store.task(task.id) != nil else { throw KronosIntentError.taskNotFound }
+        let adapter = TaskStoringIntentAdapter(store: model.store, language: appLanguage())
+        guard let title = IntentActions.completeTask(store: adapter, id: task.id) else {
+            throw KronosIntentError.taskAlreadyDone
+        }
+        model.didMutate()
+        return .result(dialog: IntentDialog(stringLiteral: String(format: String(localized: "intents.complete.done"), title)))
+    }
+}
+
+// MARK: - OpenTask
+
+struct OpenTaskIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open a Task"
+    static var description = IntentDescription("Opens the chosen task in the Kronos window.")
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Task")
+    var task: TaskEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        let model = try requireModel()
+        guard model.openTaskByID(task.id) else { throw KronosIntentError.taskNotFound }
+        NSApp.activate(ignoringOtherApps: true)
+        return .result()
+    }
+}
+
+// MARK: - FindTasks
+
+struct FindTasksIntent: AppIntent {
+    static var title: LocalizedStringResource = "Find Tasks"
+    static var description = IntentDescription("Finds tasks by text, project or due date. Open tasks come first, in the Up next order.")
+
+    @Parameter(title: LocalizedStringResource("Text"))
+    var text: String?
+
+    @Parameter(title: "Project")
+    var project: ProjectEntity?
+
+    @Parameter(title: LocalizedStringResource("Due On or Before"), kind: .date)
+    var dueBy: Date?
+
+    @Parameter(title: LocalizedStringResource("Include Completed"), default: false)
+    var includeCompleted: Bool
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<[TaskEntity]> & ProvidesDialog {
+        let model = try requireModel()
+        let adapter = TaskStoringIntentAdapter(store: model.store, language: appLanguage())
+        let facts = IntentActions.findTasks(store: adapter, text: text, projectName: project?.name,
+                                            dueOnOrBefore: dueBy.map { Day.from($0, calendar: KronosLocale.calendar) },
+                                            includeCompleted: includeCompleted, limit: 50)
+        let found = facts.compactMap { model.store.task($0.id) }.map { TaskEntity($0) }
+        let line = found.isEmpty
+            ? String(localized: "intents.find.none")
+            : String(format: String(localized: "intents.find.count"), found.count)
+        return .result(value: found, dialog: IntentDialog(stringLiteral: line))
     }
 }
 
@@ -118,11 +211,11 @@ struct CaptureNotesIntent: AppIntent {
     }
 }
 
-// MARK: - SwitchOrdoPreset
+// MARK: - Switch Up next preset (SwitchOrdoPreset)
 
 struct SwitchOrdoPresetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Switch Ordo Preset"
-    static var description = IntentDescription("Switches the current list's Ordo preset (Deadline, Quick Wins, Deep Work, Priority or Coach).")
+    static var title: LocalizedStringResource = "Switch Up Next Preset"
+    static var description = IntentDescription("Switches the current list's Up next preset (Deadline, Quick Wins, Focused Work, Priority or Coach).")
 
     @Parameter(title: "Preset")
     var preset: OrdoPresetOption
@@ -137,11 +230,11 @@ struct SwitchOrdoPresetIntent: AppIntent {
     }
 }
 
-// MARK: - StartImpuls
+// MARK: - Pick one (StartImpuls)
 
 struct StartImpulsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Start Impuls"
-    static var description = IntentDescription("Opens Impuls, Kronos's one-question energy picker, at the given energy level.")
+    static var title: LocalizedStringResource = "Pick One"
+    static var description = IntentDescription("Opens Pick one, Kronos's one-question energy picker, at the given energy level.")
     static var openAppWhenRun = true
 
     @Parameter(title: "Energy", default: .mid)

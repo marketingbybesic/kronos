@@ -25,12 +25,20 @@ enum PaletteSnapshots {
             // Shows the shortcuts card already filtered (search field seeded via
             // KeymapReferenceView's own snapshot-only `initialQuery`, same pattern as
             // `palette`/`palette.results` above using CommandPaletteView's).
+            // The fixed card, editor and palette keys, narrowed by a key cap.
+            "palette.keymap.cards": AnyView(KeymapReferenceView(onClose: {}, initialQuery: "⏎")),
             "palette.keymap.search": AnyView(KeymapReferenceView(onClose: {}, initialQuery: "isključi")),
             // A task selection is seeded (same reason as palette.results: "Re-triage"/"Link
             // Apple note" are `isAvailable` only with one). "Switch to block project"/"Stay"
             // stay absent here — they need `model.coach.blockSuggestion`, which only a real
             // calendar event or a CoachModel fixture seam (neither owned by this leaf) can
             // produce; reported as a gap rather than faked.
+            // The task rows with their "Due date" qualifier and key caps from the registry.
+            "palette.rows": AnyView(SeededSelectionPaletteView(model: model, query: "due")),
+            // The second steps: a typed date phrase, a project name, the current title.
+            "palette.prompt.date": AnyView(SeededPromptView(model: model, kind: .pickDate, query: "fri")),
+            "palette.prompt.move": AnyView(SeededPromptView(model: model, kind: .moveTo, query: "")),
+            "palette.prompt.rename": AnyView(SeededPromptView(model: model, kind: .rename, query: "A clearer title")),
             "palette.bulk": AnyView(SeededBulkPaletteView(model: model)),
             "palette.coach": AnyView(SeededCoachPaletteView(model: model)),
         ]
@@ -74,6 +82,36 @@ private struct SeededSelectionPaletteView: View {
                 if model.selectedTaskID == nil {
                     model.selectedTaskID = model.store.allTasks().first?.id
                 }
+            }
+    }
+}
+
+/// One of the palette's second steps over the store's first task, in the card's own chrome.
+private struct SeededPromptView: View {
+    enum Kind { case pickDate, moveTo, rename }
+    let model: AppModel
+    let kind: Kind
+    let query: String
+    @State private var didSeed = false
+
+    private var taskID: UUID { model.store.allTasks().first?.id ?? UUID() }
+
+    var body: some View {
+        let prompt: PalettePrompt = {
+            switch kind {
+            case .pickDate: return .pickDate(taskID)
+            case .moveTo: return .moveTo(taskID)
+            case .rename: return .rename(taskID)
+            }
+        }()
+        PalettePromptView(model: model, prompt: prompt, onBack: {}, initialQuery: query)
+            .background(Tok.overlay)
+            .kBorder(Tok.borderControl, radius: Radius.popover)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.popover, style: .continuous))
+            .onAppear {
+                guard !didSeed else { return }
+                didSeed = true
+                if model.selectedTaskID == nil { model.selectedTaskID = model.store.allTasks().first?.id }
             }
     }
 }

@@ -25,10 +25,16 @@ struct KKeyCap: View {
     let key: String
     init(_ key: String) { self.key = key }
 
+    /// What the cap prints for a key. Escape prints the word `esc`, as on a Mac keyboard: the
+    /// U+238B glyph renders as a crossed circle in SF Mono and reads as "no entry".
+    static func label(for key: String) -> String {
+        key == "\u{238B}" ? "esc" : key
+    }
+
     private var capHeight: CGFloat { 16 * DSScale.text }
 
     var body: some View {
-        Text(key)
+        Text(Self.label(for: key))
             .font(Typo.mono)
             .foregroundStyle(Tok.textTertiary)
             .lineLimit(1)
@@ -36,8 +42,8 @@ struct KKeyCap: View {
             .frame(minWidth: capHeight, minHeight: capHeight)
             .padding(.horizontal, 3)
             .background(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
+                RoundedRectangle(cornerRadius: Radius.keycap, style: .continuous)
+                    .fill(Tok.keycapFill)
             )
     }
 }

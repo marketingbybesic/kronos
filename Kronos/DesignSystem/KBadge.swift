@@ -21,10 +21,10 @@ public struct KBadge: View {
             .font(Typo.count)
             .foregroundStyle(tint)
             .padding(.horizontal, Space.x2)
-            .frame(height: 18)
+            .frame(height: Metrics.badgeHeight)
             .background(
                 RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                    .fill(isSubtle ? tint.opacity(0.14) : tint)
+                    .fill(isSubtle ? tint.opacity(Tok.tintSubtle) : tint)
             )
     }
 }

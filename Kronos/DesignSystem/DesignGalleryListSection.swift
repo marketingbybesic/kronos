@@ -43,17 +43,19 @@ struct DesignGalleryListSection: View {
             .frame(width: 640)
 
             VStack(alignment: .leading, spacing: 0) {
-                GallerySectionTitle(title: "KPropertyRow: borderless property list")
-                KPropertyRow("Effort") { KEffortIndicator(level: 3, of: 5, label: "M") }
-                KPropertyRow("Deadline") { KDeadlineLabel(text: "15 Sep", carryDays: 4) }
-                KPropertyRow("Priority") {
-                    HStack(spacing: Space.x2) {
-                        KPriorityIndicator(level: 2, of: 4, label: "Medium")
-                        Text("Medium").font(Typo.row).foregroundStyle(Tok.textPrimary)
+                GallerySectionTitle(title: "KPropertyList: one table, a hairline between rows")
+                KPropertyList {
+                    KPropertyRow("Effort") { KEffortIndicator(level: 3, of: 5, label: "M") }
+                    KPropertyRow("Deadline") { KDeadlineLabel(text: "15 Sep", carryDays: 4) }
+                    KPropertyRow("Priority") {
+                        HStack(spacing: Space.x2) {
+                            KPriorityIndicator(level: 2, of: 4, label: "Medium")
+                            Text("Medium").font(Typo.row).foregroundStyle(Tok.textPrimary)
+                        }
                     }
+                    KPropertyRow("Status", value: "To do")
+                    KPropertyRow("Repeat", value: "Never", isPlaceholder: true)
                 }
-                KPropertyRow("Status", value: "To do")
-                KPropertyRow("Repeat", value: "Never", isPlaceholder: true)
             }
             .frame(width: 320)
         }

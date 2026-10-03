@@ -19,21 +19,35 @@ enum TriageSnapshots {
             // G4: same fixture, with the typed-date field already open (G5 "deadline mora
             // imat opciju da upisem datum isto") — a static render cannot press D itself.
             "triage.card.date": AnyView(SeededTriageFlow(model: model, startWithDateEditing: true)),
+            // The ⌥ legend open (field keys + plan keys) on a task planned for today.
+            "triage.card.keys": AnyView(SeededTriageFlow(model: model, planToday: true, legendOpen: true)),
+            // "AI is not set up": the router has no usable provider, so the line is a link to Settings.
+            "triage.card.ai.setup": AnyView(SeededTriageFlow(model: model, noKeyRouter: true)),
             // G3: the queue is empty — every task already has priority/effort/deadline/project.
             "triage.empty": AnyView(EmptyTriageFlow(model: model)),
-        ]
+            // Five cards handled: the end-of-sitting panel with "Do 5 more".
+            "triage.session": AnyView(SessionDoneFlow(model: model)),
+            // Sweep: three old tasks (someday, waiting, open) seeded; the oldest is the first card.
+            "triage.sweep": AnyView(SeededSweepFlow(model: model)),
+            // Sweep with nothing old: the seeded fixture was touched just now.
+            "triage.sweep.empty": AnyView(SweepFlow(model: model)),
+        ].merging(ReviewSnapshots.screens(model: model)) { a, _ in a }
     }
 }
 
 private struct SeededTriageFlow: View {
     let model: AppModel
     var startWithDateEditing = false
+    var planToday = false
+    var legendOpen = false
+    var noKeyRouter = false
     @State private var didSeed = false
 
     var body: some View {
         Group {
             if didSeed {
-                TriageFlowView(model: model, onClose: {}, startWithDateEditing: startWithDateEditing)
+                TriageFlowView(model: model, onClose: {}, startWithDateEditing: startWithDateEditing,
+                               startLegendOpen: legendOpen)
             } else {
                 Color.clear
             }
@@ -49,8 +63,73 @@ private struct SeededTriageFlow: View {
                 model.store.setEffort(neighbour.id, .m)
             }
             // The bare task the queue will show first — missing all four fields, oldest.
-            _ = model.store.create(title: "Send the Acme proposal", notes: "", project: nil,
-                                   status: .todo, priority: .none, dueDay: nil)
+            let bare = model.store.create(title: "Send the Acme proposal", notes: "", project: nil,
+                                          status: .todo, priority: .none, dueDay: nil)
+            // The gate's fixture holds older untriaged tasks: plan the one that is really first.
+            if planToday, let first = TriageQueue.ordered(in: model.store.allTasks()).first {
+                model.store.plan(first.id, day: Day.today(calendar: KronosLocale.calendar))
+            }
+            _ = bare
+            if noKeyRouter { model.ai = NoKeyRouter() }
+            model.didMutate()
+            didSeed = true
+        }
+    }
+}
+
+/// A router with no usable provider: every triage ask throws, which the card reads as "AI is not set up".
+private struct NoKeyRouter: AIRouting {
+    func triage(title: String, notes: String, projectNames: [String], labelNames: [String], today: Int,
+                lockedFields: Set<String>, context: TriageContext) async throws -> TriageResult { throw AIError.noUsableProvider }
+    func retriage(title: String, notes: String, previous: TriageResult, feedback: String,
+                  projectNames: [String], labelNames: [String], today: Int) async throws -> TriageResult { previous }
+    func impulsPick(candidates: [Candidate], energy: KEnergyLevel, language: String) async throws -> ImpulsRanking { ImpulsRanking(ranked: []) }
+    func ordoResort(queueTitles: [String], message: String, history: [String], language: String) async throws -> OrdoResort { .unchanged(queueCount: 0) }
+    func extractTasks(from text: String, projectNames: [String], existingOpenTitles: [String], today: Int) async -> ExtractResult {
+        ExtractResult(tasks: [], droppedLineCount: 0, isDeterministic: true, reason: .aiOff)
+    }
+    func breakdown(title: String, notes: String, existingSubtasks: [String]) async -> BreakdownResult {
+        BreakdownResult(subtasks: [], firstMove: "", isDeterministic: true)
+    }
+}
+
+private struct SessionDoneFlow: View {
+    let model: AppModel
+    var body: some View {
+        TriageFlowView(model: model, onClose: {}, startMode: .sort, startHandled: TriageSession.size)
+    }
+}
+
+private struct SweepFlow: View {
+    let model: AppModel
+    var body: some View {
+        TriageFlowView(model: model, onClose: {}, startMode: .sweep)
+    }
+}
+
+private struct SeededSweepFlow: View {
+    let model: AppModel
+    @State private var didSeed = false
+
+    var body: some View {
+        Group {
+            if didSeed {
+                TriageFlowView(model: model, onClose: {}, startMode: .sweep)
+            } else {
+                Color.clear
+            }
+        }
+        .onAppear {
+            guard !didSeed else { return }
+            let now = Date()
+            @MainActor func aged(_ title: String, _ status: KStatus, daysIdle: Int) {
+                let task = model.store.create(title: title, notes: "", project: nil,
+                                              status: status, priority: .none, dueDay: nil)
+                model.store.updateNoUndo(task.id) { $0.updatedAt = now.addingTimeInterval(-Double(daysIdle) * 86_400) }
+            }
+            aged("Renew the domain", .todo, daysIdle: 30)
+            aged("Ask Marta about the contract", .waiting, daysIdle: 9)
+            aged("Read the Sparkle release notes", .someday, daysIdle: 23)
             model.didMutate()
             didSeed = true
         }

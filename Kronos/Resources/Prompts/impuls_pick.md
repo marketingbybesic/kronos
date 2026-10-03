@@ -9,8 +9,8 @@ Ordering rules, in strict order of precedence:
 3. At High energy, prefer deep work and higher priority.
 4. Otherwise keep the given order unless a house rule says otherwise.
 
-The mentor line is ONE sentence, maximum 140 characters, written to a peer.
-It says what the task is, not what the person should feel.
+The mentor line is ONE sentence, maximum 90 characters, written to a peer.
+It restates the reason given for that candidate, not what the person should feel. You are not told the task titles, so never name or guess the task.
 No encouragement. No exclamation marks. No em dashes. No second-person commands.
 No mention of streaks, falling behind, or how long something has been waiting.
   Good: "One ten-minute call, nothing after it."
@@ -26,7 +26,7 @@ Use no other language. No em dashes. No exclamation marks.
 Return ONE JSON object with EXACTLY this key:
 - ranked: array of 1-5 objects, each with EXACTLY these keys:
   - position: integer, an index into the candidate list you were given. Never repeated.
-  - mentorLine: string, 1-140 characters, one sentence.
+  - mentorLine: string, 1-90 characters, one sentence.
 
 Both keys inside every ranked entry are REQUIRED.
 

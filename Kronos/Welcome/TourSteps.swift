@@ -5,6 +5,7 @@
 // empty store) is skipped in the direction of travel instead of pointing at nothing.
 // Foundation only: scripts/tour-selftest.swift compiles this file standalone.
 import Foundation
+import CoreGraphics
 
 /// A part of the window a step points at. Views mark themselves with `.tourAnchor(_:)`.
 enum TourAnchor: String, CaseIterable, Hashable, Sendable {
@@ -72,4 +73,73 @@ enum TourLogic {
         let current = (shown.firstIndex(of: index) ?? 0) + 1
         return (current, shown.count)
     }
+}
+
+/// Where the bubble sits. Pure geometry so a hand table can prove "never covers the cards".
+enum TourPlacement {
+    /// The top-left corner of the bubble.
+    ///
+    /// `target` is the lit part (nil: the menu bar step has none). `avoid` are parts the bubble
+    /// must not hide, the "Learn Kronos" and Now cards when they are not the target: the old rule
+    /// only looked at the target and parked the bubble on top of the card the next step points
+    /// at. Candidates are tried in reading order (beside a narrow or tall part, otherwise below,
+    /// above, then the sides); the first one that touches neither the target nor an avoided part
+    /// wins, else the one that hides the least. Always inside the window by `margin`.
+    static func origin(target: CGRect?, avoid: [CGRect], in size: CGSize, bubble: CGSize,
+                       margin inset: CGFloat, gap: CGFloat) -> CGPoint {
+        // With no part to point at the bubble sits in a corner: twice the margin keeps its glow off
+        // the window's corner pixels (the dimmed window must stay pure black there).
+        let margin = target == nil ? inset * 2 : inset
+        let maxX = max(margin, size.width - bubble.width - margin)
+        let maxY = max(margin, size.height - bubble.height - margin)
+        func clamped(_ p: CGPoint) -> CGPoint { CGPoint(x: min(max(p.x, margin), maxX), y: min(max(p.y, margin), maxY)) }
+
+        // (point, axes that must fit in the window). The first candidate on each side keeps the old
+        // behaviour (the other axis is clamped); the variants after it slide past an avoided part
+        // and only count when they fit as they are.
+        typealias Candidate = (point: CGPoint, fitsX: Bool, fitsY: Bool)
+        var candidates: [Candidate] = []
+        if let target {
+            let narrow = target.width < size.width / 3 || target.height > size.height / 2
+            let sideYs = [target.minY + margin] + avoid.map { $0.maxY + gap } + avoid.map { $0.minY - gap - bubble.height }
+            let belowYs = [target.maxY + gap] + avoid.filter { $0.maxY > target.maxY }.map { $0.maxY + gap }
+            let aboveYs = [target.minY - gap - bubble.height] + avoid.filter { $0.minY < target.minY }.map { $0.minY - gap - bubble.height }
+            let rights: [Candidate] = sideYs.enumerated().map { (CGPoint(x: target.maxX + gap, y: $1), true, $0 > 0) }
+            let lefts: [Candidate] = sideYs.enumerated().map { (CGPoint(x: target.minX - gap - bubble.width, y: $1), true, $0 > 0) }
+            let belows: [Candidate] = belowYs.map { (CGPoint(x: target.minX, y: $0), false, true) }
+            let aboves: [Candidate] = aboveYs.map { (CGPoint(x: target.minX, y: $0), false, true) }
+            candidates = narrow ? rights + lefts + belows + aboves : belows + aboves + rights + lefts
+        } else {
+            candidates = [(CGPoint(x: maxX, y: margin), true, true), (CGPoint(x: maxX, y: maxY), true, true),
+                          (CGPoint(x: margin, y: margin), true, true), (CGPoint(x: margin, y: maxY), true, true)]
+        }
+        let fitting = candidates.filter { c in
+            (!c.fitsX || (c.point.x >= margin - 0.5 && c.point.x <= maxX + 0.5))
+                && (!c.fitsY || (c.point.y >= margin - 0.5 && c.point.y <= maxY + 0.5))
+        }
+        let pool = (fitting.isEmpty ? candidates : fitting).map { clamped($0.point) }
+        let hidden = (target.map { [$0.insetBy(dx: -gap / 2, dy: -gap / 2)] } ?? []) + avoid
+        func cost(_ p: CGPoint) -> CGFloat {
+            let frame = CGRect(origin: p, size: bubble)
+            return hidden.reduce(0) { sum, r in
+                let i = frame.intersection(r)
+                return sum + (i.isNull ? 0 : i.width * i.height)
+            }
+        }
+        var best = pool[0], bestCost = cost(pool[0])
+        for p in pool.dropFirst() where bestCost > 0 {
+            let c = cost(p)
+            if c < bestCost { best = p; bestCost = c }
+        }
+        return best
+    }
+}
+
+/// The sample task the tour makes on an empty store, and the keys of its text.
+enum TourSample {
+    /// Two tasks: the first is the one the Now card shows, the second gives the list its first row.
+    static let titleKeys = ["welcome.tour.sample.title", "welcome.tour.sample2.title"]
+    /// UserDefaults key (always `KronosEnv.defaults`) holding the sample's id while it exists, so
+    /// an app quit in the middle of the tour cannot leave it behind.
+    static let defaultsKey = "kronos.tour.sampleTaskID"
 }

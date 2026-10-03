@@ -15,6 +15,8 @@ struct SettingsAITab: View {
     /// whenever the provider changes so a leftover custom id from a different provider
     /// never keeps this row stuck in text-entry mode.
     @State private var isEditingCustomModel: Bool = false
+    /// Mirrors `TriagePrefs.aiSuggestionsEnabled`, the switch the sort card reads live.
+    @State private var sortSuggestions: Bool = TriagePrefs.aiSuggestionsEnabled
 
     var body: some View {
         SettingsSection(title: String(localized: "settings.tab.ai")) {
@@ -40,13 +42,39 @@ struct SettingsAITab: View {
                     .foregroundStyle(Tok.textTertiary)
                 Spacer()
             }
+            // What leaves this Mac, said where AI is switched on, not only in Planning.
+            SettingsHelpRow {
+                Text(String(localized: "settings.ai.egress"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .uiTestAnchor("settings.ai.egress")
+                Spacer(minLength: 0)
+            }
 
             if controller.mode != .off {
+                SettingsRow(label: String(localized: "settings.ai.sort.suggestions")) {
+                    Toggle(isOn: Binding(
+                        get: { sortSuggestions },
+                        set: { sortSuggestions = $0; TriagePrefs.aiSuggestionsEnabled = $0 }
+                    )) { EmptyView() }
+                        .toggleStyle(.switch)
+                        .tint(Tok.textPrimary)
+                        .labelsHidden()
+                        .uiTestAnchor("settings.ai.sort.suggestions")
+                }
+                SettingsHelpRow {
+                    Text(String(localized: "settings.ai.sort.suggestions.help"))
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                    Spacer()
+                }
                 SettingsRow(label: String(localized: "settings.ai.provider")) {
                     Picker("", selection: $controller.provider) {
-                        ForEach(AIProvider.allCases) { p in
+                        ForEach(AIProvider.presets) { p in
                             Text(providerName(p)).tag(p)
                         }
+                        Text(String(localized: "settings.ai.provider.other")).tag(AIProvider.custom)
                     }
                     .labelsHidden()
                     .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
@@ -60,7 +88,7 @@ struct SettingsAITab: View {
                 }
 
                 SettingsRow(label: String(localized: "settings.ai.url")) {
-                    KTextField("https://ghostcli.dev/v1", text: $controller.baseURLText)
+                    KTextField(AppSettingsStore.defaultBaseURL, text: $controller.baseURLText)
                         .frame(width: SettingsMetrics.trailingColumn)
                         .disabled(controller.provider != .custom)
                         .onChange(of: controller.baseURLText) { _, _ in controller.markConfigChanged() }
@@ -147,7 +175,9 @@ struct SettingsAITab: View {
 
     private func providerName(_ p: AIProvider) -> String {
         switch p {
+        #if !KRONOS_PUBLIC
         case .ghostCLI:   return String(localized: "settings.ai.provider.ghostcli")
+        #endif
         case .openRouter: return String(localized: "settings.ai.provider.openrouter")
         case .custom:     return String(localized: "settings.ai.provider.custom")
         }

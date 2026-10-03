@@ -147,46 +147,47 @@ private func makeCoordinator(day: Int) -> (DayChangeCoordinator, FixtureClock, M
 
 // MARK: - Carry is computed, never written
 
-@Test @MainActor func overdueCarryIsComputedWithZeroStoreWrites() throws {
+@Test @MainActor func overdueCarryIsCountedOncePerDayAndNeverTouchesTheDeadline() throws {
     let store = try TaskStore(inMemory: true)
     let clock = FixtureClock(day: Day.parseISO("2026-09-18") ?? 0)
     let task = store.create(title: "Pay invoice", notes: "", project: nil,
                              status: .inProgress, priority: .none, dueDay: clock.today())
     let originalDue = task.dueDay
     let originalOriginalDue = task.originalDueDay
-    let originalUpdatedAt = task.updatedAt
     let undoDepthBefore = store.undoDepth
 
-    store.context.processPendingChanges()
-    #expect(store.context.hasChanges == false)
-
-    // Advance one day: task is now 1 day overdue.
-    clock.advance(days: 1)
+    // Same day as the deadline: nothing to carry, nothing written.
     let scheduler = ManualScheduler()
     let defaults = FixtureKeyValueStore()
     let coordinator = DayChangeCoordinator(clock: clock, scheduler: scheduler, defaults: defaults)
     coordinator.start()
-    coordinator.checkForDayChange()
     let sweep = NightSweep(store: store, clock: clock, defaults: defaults)
     sweep.runIfNeeded()
+    #expect(task.carryCount == 0)
 
-    #expect(task.carryDays(today: clock.today()) == 1)
-    #expect(task.dueDay == originalDue, "dueDay is bit-identical to before the day change")
-    #expect(task.originalDueDay == originalOriginalDue)
-    #expect(task.updatedAt == originalUpdatedAt, "carry is never stamped onto the row")
-    #expect(store.context.hasChanges == false, "reading carry produced no pending ModelContext change")
-    #expect(store.undoDepth == undoDepthBefore, "no undo step was pushed by computing carry")
-
-    // Advance a second day: carry reads 2, still nothing written.
+    // One day late: the sweep counts one carry day. The deadline is bit-identical.
     clock.advance(days: 1)
     coordinator.checkForDayChange()
     sweep.runIfNeeded()
-    #expect(task.carryDays(today: clock.today()) == 2)
+    #expect(task.carryCount == 1)
+    #expect(task.carryDays(today: clock.today()) == 1)
     #expect(task.dueDay == originalDue)
     #expect(task.originalDueDay == originalOriginalDue)
-    #expect(task.updatedAt == originalUpdatedAt)
-    #expect(store.context.hasChanges == false)
+    #expect(task.dread == false)
+    #expect(store.undoDepth == undoDepthBefore, "an overnight write pushes no undo step")
+
+    // A second day late: carry 2, and the avoided-task flag is set on the day it is reached.
+    clock.advance(days: 1)
+    coordinator.checkForDayChange()
+    sweep.runIfNeeded()
+    #expect(task.carryCount == 2)
+    #expect(task.carryDays(today: clock.today()) == 2)
+    #expect(task.dueDay == originalDue)
+    #expect(task.dread == true)
     #expect(store.undoDepth == undoDepthBefore)
+    // Running the same day again changes nothing.
+    sweep.runIfNeeded()
+    #expect(task.carryCount == 2)
 }
 
 // MARK: - Night sweep

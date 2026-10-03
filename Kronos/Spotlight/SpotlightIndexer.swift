@@ -16,7 +16,8 @@ import KronosCore
 final class SpotlightIndexer {
     private let model: AppModel
     private let index: any SearchIndexing
-    private var lastIndexedIDs: Set<String> = []
+    /// Content hash of every entry the index holds, by id (SpotlightDiff).
+    private var lastIndexed: [String: UInt64] = [:]
     private var pending: Task<Void, Never>?
     /// Debounce window: several mutations in quick succession (bulk triage, a completion
     /// plus its recurrence spawn) collapse into one indexing pass instead of one per write.
@@ -39,8 +40,7 @@ final class SpotlightIndexer {
     /// a snapshot run of any screen can never write to the real Spotlight index.
     private static func makeIndex() -> any SearchIndexing {
         // A scratch store (KRONOS_STORE_DIR) must never reach the real Spotlight index either.
-        let env = ProcessInfo.processInfo.environment
-        return (env["KRONOS_SNAPSHOT"] != nil || env["KRONOS_STORE_DIR"] != nil) ? FixtureSearchIndex() : RealSearchIndex()
+        return KronosEnv.isHermetic ? FixtureSearchIndex() : RealSearchIndex()
     }
 
     init(model: AppModel, index: any SearchIndexing, debounce: Duration = .milliseconds(400)) {
@@ -79,45 +79,57 @@ final class SpotlightIndexer {
     private func refresh() async {
         let today = Day.today(calendar: KronosLocale.calendar)
         let facts = Self.buildFacts(store: model.store, today: today)
-        let sanitized = facts.compactMap(SpotlightSafety.sanitize)
-        let currentIDs = Set(sanitized.map(\.id))
-
-        let removedIDs = lastIndexedIDs.subtracting(currentIDs)
-        if !removedIDs.isEmpty { try? await index.deleteItems(withIdentifiers: Array(removedIDs)) }
-        if !sanitized.isEmpty { try? await index.indexItems(sanitized) }
-        lastIndexedIDs = currentIDs
+        let plan = SpotlightDiff.plan(previous: lastIndexed, current: facts.compactMap(SpotlightSafety.sanitize))
+        // Remember a pass only when the index took it, so a failed write is retried next time.
+        do {
+            if !plan.delete.isEmpty { try await index.deleteItems(withIdentifiers: plan.delete) }
+            if !plan.index.isEmpty { try await index.indexItems(plan.index) }
+            lastIndexed = plan.hashes
+        } catch {
+            lastIndexed = lastIndexed.filter { plan.hashes[$0.key] == $0.value && !plan.delete.contains($0.key) }
+        }
     }
+
+    /// One pass now, without the debounce (tests and the first pass).
+    func refreshNow() async { await refresh() }
 
     /// Every open task + every non-archived project, as plain facts. `static` + injectable
     /// `store`/`today` so `refresh()`'s only MainActor-only dependency is `model` itself.
     static func buildFacts(store: any TaskStoring, today: Int) -> [SearchableFacts] {
-        let taskFacts = store.allTasks()
-            .filter { KStatus.open.contains($0.status) }
-            .map { t -> SearchableFacts in
-                let move = t.firstMove?.isEmpty == false ? t.firstMove : nil
-                let deadline = t.dueDay.map(Day.iso)
-                return SearchableFacts(id: "task.\(t.id.uuidString)", kind: .task, title: t.title,
-                                       subtitle: t.project?.name, firstMove: move, deadlineText: deadline)
+        // Subtasks are indexed too (subtitle = their parent's title): a Spotlight result for one
+        // opens the parent's row with the inspector on the subtask (AppModel.openTaskByID).
+        let parents = store.allTasks().filter { KStatus.open.contains($0.status) }
+        let taskFacts = parents.flatMap { t -> [SearchableFacts] in
+            let move = t.firstMove?.isEmpty == false ? t.firstMove : nil
+            let words = ["Kronos"] + [t.project?.name].compactMap { $0 } + (t.labels ?? []).map(\.name)
+            let own = SearchableFacts(id: "task.\(t.id.uuidString)", kind: .task, title: t.title,
+                                      subtitle: t.project?.name, firstMove: move,
+                                      deadlineText: t.effectiveDue.map(Day.iso),
+                                      keywords: words, contentURL: TaskLink.string(for: t.id))
+            let steps = t.orderedChildren.filter { KStatus.open.contains($0.status) }.map { c in
+                SearchableFacts(id: "task.\(c.id.uuidString)", kind: .task, title: c.title,
+                                subtitle: t.title, firstMove: nil, deadlineText: c.dueDay.map(Day.iso),
+                                keywords: ["Kronos", t.title], contentURL: TaskLink.string(for: c.id))
             }
+            return [own] + steps
+        }
         let projectFacts = store.allProjects(includeArchived: false).map { p in
             SearchableFacts(id: "project.\(p.id.uuidString)", kind: .project, title: p.name,
-                            subtitle: p.area?.name)
+                            subtitle: p.area?.name, keywords: ["Kronos"] + [p.area?.name].compactMap { $0 })
         }
         return taskFacts + projectFacts
     }
 
-    /// Continuation hook: `AppDelegate.application(_:continue:restorationHandler:)` calls
-    /// `SpotlightIndexer.taskID(from:)` to resolve a Spotlight click back to a task, then
-    /// selects it.
-    ///
-    /// (`.inbox` is a safe default scope so the task is reachable in the list regardless of
-    /// which saved view/project scope was open when Spotlight was used; a leaf that owns
-    /// `Kronos/App/**` may prefer resolving the task's own project scope instead.)
-    static func taskID(from activity: NSUserActivity) -> UUID? {
+    /// Continuation hook: `AppDelegate.application(_:continue:restorationHandler:)` resolves a
+    /// Spotlight click back to the task or project it was made from.
+    static func target(from activity: NSUserActivity) -> SpotlightIdentifier.Target? {
         guard activity.activityType == CSSearchableItemActionType,
-              let raw = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
-              raw.hasPrefix("task.")
-        else { return nil }
-        return UUID(uuidString: String(raw.dropFirst("task.".count)))
+              let raw = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return nil }
+        return SpotlightIdentifier.parse(raw)
+    }
+
+    static func taskID(from activity: NSUserActivity) -> UUID? {
+        if case .task(let id)? = target(from: activity) { return id }
+        return nil
     }
 }

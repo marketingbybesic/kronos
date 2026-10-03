@@ -11,6 +11,7 @@ struct TaskListScreen: View {
     /// Snapshot-only; see CoachBanner.swift. Always nil on the real screen.
     var previewBlockSuggestion: BlockSuggestion?? = nil
     @State private var showPopover = false
+    @Environment(\.kAccent) private var accent
     // Not `private`: TaskListScreen+Parts.swift's extension (the Now card) reads/writes it.
     // One global key (not per scope): a user who folds the card wants it folded everywhere.
     @State var isNowCardCollapsed = UserDefaults.standard.bool(forKey: "kronos.nowcard.collapsed")
@@ -18,8 +19,13 @@ struct TaskListScreen: View {
     @FocusState private var searchFocused: Bool
     @FocusState var listFocused: Bool   // not private: TaskListScreen+Bulk.swift
     /// "E": open or close every subtask list at once.
-   @State private var allSubtasksExpanded = false
-   
+    @State var allSubtasksExpanded = false   // not private: TaskListScreen+Keys.swift
+    /// Rows Today showed at the last look (nil: not looking at an unfiltered Today). The
+    /// day-clear cue plays on the move from some rows to none (TodayClear).
+    @State private var lastTodayRows: Int?
+    /// The moving end of a ⇧↑/⇧↓ range (the anchor is `model.selectedTaskID`); nil after a plain move.
+    @State var rangeCursor: UUID?   // not private: TaskListScreen+Keys.swift
+
     /// Calm mode was removed in rev18; this stays false so the header count always shows.
     private var isCalm: Bool { false }
     
@@ -40,6 +46,12 @@ struct TaskListScreen: View {
             header(ctx)
             if ctx.activeRuleCount > 0 {
                 KActiveRulesBar(chips: chips(ctx), onReset: resetOptions)
+                    .uiTestAnchor("rules.bar")
+                    .padding(.horizontal, Space.x4)
+                    .padding(.top, Space.x2)
+            }
+            if ListSortDragHint.shared.isShowing(for: model.scope), !ctx.options.isManualOrder {
+                ListSortDragHintBar(model: model, scope: model.scope)
                     .padding(.horizontal, Space.x4)
                     .padding(.top, Space.x2)
             }
@@ -64,28 +76,45 @@ struct TaskListScreen: View {
             body(ctx)
         }
         .background(Tok.bg)
+        .announcesUndoPills()
         .onAppear {
             publishOrdo(ctx)
             pruneSelection(ctx)
             validateFocusPin()
+            lastTodayRows = TodayClear.observedRows(ctx, model: model)
             // The list is the default first responder: without an explicit initial focus, a
             // fresh window/snapshot auto-assigns first responder to the first focusable
             // control in the tree, which was the view-options icon button — showing a focus
             // ring at rest with nothing focused on purpose.
             listFocused = true
         }
-        .onChange(of: model.version) { _, _ in publishOrdo(context); pruneSelection(context); validateFocusPin() }
-        .onChange(of: model.scope) { _, _ in publishOrdo(context); pruneSelection(context) }
-        .onChange(of: model.searchText) { _, _ in publishOrdo(context); pruneSelection(context) }
+        .onChange(of: model.version) { _, _ in
+            let ctx = context
+            publishOrdo(ctx); pruneSelection(ctx); validateFocusPin()
+            lastTodayRows = TodayClear.track(previous: lastTodayRows, ctx, model: model)
+        }
+        // A scope or search change is a new first look, never a "Today became clear" moment.
+        .onChange(of: model.scope) { _, _ in
+            ListSortDragHint.shared.dismiss()
+            let ctx = context
+            publishOrdo(ctx); pruneSelection(ctx)
+            lastTodayRows = TodayClear.observedRows(ctx, model: model)
+        }
+        .onChange(of: model.searchText) { _, _ in
+            let ctx = context
+            publishOrdo(ctx); pruneSelection(ctx)
+            lastTodayRows = TodayClear.observedRows(ctx, model: model)
+        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosViewOptionsRequested"))) { _ in
             showPopover = true
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosFocusSearchRequested"))) { _ in
             searchFocused = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosFocusListRequested"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UIRequests.focusList)) { _ in
             listFocused = true
         }
+        .onAppear { GlobalTaskHotkeys.start(model: model) }
     }
 
     // MARK: - Header
@@ -93,15 +122,13 @@ struct TaskListScreen: View {
     private func header(_ ctx: ListContext) -> some View {
         HStack(spacing: Space.x3) {
             HStack(spacing: Space.x2) {
-                if case .project(let id) = model.scope, let project = model.store.allProjects().first(where: { $0.id == id }) {
-                    KProjectGlyph(icon: project.icon, colorHex: project.colorHex, size: Metrics.iconL)
-                }
+                headerMark
                 Text(ctx.title)
                     .font(Typo.display)
                     .tracking(Tracking.tight)
                     .foregroundStyle(Tok.textPrimary)
                 if !isCalm {
-                    Text("\(ctx.rows.count)")
+                    Text("\(ctx.currentCount)")
                         .font(Typo.count)
                         .foregroundStyle(Tok.textTertiary)
                 }
@@ -117,6 +144,20 @@ struct TaskListScreen: View {
         }
         .padding(.horizontal, Space.x4)
         .frame(height: Metrics.toolbarHeight)
+    }
+
+    /// The mark before the view title. A project view shows the project's icon in the project's
+    /// colour; every other view shows its own sidebar icon in the user's accent. The monochrome
+    /// mode draws both white (`SelectionHue`).
+    @ViewBuilder private var headerMark: some View {
+        let neutral = model.chromaMode.isNeutralSelection
+        if case .project(let id) = model.scope, let project = model.store.allProjects().first(where: { $0.id == id }) {
+            KViewMark(icon: project.icon,
+                      tint: SelectionHue.resolve(projectHex: project.colorHex, neutral: neutral).color(accent: accent))
+        } else {
+            KViewMark(icon: model.scope.leadingIcon,
+                      tint: SelectionHue.resolve(projectHex: nil, neutral: neutral).color(accent: accent))
+        }
     }
 
     // MARK: - Now card
@@ -181,22 +222,27 @@ struct TaskListScreen: View {
     }
 
     private func resetOptions() {
-        model.setOptions(.default, for: model.scope)
+        ListViewReset.clearAll(model: model, scope: model.scope)
     }
 
     // MARK: - Body
 
     @ViewBuilder
     private func body(_ ctx: ListContext) -> some View {
-        if ctx.rows.isEmpty && model.searchText.isEmpty && ctx.activeRuleCount == 0 {
+        if ctx.totalCount == 0 && model.searchText.isEmpty && ctx.activeRuleCount == 0 {
             // An empty list still starts with the same "New task" row every other list has:
             // without it an empty area or project offered no visible way to add the first task.
             VStack(alignment: .leading, spacing: 0) {
                 ListInlineNewTaskRow(model: model, scope: model.scope)
                     .padding(.horizontal, Space.x3)
                     .padding(.vertical, Space.x2)
-                KEmptyState(icon: emptyIcon, title: emptyTitle)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if model.scope == .today {
+                    TodayClearState(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ListEmptyState(model: model)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         } else {
             GeometryReader { geo in
@@ -210,7 +256,9 @@ struct TaskListScreen: View {
                 // itself so long titles keep truncating instead of being crushed to zero.
                 let chrome = Space.x3 * 2 + Metrics.listRowLeading + Metrics.listCheckboxSize
                     + Metrics.listCheckboxTitleGap + Metrics.listRowTrailing
-                let titleFloor: CGFloat = 120
+                    + Metrics.minHit + Space.x1   // the chevron gutter that always precedes the title
+                // The title floor grows with the text size: 120 pt holds fewer characters at L than at M.
+                let titleFloor: CGFloat = 120 * DSScale.text
                 let trailingBudget = geo.size.width - chrome - titleFloor
                 let columnMode = ColumnMode.fitting(available: trailingBudget)
 
@@ -218,64 +266,86 @@ struct TaskListScreen: View {
                     LazyVStack(alignment: .leading, spacing: Space.x1) {
                         ListInlineNewTaskRow(model: model, scope: model.scope)
                             .tourAnchor(.newTask)
-                        ForEach(ctx.rows, id: \.id) { task in
-                            ListRowView(model: model, task: task, ctx: ctx,
-                                        isSelected: isRowSelected(task.id),
-                                        showProjectGlyph: showsProjectGlyph,
-                                        columnMode: columnMode,
-                                        onSelect: { handleRowClick(task.id, ctx) })
-                                .tourAnchor(.firstRow, when: task.id == ctx.rows.first?.id)
+                        ForEach(ctx.currentRows, id: \.id) { task in
+                            row(task, ctx, columnMode)
                         }
-                        if ctx.rows.isEmpty {
+                        if !ctx.earlier.isEmpty {
+                            ListEarlierHeader(model: model, ids: ctx.earlier.map(\.id))
+                                .padding(.top, Space.x2)
+                            ForEach(ctx.openEarlierRows, id: \.id) { task in
+                                row(task, ctx, columnMode)
+                            }
+                        }
+                        if ctx.totalCount == 0 {
                             KEmptyState(icon: "search", title: noMatchesTitle)
                                 .frame(maxWidth: .infinity)
                         }
                     }
                     .padding(.horizontal, Space.x3)
                     .padding(.vertical, Space.x2)
+                    // While the bulk bar floats over the bottom, the last rows can still scroll above it.
+                    .padding(.bottom, isMultiSelected ? bulkBarClearance : 0)
+                }
+                // The one drop destination of the list (rows report their frames into it).
+                .listDropLayer(model: model, config: dropConfig(ctx))
+                // Right-click on the list itself (rows keep their own menu): Clear all, only while a sort or filter is set.
+                .contextMenu {
+                    if ctx.options.hasRulesToClear {
+                        Button(String(localized: "viewoptions.clearall")) { resetOptions() }
+                    }
                 }
             }
             .focusable(true)
             .focusEffectDisabled()   // selection is shown by the row, never by a system ring
             .focused($listFocused)
-            .overlay { bulkBarOverlay }   // only while 2+ rows are selected (TaskListScreen+Bulk.swift)
+            // Only while 2+ rows are selected (TaskListScreen+Bulk.swift). It floats at the bottom, so VoiceOver reads it
+            // after the rows it acts on, not between the Now card and the list.
+            .overlay { bulkBarOverlay.accessibilitySortPriority(-1) }
+            .listKeyLegend { listFocused && !Self.isTyping && !model.isAnyOverlayOpen }   // hold ⌥ (ListKeyLegend.swift)
             .onReceive(NotificationCenter.default.publisher(for: HotkeyRegistry.changed).receive(on: DispatchQueue.main)) { _ in hotkeyRevision += 1 }
-            // Registry ids, Kronos/Hotkeys/HotkeyRegistry.swift scope .list.
-            .onKeyPress(.upArrow) { guard !Self.isTyping else { return .ignored }; moveSelection(-1, ctx); return .handled }
-            .onKeyPress(.downArrow) { guard !Self.isTyping else { return .ignored }; moveSelection(1, ctx); return .handled }
+            // Registry ids, Kronos/Hotkeys/HotkeyRegistry.swift scope .list. ⇧↑/⇧↓ extend the range.
+            .onKeyPress(keys: [.upArrow, .downArrow]) { press in
+                guard !Self.isTyping else { return .ignored }
+                let delta = press.key == .upArrow ? -1 : 1
+                if press.modifiers.contains(.shift) { extendSelection(delta, ctx) } else { moveSelection(delta, ctx) }
+                return .handled
+            }
             .onKeyPress(.space) { guard !Self.isTyping else { return .ignored }; toggleSelected(ctx); return .handled }
             // A real Backspace delivers U+007F, which SwiftUI's `.delete` (U+0008) does NOT match, so
             // the key was dead on hardware while a synthetic U+0008 worked. Match all three spellings.
             .onKeyPress(keys: [.delete, .deleteForward, KeyEquivalent("\u{7F}")]) { _ in
                 guard !Self.isTyping else { return .ignored }; deleteSelected(ctx); return .handled
             }
-            .onKeyPress(.return) { guard !Self.isTyping else { return .ignored }; selectAndOpen(ctx); return .handled }
+            // Return takes the undo pill's primary action first ("Done. Next: …" → Start), then
+            // falls back to opening the selected row.
+            .onKeyPress(.return) {
+                guard !Self.isTyping else { return .ignored }
+                if UndoToastCenter.shared.performPrimary() { return .handled }
+                selectAndOpen(ctx)
+                return .handled
+            }
             .onKeyPress(.escape) { handleEscape() }
             .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { handleSelectAll($0, ctx) }
             .onKeyPress(characters: listCharacterSet) { press in
                 guard !Self.isTyping else { return .ignored }
-                handleCharacter(press.characters, ctx)
-                return .handled
+                return handleGrammarKey(press, ctx) ? .handled : .ignored
             }
         }
+    }
+
+    private func row(_ task: KTask, _ ctx: ListContext, _ columnMode: ColumnMode) -> some View {
+        ListRowView(model: model, task: task, ctx: ctx,
+                    isSelected: isRowSelected(task.id),
+                    showProjectGlyph: showsProjectGlyph,
+                    columnMode: columnMode,
+                    onSelect: { handleRowClick(task.id, ctx) })
+            .tourAnchor(.firstRow, when: task.id == ctx.rows.first?.id)
     }
 
     private var showsProjectGlyph: Bool {
         switch model.scope {
         case .project: return false
         default: return true
-        }
-    }
-
-    private var emptyIcon: String {
-        switch model.scope {
-        case .inbox: return "inbox"
-        case .today: return "sun"
-        case .next7: return "calendar-days"
-        case .waiting: return "hourglass"
-        case .someday: return "archive"
-        case .all: return "list-ordered"
-        case .project, .area, .savedView: return "folder"
         }
     }
 
@@ -287,19 +357,6 @@ struct TaskListScreen: View {
         // quoting the word "Filter" as if it were a query (seen on the live window).
         guard !model.searchText.isEmpty else { return String(localized: "empty.filter.nomatch") }
         return String(format: String(localized: "empty.search.query"), model.searchText)
-    }
-
-    private var emptyTitle: String {
-        switch model.scope {
-        case .inbox: return String(localized: "empty.inbox.body")
-        case .today: return String(localized: "empty.today.body")
-        case .next7: return String(localized: "empty.next7.body")
-        case .waiting: return String(localized: "empty.waiting.body")
-        case .someday: return String(localized: "empty.someday.body")
-        case .all: return String(localized: "empty.view.body")
-        case .project, .area: return String(localized: "empty.project.body")
-        case .savedView: return String(localized: "empty.view.body")
-        }
     }
 
     // MARK: - Selection hygiene
@@ -316,71 +373,7 @@ struct TaskListScreen: View {
     }
 
     // MARK: - Keyboard
-
-    private func moveSelection(_ delta: Int, _ ctx: ListContext) {
-        guard !ctx.rows.isEmpty else { return }
-        model.selectedIDs = []   // arrows go back to a single selection
-        guard let current = model.selectedTaskID, let i = ctx.rows.firstIndex(where: { $0.id == current }) else {
-            model.selectedTaskID = ctx.rows.first?.id
-            return
-        }
-        let next = max(0, min(ctx.rows.count - 1, i + delta))
-        model.selectedTaskID = ctx.rows[next].id
-    }
-
-    private func toggleSelected(_ ctx: ListContext) {
-        if isMultiSelected { ListBulk.apply(.toggleDone, model: model); return }
-        guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
-        ListCompletion.toggle(task, store: model.store, model: model)
-    }
-
-    private func deleteSelected(_ ctx: ListContext) {
-        if isMultiSelected { ListBulk.apply(.delete, model: model); return }
-        guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
-        model.store.softDelete(task.id)
-        model.didMutate()
-        UndoToastCenter.shared.show(String(format: String(localized: "undo.deleted.name"), task.title))
-    }
-
-    /// Return: today the inspector already tracks `model.selectedTaskID` reactively and
-    /// opens on it — clicking a row does exactly this. Return does the same thing a click
-    /// does, nothing more (no separate "open" state to invent).
-    private func selectAndOpen(_ ctx: ListContext) {
-        guard let id = model.selectedTaskID, ctx.rows.contains(where: { $0.id == id }) else { return }
-        model.selectedTaskID = id
-    }
-
-    /// Single-key row actions — dispatched from the one `.onKeyPress(characters:)` above so
-    /// they share its "list must have focus, not a text field" gate. snooze/focuspin match
-    /// against the registry's CURRENT binding (Kronos/Hotkeys/HotkeyRegistry.swift), so a
-    /// future rebind takes effect with no code change; the priority digits are fixed.
-    /// True while a text field owns the keyboard. The list container reports itself focused even
-    /// when focus is in the inline field INSIDE it, so a FocusState check let space, Return, o, h, f
-    /// and 0-4 be eaten while typing (the live UI test typed "Buy oat milk" and got "Buyatmilk").
-    static var isTyping: Bool {
-        // Not only keyWindow: it is nil for a moment whenever the app is not frontmost, and the
-        // keys would be eaten again exactly then.
-        (NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first { $0.isVisible })?.firstResponder is NSTextView
-    }
-
-    private func handleCharacter(_ characters: String, _ ctx: ListContext) {
-        if handleBulkCharacter(characters) { return }
-        guard let id = model.selectedTaskID, let task = ctx.rows.first(where: { $0.id == id }) else { return }
-        let pressed = characters.lowercased()
-        switch pressed {
-        case Self.listKey("list.snooze"): snoozeTask(task)
-        case Self.listKey("list.focuspin"): toggleFocusPin(task)
-        case Self.listKey("list.expandall"):
-            allSubtasksExpanded.toggle()
-            NotificationCenter.default.post(name: .kronosExpandAllSubtasks, object: allSubtasksExpanded)
-        case "0", "o": setPriority(task, .none)   // "o" too: a zero reads as the letter in the guide
-        case "1": setPriority(task, .low)
-        case "2": setPriority(task, .medium)
-        case "3": setPriority(task, .high)
-        case "4": setPriority(task, .urgent)
-        default: break
-        }
-    }
+    // Arrows, Space, Delete, Return and the single-key grammar live in TaskListScreen+Keys.swift.
 
     // snoozeTask / setPriority / toggleFocusPin live in TaskListScreen+Actions.swift (each raises
     // the undo pill, audit D10).
@@ -396,17 +389,22 @@ struct TaskListScreen: View {
 
     // MARK: - Ordo
 
+    /// "Next" is the first eligible row of the list being shown (the pin wins): done, pending
+    /// review, blocked (waits on an open task) and archived-project rows are skipped, so the Now
+    /// card and the menu bar never offer something that cannot be started yet. Browsing another
+    /// list changes it by design. The head (first eligible ids) is published for the other
+    /// readers of "next" (menu bar, MCP, snapshot).
     private func publishOrdo(_ ctx: ListContext) {
-        // A task that waits on an open task is skipped here too (w22e): the Now card and the
-        // menu bar never offer something that cannot be started yet.
-        let blocked = model.store.blockedIDs(in: ctx.rows)
-        let open = ctx.rows.filter { KStatus.open.contains($0.status) && !blocked.contains($0.id) }
-        guard let first = open.first else {
+        let lookup = model.store.allTasks()
+        let eligible = ctx.rows.filter { NextEligibility.isEligible($0, lookup: lookup) }
+        model.publishShownListHead(ShownListHead(listName: ctx.title, ids: eligible.map(\.id)))
+        guard let first = NextEligibility.pick(pinned: model.pinnedFocusTaskID, rows: ctx.rows, lookup: lookup) else {
             model.publishOrdoFocus(.empty(listName: ctx.title))
             return
         }
+        let others = eligible.filter { $0.id != first.id }.count
         model.publishOrdoFocus(OrdoFocus(taskID: first.id, title: first.title, firstMove: first.firstMove,
-                                         listName: ctx.title, remaining: max(0, open.count - 1)))
+                                         listName: ctx.title, remaining: others))
     }
 
     // MARK: - Name lookups (chips, filter builder)
@@ -420,62 +418,4 @@ struct TaskListScreen: View {
     // MARK: - Context (scope title + sorted/filtered rows)
 
     private var context: ListContext { ListContext(model: model) }
-}
-
-/// One computed snapshot of "what this scope shows right now" — title, options, final rows —
-/// so the header, chips, body and Ordo publisher all read the identical list.
-@MainActor
-struct ListContext {
-    let title: String
-    let options: ViewOptions
-    let rows: [KTask]
-    let activeRuleCount: Int
-
-    init(model: AppModel) {
-        let scope = model.scope
-        // A `.savedView` scope has no base membership of its own (ScopeFilter.matches
-        // returns true for every task): its sort + filter + showDone come FROM the
-        // KSavedView itself, not from this leaf's per-scope UserDefaults storage — a saved
-        // view is shared state, not a window-local preference. A fixed/project/area scope
-        // still reads `model.options(for:)` exactly as before.
-        let opts: ViewOptions
-        if case .savedView(let id) = scope, let view = model.store.allSavedViews().first(where: { $0.id == id }) {
-            opts = ViewOptions(sort: view.sortDescriptors, filter: view.filter, showCompleted: view.showDone)
-        } else {
-            opts = model.options(for: scope)
-        }
-        self.options = opts
-        self.title = ListContext.title(for: scope, model: model)
-        let today = Day.today()
-
-        var filter = opts.filter
-        let base = ScopeFilter.baseFilter(for: scope)
-        filter.statuses = filter.statuses.isEmpty ? base.statuses : filter.statuses
-        if !opts.showCompleted, filter.statuses.isEmpty {
-            filter.statuses = KStatus.openRaw
-        }
-        filter.projectIDs = filter.projectIDs.isEmpty ? base.projectIDs : filter.projectIDs
-        filter.areaIDs = filter.areaIDs.isEmpty ? base.areaIDs : filter.areaIDs
-        filter.noProject = filter.noProject || base.noProject
-        if filter.due == .any { filter.due = base.due }
-
-        let all = model.store.allTasks().filter { ScopeFilter.matches($0, scope: scope, today: today) }
-        var matched = all.filter { filter.matches($0, today: today) }
-        if !model.searchText.isEmpty {
-            let needle = KTextFold.fold(model.searchText)
-            matched = matched.filter { KTextFold.fold($0.title).contains(needle) }
-        }
-        self.rows = KTaskSorter.sorted(matched, by: opts.sort)
-        self.activeRuleCount = ViewOptionsMapper.activeRuleCount(sort: opts.sort, filter: opts.filter)
-    }
-
-    private static func title(for scope: ListScope, model: AppModel) -> String {
-        if let key = scope.titleKey { return String(localized: String.LocalizationValue(key)) }
-        switch scope {
-        case .project(let id): return model.store.allProjects().first { $0.id == id }?.name ?? "Project"
-        case .area(let id): return model.store.allProjects().compactMap(\.area).first { $0.id == id }?.name ?? "Area"
-        case .savedView(let id): return model.store.allSavedViews().first { $0.id == id }?.name ?? "View"
-        default: return ""
-        }
-    }
 }

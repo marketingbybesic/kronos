@@ -32,6 +32,7 @@ public struct KTextField: View {
                 .font(Typo.body)
                 .foregroundStyle(Tok.textPrimary)
                 .focused($isFocused)
+                .accessibilityLabel(placeholder)
                 .onAppear {
                     guard autofocus else { return }
                     // A tick's delay: a view only gets focus once it is actually in the
@@ -41,6 +42,13 @@ public struct KTextField: View {
         }
         .padding(.horizontal, Space.x3)
         .frame(height: Metrics.controlRegular)
+        // The whole plate is the target: a click on its padding or icon focuses the field too.
+        // Drawn BEHIND the field, so clicks on the text itself still go to the text field.
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { if isEnabled { isFocused = true } }
+        )
         .background(isFocused ? Tok.bg : Tok.controlFill)
         // Style G: a faint plate at rest; the edge appears with focus (3.9:1 on its own), so the
         // field needs no second, outer ring.

@@ -88,7 +88,7 @@ struct InspectorSectionCaption: View {
         Text(title)
             .font(Typo.sectionHdr)
             .textCase(.uppercase)
-            .tracking(0.5)
+            .tracking(Tracking.caption)
             .foregroundStyle(Tok.textTertiary)
     }
 }

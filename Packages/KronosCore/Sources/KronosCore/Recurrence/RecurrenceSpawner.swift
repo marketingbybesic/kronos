@@ -14,12 +14,16 @@ public enum RecurrenceSpawner {
 
     /// Spawns the next instance of `taskID`'s series, if it has one.
     ///
-    /// Returns the new `KTask`, or nil when the task has no `recurrenceRule`,
-    /// the rule fails to parse, or the task no longer exists. Safe to call
-    /// unconditionally after any completion — non-recurring tasks are a
-    /// no-op. Call this only once per completion (the integration note's
-    /// `wasOpen` guard prevents a redundant `complete` on an already-done
-    /// task from spawning a second sibling).
+    /// The next instance's id is `RecurrenceIdentity.instanceID(seriesID:dueDay:)`, the same on
+    /// every device and every context. When a live row with that id already exists (another
+    /// context or device completed this instance first), nothing is created and nil is returned.
+    /// A hidden row with that id (an undone completion) is shown again and refreshed instead of
+    /// adding a second row with the same id.
+    ///
+    /// Returns the new (or revived) `KTask`, or nil when the task has no `recurrenceRule`, the
+    /// rule fails to parse, the task no longer exists, or the next instance already exists.
+    /// Call this only once per completion (the integration note's `wasOpen` guard prevents a
+    /// redundant `complete` on an already-done task from reaching here).
     @discardableResult
     public static func spawnNext(for taskID: UUID, completedOn: Int, in store: TaskStore) -> KTask? {
         guard let source = store.taskIncludingDeleted(taskID),
@@ -30,8 +34,34 @@ public enum RecurrenceSpawner {
 
         let nextDue = RecurrenceEngine.nextDueDay(after: dueDay, rule: rule, completedOn: completedOn)
         let seriesID = source.seriesID ?? source.id
+        let nextID = RecurrenceIdentity.instanceID(seriesID: seriesID, dueDay: nextDue)
 
-        let next = KTask(title: source.title, notes: source.notes, project: source.project)
+        // Ensure the source itself carries a seriesID from here on (first
+        // time recurrence produces a sibling for it).
+        if source.seriesID == nil { source.seriesID = seriesID }
+
+        let existing = store.taskIncludingDeleted(nextID)
+        if let existing, existing.deletedAt == nil {
+            // Already spawned by the other side: one instance, not two.
+            store.saveContext()
+            return nil
+        }
+
+        let next: KTask
+        if let existing {
+            next = existing
+            next.deletedAt = nil
+            next.statusRaw = KStatus.todo.rawValue
+            next.title = source.title
+            next.notes = source.notes
+            if next.project !== source.project { next.project = source.project }
+            next.projectID = source.project?.id
+            next.areaID = source.project?.area?.id
+            next.isProjectArchived = source.project?.isArchived ?? false
+        } else {
+            next = KTask(title: source.title, notes: source.notes, project: source.project)
+            next.id = nextID
+        }
         next.firstMove          = source.firstMove
         next.priorityRaw        = source.priorityRaw
         next.depthRaw           = source.depthRaw
@@ -55,28 +85,56 @@ public enum RecurrenceSpawner {
         next.ordoIndex     = nil
         next.completedAt   = nil
         next.calendarEventID = nil
+        next.updatedAt     = Date()
 
-        // Ensure the source itself carries a seriesID from here on (first
-        // time recurrence produces a sibling for it).
-        if source.seriesID == nil { source.seriesID = seriesID }
+        // A recurring SUBTASK regenerates as a subtask of the same parent, at the end of its
+        // steps; a top-level task goes to the end of the global order.
+        if let parent = source.parent {
+            next.parent = parent
+            next.parentID = parent.id
+            store.inheritPlacement(next, from: parent)
+            next.sortIndex = store.appendIndex(scope: .subtasks(parent))
+        } else {
+            next.sortIndex = store.appendIndex(scope: .tasksGlobal)
+        }
+        if existing == nil { store.context.insert(next) }
 
-        next.sortIndex = store.appendIndex(scope: .tasksGlobal)
-        store.context.insert(next)
-
-        for s in source.orderedSubtasks {
-            let copy = KSubtask(title: s.title, sortIndex: s.sortIndex)
-            copy.isDone = false
-            copy.task = next
-            store.context.insert(copy)
+        // The successor of a parent gets fresh, open copies of its steps (title, notes,
+        // priority, order); the steps' own dates, completion and history stay with the old one.
+        // Their ids derive from the instance and the step, so a second spawn finds them too.
+        let stepCopies: [KTask] = source.orderedChildren.map { s in
+            let copyID = RecurrenceIdentity.stepCopyID(instanceID: nextID, stepID: s.id)
+            let copy: KTask
+            if let old = store.taskIncludingDeleted(copyID) {
+                copy = old
+                copy.deletedAt = nil
+                copy.title = s.title
+                copy.notes = s.notes
+                copy.statusRaw = KStatus.todo.rawValue
+                copy.completedAt = nil
+            } else {
+                copy = KTask(title: s.title, notes: s.notes, project: next.project)
+                copy.id = copyID
+                store.context.insert(copy)
+            }
+            copy.parent = next
+            copy.parentID = next.id
+            store.inheritPlacement(copy, from: next)
+            copy.priorityRaw = s.priorityRaw
+            copy.sortIndex = s.sortIndex
+            copy.needsTriage = false
+            return copy
         }
 
         store.saveContext()
-        // One ordinary undo step for the row we created. When `complete(_:)`
-        // called us we are inside its `groupedUndo` block, so this collapses
-        // into the completion's single step; called directly (as a test may),
-        // the spawn is undoable on its own. Either way this file no longer
-        // knows anything about the undo stack's shape.
-        store.pushSoftDeleteUndoStep("Repeat Task", next)
+        // One ordinary undo step for the rows we created. When `complete(_:)` called us we are
+        // inside its `groupedUndo` block, so this collapses into the completion's single step;
+        // called directly (as a test may), the spawn is undoable on its own. Either way this
+        // file knows nothing about the undo stack's shape.
+        store.groupedUndo("Repeat Task") {
+            store.pushSoftDeleteUndoStep("Repeat Task", next)
+            for c in stepCopies { store.pushSoftDeleteUndoStep("Repeat Task", c) }
+        }
         return next
     }
 }

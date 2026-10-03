@@ -6,7 +6,8 @@
 import SwiftUI
 
 public enum KProjectPalette {
-    /// (name, hex string, colour) — name is used for the accessibility label and by
+    /// (name, hex string, colour) — name is the data key (the VoiceOver label is its
+    /// `displayName(for:)`), used by
     /// verify-contrast.mjs to report each swatch by name rather than an anonymous index;
     /// hex is the stored-data form (KAccentPicker/Accent.resolve compare against this,
     /// never against a `Color` value, which has no reliable equality).
@@ -90,16 +91,20 @@ public struct KColorSwatchPicker: View {
                 } label: {
                     Circle()
                         .fill(swatch.color)
-                        .frame(width: 20, height: 20)
+                        .frame(width: Metrics.swatch, height: Metrics.swatch)
                         .overlay(
                             Circle()
-                                .strokeBorder(Tok.textPrimary, lineWidth: swatch.color == selected ? 2 : 0)
-                                .padding(-2)
+                                .strokeBorder(Tok.textPrimary, lineWidth: swatch.color == selected ? Metrics.sidebarSelectionBarWidth : 0)
+                                .padding(-Metrics.sidebarSelectionBarWidth)
                         )
+                        // Hit area INSIDE the label: a .plain button is pressable only on its
+                        // opaque pixels, so the frame outside left the ring's corners dead.
+                        .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
-                .accessibilityLabel(swatch.name)
+                // The visible colour name in the UI language, never the raw data key ("amber").
+                .accessibilityLabel(KProjectPalette.displayName(for: swatch.name))
                 .accessibilityAddTraits(swatch.color == selected ? [.isButton, .isSelected] : .isButton)
             }
         }

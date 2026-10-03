@@ -1,3 +1,4 @@
+#if os(macOS)
 // MCP. Constant-time bearer token comparison. A `==` on String/Data short-circuits on the
 // first mismatched byte, which leaks the token's length and prefix through a
 // timing side channel to anything that can measure response latency —
@@ -30,3 +31,4 @@ public enum ConstantTime {
         equals(Array(a.utf8), Array(b.utf8))
     }
 }
+#endif

@@ -60,13 +60,26 @@ struct KeymapReferenceView: View {
         }.filter { !$0.entries.isEmpty }
     }
 
+    /// The fixed card, editor and palette keys (KeymapCardKeys), narrowed by the same search.
+    private var filteredCardSections: [(section: KeymapCardKey.Section, keys: [KeymapCardKey])] {
+        let needle = KTextFold.fold(query)
+        return KeymapCardKey.Section.allCases.compactMap { section in
+            let keys = KeymapCardKeys.keys(in: section).filter { key in
+                needle.isEmpty
+                    || KTextFold.fold(String(localized: String.LocalizationValue(key.titleKey))).contains(needle)
+                    || key.keys.contains { KTextFold.fold($0).contains(needle) }
+            }
+            return keys.isEmpty ? nil : (section, keys)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             KHairline()
             searchField
             KHairline()
-            if filteredGroups.isEmpty {
+            if filteredGroups.isEmpty && filteredCardSections.isEmpty {
                 emptyState
             } else {
                 list
@@ -122,6 +135,9 @@ struct KeymapReferenceView: View {
             VStack(alignment: .leading, spacing: Space.x3) {
                 ForEach(filteredGroups, id: \.scope) { group in
                     section(titleKey: scopeTitleKey(group.scope), entries: group.entries)
+                }
+                ForEach(filteredCardSections, id: \.section) { entry in
+                    cardSection(entry.section, keys: entry.keys)
                 }
             }
             .padding(Space.x4)
@@ -183,6 +199,30 @@ struct KeymapReferenceView: View {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         if index > 0 { KHairline() }
                         row(for: entry)
+                    }
+                }
+            }
+        }
+    }
+
+    private func cardSection(_ section: KeymapCardKey.Section, keys: [KeymapCardKey]) -> some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(String(localized: String.LocalizationValue(KeymapCardKeys.titleKey(section))))
+                .font(Typo.sectionHdr)
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .foregroundStyle(Tok.textTertiary)
+            KPanel(padding: Space.x2) {
+                VStack(spacing: 0) {
+                    ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
+                        if index > 0 { KHairline() }
+                        HStack {
+                            Text(String(localized: String.LocalizationValue(key.titleKey)))
+                                .font(Typo.row).foregroundStyle(Tok.textPrimary).lineLimit(1)
+                            Spacer(minLength: Space.x4)
+                            KeyCaps(key.keys)
+                        }
+                        .frame(height: Metrics.rowHeightDense)
                     }
                 }
             }

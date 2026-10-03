@@ -49,12 +49,15 @@ enum OptionChordDecider {
         // equivalent did not fire Cmd-/ for a user on the HR layout. Match what the layout PRODUCES
         // (charactersIgnoringModifiers), plus backslash's own physical key, which the keymap
         // sheet displays through the live layout (Ž on HR).
+        // Brackets (Cmd-] / Cmd-[) are on AltGr on a Croatian layout, so no plain Cmd chord there
+        // prints "]" / "[": they match the character where the layout has one, else the physical key
+        // position (ANSI codes 30 and 33), the same way backslash does.
         let symbolMatch = bindings.first(where: { b in
-            guard !b.binding.option, b.binding.key == "/" || b.binding.key == "backslash",
+            guard !b.binding.option, OptionChordDecider.symbolKeys.contains(b.binding.key),
                   OptionChordDecider.eventFlags(for: b.binding) == flags else { return false }
-            let symbol = b.binding.key == "/" ? "/" : "\\"
+            let symbol = b.binding.key == "backslash" ? "\\" : b.binding.key
             if characters == symbol { return true }
-            return b.binding.key == "backslash" && keyCode == 42
+            return OptionChordDecider.positionalSymbolKeyCodes[b.binding.key] == keyCode
         })
         guard let match = optionMatch ?? symbolMatch else { return .pass }
 
@@ -62,6 +65,14 @@ enum OptionChordDecider {
         guard keyWindowKind == .kronosMain else { return .standDown("wrong-window") }
         return .fire(registryID: match.id)
     }
+
+    /// Window-scope keys that are matched by the character the layout produces (or, for the keys in
+    /// `positionalSymbolKeyCodes`, by physical position) rather than by key code alone.
+    static let symbolKeys: Set<String> = ["/", "backslash", "[", "]"]
+
+    /// Keys whose printed character is layout-dependent AND that cannot be typed without a modifier
+    /// on every layout: matched by physical position as well. Cmd-/ stays character-only.
+    static let positionalSymbolKeyCodes: [String: UInt16] = ["backslash": 42, "]": 30, "[": 33]
 
     /// Letter/digit -> physical key code, INVERTED from `VirtualKeyCodes.letterAndDigitKeys`
     /// (HotkeyBinding.swift) rather than a second table — the same table `SymbolicHotkeyReader`

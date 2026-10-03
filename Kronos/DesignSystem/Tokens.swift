@@ -42,16 +42,37 @@ public enum Tok {
     // captions, idle glyphs, placeholders. Nothing decorative may be primary.
     public static let textPrimary   = Color(white: 1, opacity: 0.94)   // ~18:1, off pure white: no OLED glare
     public static let textSecondary = Color(white: 1, opacity: 0.66)   // ~8.7:1
-    public static let textTertiary  = Color(white: 1, opacity: 0.47)   // ~4.7:1, the AA floor
-    /// Non-text-critical decoration only — below the 4.5:1 body-text floor.
-    public static let textDisabled  = Color(white: 1, opacity: 0.30)
+    /// 0.52, not the bare 4.5:1 alpha over black (0.46): tertiary text also sits on hover,
+    /// selected, pressed and project-tint fills, and must keep 4.5:1 on every one of them.
+    /// Increase Contrast lifts it to 0.66 so it still clears 4.5:1 on the stronger IC selected
+    /// fill (`selectedFillIC`, hue x `selectedTintOpacityIC`). verify-contrast.mjs checks both.
+    public static let textTertiary  = KTone.white(0.52, increasedContrast: 0.66)
+    /// Glyph-only decoration (an empty-state icon, a hover check preview). Never readable text,
+    /// never a live control's label: below the 4.5:1 text floor and the 3:1 glyph floor.
+    /// Increase Contrast maps it to the secondary tone (0.66), like tertiary, so a disabled control or
+    /// a quiet glyph is never fainter than the lowest readable step.
+    public static let textDisabled  = KTone.white(0.30, increasedContrast: 0.66)
     /// Empty indicator steps (unfilled priority bars / effort dots). Decoration, never text.
-    public static let glyphEmpty    = Color(white: 1, opacity: 0.12)
+    /// 0.20, so an empty step is still perceivable next to a filled one.
+    public static let glyphEmpty    = Color(white: 1, opacity: 0.20)
     public static let textOnAccent  = Color.black   // label colour on the white primary fill
 
     // MARK: Focus / selection — white, not a hue. Second channel is a white bar/ring,
     // never colour, since colour is reserved for user data.
     public static let focusRing = Color(white: 1, opacity: 0.70)
+    /// Accent-hue focus ring / nest outline: the user's accent faded to this, so a 1 pt line reads
+    /// as a fine glow rather than a frame. 0.80 is the lowest single opacity at which every
+    /// `AccentPalette` swatch keeps `ringContrastFloor` over black (electric needs 0.79); a custom
+    /// colour that is darker still is lifted further by `KRing.opacity(for:)`. Increase Contrast
+    /// restores full opacity.
+    public static let ringAccentOpacity: Double = 0.80
+    /// Non-text indicators (focus ring, nest outline) must read at 3:1 against black at the
+    /// opacity they are actually drawn at (WCAG 1.4.11).
+    public static let ringContrastFloor: Double = 3.0
+    /// Faint accent wash over a keyboard-focused control (with the ring), and the slightly
+    /// stronger one over a drag-nest target. Over #000 these read as a tint, never a surface.
+    public static let focusTintOpacity: Double = 0.07
+    public static let nestTintOpacity: Double = 0.11
 
     // MARK: State fills — always paired with a second channel (border, bar, icon).
     public static let hoverFill    = Color.white.opacity(0.045)
@@ -59,10 +80,32 @@ public enum Tok {
     /// Selection = this fill + a 0.5 pt inner hairline (`selectedEdge`) + the 2 pt bar.
     public static let selectedFill = Color.white.opacity(0.07)
     public static let selectedEdge = Color.white.opacity(0.06)
+    /// A selected row in a hue (project colour or the user's accent): the hue over #000 at this
+    /// opacity, so it reads about as strong as the neutral `selectedFill` does. See `KSelection`.
+    public static let selectedTintOpacity: Double = 0.16
+    /// Increase Contrast versions of the selection fill: the neutral fill doubles, a hue fill is
+    /// 1.6x stronger. Tertiary text keeps 4.5:1 on both (verify-contrast.mjs).
+    public static let selectedFillIC = Color.white.opacity(0.14)
+    public static let selectedTintOpacityIC: Double = 0.256
     public static let dropFill     = Color.white.opacity(0.12)
     /// The resting fill of a quiet control (secondary button, field, segmented track):
     /// a control reads as a faint plate, not as an outlined box.
     public static let controlFill  = Color.white.opacity(0.055)
+    /// A key cap's plate (KKeyCap).
+    public static let keycapFill   = Color.white.opacity(0.08)
+    /// A passive tag's plate (KTag): a value, not a control, so no border and no hover.
+    public static let tagFill      = Color.white.opacity(0.06)
+    /// A quiet plate in a caller's hue (KBadge's subtle style, a project glyph's tile).
+    public static let tintSubtle: Double = 0.14
+    /// The selected segment's marker in the accent (KSegmented), so a white accent keeps the
+    /// former neutral 0.12 plate.
+    public static let markerTintOpacity: Double = 0.12
+    /// A drag's ghost insertion line: the accent faded so the solid line stays the stronger one.
+    public static let dropLineOpacity: Double = 0.55
+    /// The primary button's accent fill at rest, under the pointer and pressed.
+    public static let primaryFill: Double = 0.92
+    public static let primaryFillHover: Double = 1.0
+    public static let primaryFillPressed: Double = 0.80
     // No destructive/red token exists by design: Kronos never uses red (SPEC hard constraint 9).
     // A destructive menu item is distinguished by wording and position, not colour.
 
@@ -83,7 +126,10 @@ public enum Space {
 
 public enum Radius {
     public static let row: CGFloat     = 6
-    public static let chip: CGFloat    = 4
+    /// KChip and KTag, the same corner as a control so chips and buttons read as one family.
+    public static let chip: CGFloat    = 6
+    /// A key cap: smaller than a chip, it is a glyph-sized plate.
+    public static let keycap: CGFloat  = 3
     public static let card: CGFloat    = 10
     public static let control: CGFloat = 6
     public static let popover: CGFloat = 12
@@ -96,7 +142,13 @@ public enum Radius {
 // M 1.0 / L 1.1) — `static var` computed, not `let`, so a change takes effect on the next
 // render with no cache to invalidate. Weight/design/tracking never scale, only the point size.
 public enum Typo {
-    public static var title         : Font { .system(size: 20 * DSScale.text, weight: .semibold) }
+    /// macOS minimum text size (HIG). No token renders smaller at any text size.
+    public static let minPointSize: CGFloat = 10
+    /// `base` scaled by the text size, never below `minPointSize`. Every token whose base x the
+    /// smallest scale (S 0.92) would fall under the floor goes through this.
+    public static func size(_ base: CGFloat) -> CGFloat { max(minPointSize, base * DSScale.text) }
+
+    public static var title        : Font { .system(size: 20 * DSScale.text, weight: .semibold) }
     public static var heading       : Font { .system(size: 15 * DSScale.text, weight: .semibold) }
     public static var sectionHdr    : Font { .system(size: 11 * DSScale.text, weight: .semibold) }
     public static var row           : Font { .system(size: 13 * DSScale.text, weight: .regular) }
@@ -113,8 +165,10 @@ public enum Typo {
     public static var hero          : Font { .system(size: 22 * DSScale.text, weight: .semibold) }
     /// The supporting line under a hero (task title on the Now card).
     public static var lead          : Font { .system(size: 14 * DSScale.text, weight: .regular) }
-    /// Uppercase tracked micro label ("FIRST MOVE", "AREAS").
-    public static var caption       : Font { .system(size: 10 * DSScale.text, weight: .semibold) }
+    /// Uppercase tracked micro label ("FIRST MOVE", "AREAS"). 10 pt at S and M, 11 at L.
+    public static var caption       : Font { .system(size: size(10), weight: .semibold) }
+    /// A count inside a small round badge (the view-options rule count).
+    public static var badge         : Font { .system(size: size(10), weight: .bold).monospacedDigit() }
     /// Every count, date and duration: tabular numerals so columns do not jitter.
     public static var count         : Font { .system(size: 11 * DSScale.text, weight: .regular).monospacedDigit() }
     public static var rowTabular    : Font { .system(size: 13 * DSScale.text, weight: .regular).monospacedDigit() }
@@ -193,8 +247,29 @@ public enum Metrics {
     public static let nowCardPadding: CGFloat        = 24
     public static let nowCardComplete: CGFloat       = 30    // the Now card's Complete ring
     public static let propertyLabelColumn: CGFloat   = 96    // KPropertyRow label column
+    /// Vertical gap between inspector sections (title, first move, attributes, links, steps,
+    /// notes, details): one value on the 4 pt grid.
+    public static let inspectorSectionGap: CGFloat   = Space.x6
+    /// Interactive pill (KChip): equals `minHit`, so the chip is its own hit target.
+    public static let chipHeight: CGFloat            = 24
+    /// Passive pill (KTag): a value inside a row, never a target.
+    public static let tagHeight: CGFloat             = 16
+    public static let badgeHeight: CGFloat           = 18
+    /// The round count badge on an icon button (KViewOptionsIconButton).
+    public static let countBadge: CGFloat            = 14
+    public static let undoPillHeight: CGFloat        = 36
+    /// A long message truncates inside the pill instead of widening it.
+    public static let undoPillMaxWidth: CGFloat      = 560
+    /// The undo pill's countdown ring (and the check inside it).
+    public static let undoPillTimer: CGFloat         = 14
+    public static let undoPillTimerStroke: CGFloat   = 2
+    /// Colour swatch in a picker grid (inside a `minHit` target).
+    public static let swatch: CGFloat                = 20
     public static let strokeQuiet: CGFloat           = 1.25  // checkbox / Complete ring stroke
     public static let strokeHair: CGFloat            = 0.5   // selection's inner hairline
+    public static let hairline: CGFloat              = 1     // KHairline divider thickness
+    public static let ringWidth: CGFloat             = 1     // focus ring / nest outline hairline
+    public static let ringGap: CGFloat               = 2     // clear space between a control and its focus ring
     public static let ruleFieldColumn: CGFloat       = 92    // sort/filter rule row: icon + field name
     public static let ruleOperatorColumn: CGFloat    = 48    // "is" / "is not" / "nije": value column starts at one x
 
@@ -229,11 +304,28 @@ public enum Motion {
     public nonisolated static let done: Double       = 0.24
     public nonisolated static let barSlide: Double   = 0.16
     public nonisolated static let undoWindow: Double = 5.0
+    /// The one completion reward: a 1 pt accent ring around a just-checked checkbox grows from
+    /// 1x to `completeRippleScale` while fading from `completeRippleOpacity` to 0.
+    public nonisolated static let completeRipple: Double = 0.26
+    public nonisolated static let completeRippleScale: CGFloat = 1.7
+    public nonisolated static let completeRippleOpacity: Double = 0.6
+    /// Half-period of the Now card's attention pulse and of the tour's breathing spotlight,
+    /// and one tour step transition. Loops never run under Reduce Motion.
+    public nonisolated static let attentionLoop: Double = 1.2
+    public nonisolated static let breathLoop: Double = 1.6
+    public nonisolated static let tour: Double = 0.32
 
-    /// True when the user has Reduce Motion on. Re-read each call — it can change live.
+    /// True when the user has Reduce Motion on, or a test run asked for the reduced path with
+    /// `KRONOS_REDUCE_MOTION=1` (snapshots and the live test never flip the person's System
+    /// Settings). Re-read each call — it can change live.
     public static var reduceMotion: Bool {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        ProcessInfo.processInfo.environment["KRONOS_REDUCE_MOTION"] == "1"
+            || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
+
+    /// Whether the completion ripple runs: never under Reduce Motion (the check still appears,
+    /// only the spatial ring is skipped).
+    public static func ripples(reduceMotion: Bool) -> Bool { !reduceMotion }
 
     /// Every animation in the app goes through this, so Reduce Motion is one switch.
     public static func curve(_ duration: Double) -> Animation {
@@ -251,6 +343,8 @@ public enum Motion {
     public static var complete: Animation { quart(medium) }
     /// Popover / menu content: scale 0.98 -> 1 with a fade (see `kPopoverEntrance`).
     public static var popover: Animation  { quart(0.16) }
+    /// The completion ripple's growth and fade.
+    public static var ripple: Animation   { quart(completeRipple) }
 }
 
 extension Color {

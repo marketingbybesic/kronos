@@ -18,15 +18,18 @@ enum PermissionsSnapshots {
             "permissions.mixed": AnyView(preview(statuses: [
                 .calendar: .granted, .notes: .denied, .reminders: .denied,
             ])),
+            // A row acted on in this window shows its status even before macOS has an answer.
+            "permissions.acted": AnyView(preview(statuses: [:], actedOn: [.selectedText])),
             "permissions.granted": AnyView(preview(statuses: [
                 .calendar: .granted, .reminders: .granted, .notes: .granted, .launchAtLogin: .granted, .claudeAccess: .granted,
             ])),
         ]
     }
 
-    private static func preview(statuses: [PermissionKind: PermissionStatus]) -> some View {
+    private static func preview(statuses: [PermissionKind: PermissionStatus],
+                                actedOn: Set<PermissionKind> = []) -> some View {
         let fixture = FixturePermissionsStatus(statuses: statuses)
-        let permModel = PermissionsModel(statusProvider: fixture, requestCalendarAccess: {})
+        let permModel = PermissionsModel(statusProvider: fixture, requestCalendarAccess: {}, actedOn: actedOn)
         return PermissionsWindow(model: permModel)
             .fixedSize()
     }

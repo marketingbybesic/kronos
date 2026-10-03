@@ -33,6 +33,7 @@ enum ListSnapshots {
         [
             "list.viewoptions": AnyView(viewOptionsContent(model: model)),
             "list.rules": AnyView(rulesList(model: model)),
+            "list.sorthint": AnyView(sortHintList(model: model)),
             "list.empty": AnyView(emptyList(model: model)),
             "list.columns": AnyView(columnsList(model: model)),
             "list.saveview": AnyView(saveViewSheet()),
@@ -42,7 +43,10 @@ enum ListSnapshots {
             "list.bulkpanel": AnyView(bulkPanel(model: model)),
             "list.waiting": AnyView(waitingWithPin(model: model)),
             "list.undopill": AnyView(undoPill()),
-        ]
+            "list.children": AnyView(ListChildSnapshots.list(model: model)),
+            "list.children.inspected": AnyView(ListChildSnapshots.inspected(model: model)),
+        ].merging(ListStateSnapshots.screens(model: model)) { first, _ in first }
+            .merging(ListKeySnapshots.screens(model: model)) { first, _ in first }
     }
 
     /// Rows 2-4 of All selected (anchor = row 3) so the floating bulk bar renders over the list.
@@ -51,6 +55,8 @@ enum ListSnapshots {
             .onAppear {
                 model.setOptions(.default, for: .all)
                 model.scope = .all
+                _ = model.store.label(named: "Home")   // the bar offers Labels once a label exists
+                model.didMutate()
                 let rows = ListContext(model: model).rows
                 guard rows.count > 4 else { return }
                 model.selectedTaskID = rows[2].id
@@ -160,6 +166,17 @@ enum ListSnapshots {
             .onAppear { seedRules(model, scope: model.scope) }
     }
 
+    /// A sorted list right after a task was dropped on it: the one-line hint and its action under the rules bar.
+    private static func sortHintList(model: AppModel) -> some View {
+        TaskListScreen(model: model)
+            .onAppear {
+                var opts = model.options(for: model.scope)
+                opts.sort = [.asc(.title)]
+                model.setOptions(opts, for: model.scope)
+                ListSortDragHint.shared.raise(for: model.scope)
+            }
+    }
+
     private static func emptyList(model: AppModel) -> some View {
         TaskListScreen(model: model)
             .onAppear {
@@ -203,16 +220,17 @@ enum ListSnapshots {
                 // which is real content, not padding, but this screen also runs in Calm —
                 // which hides the header's live count — so every row pulling its own
                 // weight is what keeps this at a comfortable margin over the floor rather
-                // than right on it.
+                // than right on it. Priorities are high or urgent only: calm rows draw the bars at rest
+                // for those two levels alone, and the oracle measures the bars in every row.
                 let specs: [(title: String, priority: KPriority, effort: KEffort, due: Int?, subtasks: Int, recurring: Bool)] = [
                     ("Col row: all attrs set",  .high,   .m,    today + 2, 0, false),
-                    ("Col row: priority only",  .medium, .xs,   nil,       0, false),
-                    ("Col row: overdue pill",   .low,    .s,    today - 3, 0, false),
+                    ("Col row: priority only",  .urgent, .xs,   nil,       0, false),
+                    ("Col row: overdue pill",   .high,   .s,    today - 3, 0, false),
                     ("Col row: no deadline set", .urgent, .s,    nil,      0, false),
-                    ("Col row: has subtasks",   .medium, .m,    today + 5, 2, true),
+                    ("Col row: has subtasks",   .urgent, .m,    today + 5, 2, true),
                     ("Col row: effort no due",  .high,   .l,    nil,       0, false),
                     ("Col row: overdue again",  .urgent, .m,    today - 1, 0, false),
-                    ("Col row: subtasks again", .low,    .xl,   today + 9, 3, false),
+                    ("Col row: subtasks again", .high,   .xl,   today + 9, 3, false),
                 ]
                 // Pinned above every other manual-order task (min existing index - 1024*N),
                 // so these 5 are rows 1-5 regardless of what else the store contains.
@@ -227,7 +245,7 @@ enum ListSnapshots {
                     }
                     for s in 0..<spec.subtasks {
                         model.store.addSubtaskNoUndo(t.id, title: "Step \(s + 1)")
-                        if s == 0 { model.store.toggleSubtaskNoUndo(t.orderedSubtasks.first?.id ?? UUID(), isDone: true) }
+                        if s == 0 { model.store.toggleSubtaskNoUndo(t.orderedChildren.first?.id ?? UUID(), isDone: true) }
                     }
                 }
                 model.didMutate()

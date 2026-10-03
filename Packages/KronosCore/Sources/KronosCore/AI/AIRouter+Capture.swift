@@ -51,7 +51,7 @@ extension AIRouter {
             "TODAY_ISO": Day.iso(today),
             "PROJECT_NAMES": projectNames.joined(separator: ", "),
             "LABEL_NAMES": "",
-            "EXISTING_TITLES": existingOpenTitles.joined(separator: ", "),
+            "EXISTING_TITLES": EgressLimits.cappedTitles(existingOpenTitles).joined(separator: ", "),
             "NOTES_6000": PrivacyRedactor.sanitizeCapture(text)
         ])
 
@@ -133,7 +133,7 @@ extension AIRouter {
             "LANG_NAME": language.name, "LANG": language.rawValue
         ])
         let user = TemplateFill.fill(PromptTemplates.breakdownUserTemplate, [
-            "TITLE": title, "NOTES_300": PrivacyRedactor.sanitizeNotes(notes), "EST": "30"
+            "TITLE": PrivacyRedactor.redact(title), "NOTES_300": PrivacyRedactor.sanitizeNotes(notes), "EST": "30"
         ])
         let request = AIRequest(model: candidates.first?.client.modelID ?? "",
                                 messages: [.system(system), .user(user)], kind: .breakdown)

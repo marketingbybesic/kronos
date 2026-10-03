@@ -77,16 +77,16 @@ extension TaskStore {
                                revert: @escaping (KArea) -> Void) {
         apply(a)
         a.updatedAt = Date()
-        undoStack.append((name, { [weak self] in
+        undoStack.append(name, touching: [a.id]) { [weak self] in
             guard let self else { return }
             revert(a)
             self.saveContext()
-            self.redoStack.append((name, { [weak self] in
+            self.redoStack.append(name, touching: [a.id]) { [weak self] in
                 guard let self else { return }
                 apply(a)
                 self.saveContext()
-            }))
-        }))
+            }
+        }
         redoStack.removeAll()
         saveContext()
     }
@@ -140,16 +140,16 @@ extension TaskStore {
             v.updatedAt = Date()
         }
         apply(after)
-        undoStack.append(("Edit View", { [weak self] in
+        undoStack.append("Edit View", touching: [id]) { [weak self] in
             guard let self else { return }
             apply(before)
             self.saveContext()
-            self.redoStack.append(("Edit View", { [weak self] in
+            self.redoStack.append("Edit View", touching: [id]) { [weak self] in
                 guard let self else { return }
                 apply(after)
                 self.saveContext()
-            }))
-        }))
+            }
+        }
         redoStack.removeAll()
         saveContext()
     }
@@ -189,22 +189,24 @@ extension TaskStore {
     public func reorderSavedView(_ id: UUID, before targetID: UUID?) {
         let views = allSavedViews()
         guard let moving = views.first(where: { $0.id == id }) else { return }
-        let newIdx = betweenIndex(for: id, before: targetID,
-                                  in: views.map { (id: $0.id, idx: $0.sortIndex) })
-        let oldIdx = moving.sortIndex
-        guard oldIdx != newIdx else { return }
-        moving.sortIndex = newIdx
-        moving.updatedAt = Date()
-        undoStack.append(("Reorder Views", { [weak self] in
+        let plan = placement(for: id, before: targetID,
+                             in: views.map { (id: $0.id, idx: $0.sortIndex) })
+        guard moving.sortIndex != plan.index || !plan.neighbours.isEmpty else { return }
+        // The moving view plus, only when the gap ran out, its two neighbours (one step).
+        var changes: [(view: KSavedView, old: Double, new: Double)] = [(moving, moving.sortIndex, plan.index)]
+        for v in views { if let idx = plan.neighbours[v.id] { changes.append((v, v.sortIndex, idx)) } }
+        let touched = Set(changes.map(\.view.id))
+        for c in changes { c.view.sortIndex = c.new; c.view.updatedAt = Date() }
+        undoStack.append("Reorder Views", touching: touched) { [weak self] in
             guard let self else { return }
-            moving.sortIndex = oldIdx
+            for c in changes { c.view.sortIndex = c.old }
             self.saveContext()
-            self.redoStack.append(("Reorder Views", { [weak self] in
+            self.redoStack.append("Reorder Views", touching: touched) { [weak self] in
                 guard let self else { return }
-                moving.sortIndex = newIdx
+                for c in changes { c.view.sortIndex = c.new }
                 self.saveContext()
-            }))
-        }))
+            }
+        }
         redoStack.removeAll()
         saveContext()
     }

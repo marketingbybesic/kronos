@@ -1,7 +1,7 @@
 // Kronos/Detail/InspectorCoachSection.swift — the triage fill line + Re-triage control, and
 // the Apple Note link + context-link chips.
 //
-// Triage: `AppDelegate.shared?.autoTriage` is a frozen seam (Kronos/App/**) — nil during a
+// Triage: `AutoTriage.live` (the running service) is nil during a
 // snapshot run, so `inspector.triaged`'s fixture renders this view with an injected
 // `TriageFillDisplay` rather than through the live service. The real screen always reads the
 // live service and passes nil here.
@@ -77,7 +77,11 @@ struct InspectorTriageFillRow: View {
 
     private var fill: TriageFillDisplay? {
         if let previewFill { return previewFill }
-        guard let f = AppDelegate.shared?.autoTriage?.lastFill[task.id] else { return nil }
+        // The service is not observable: reading the model's change counter makes this row
+        // re-render whenever the store changes (a Discard, a fresh fill), so the line never
+        // outlives the record it was drawn from.
+        _ = model.version
+        guard let f = AutoTriage.live?.lastFill[task.id] else { return nil }
         return TriageFillDisplay(fields: f.fields, reason: f.reason, isNeighbourSourced: f.isNeighbourSourced)
     }
 
@@ -91,11 +95,17 @@ struct InspectorTriageFillRow: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Space.x2)
-                Button(String(localized: "triage.diff.discard")) { undo() }
-                    .buttonStyle(.plain)
-                    .font(Typo.metaStrong)
-                    .foregroundStyle(Tok.textPrimary)
-                    .frame(minHeight: Metrics.minHit)
+                // Frame and contentShape live INSIDE the label: after `.buttonStyle(.plain)` they
+                // would be a dead wrapper and only the text's own pixels could be pressed.
+                Button(action: discard) {
+                    Text(String(localized: "triage.diff.discard"))
+                        .font(Typo.metaStrong)
+                        .foregroundStyle(Tok.textPrimary)
+                        .frame(minHeight: Metrics.minHit)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .uiTestAnchor("inspector.triage.discard")
             }
             .padding(.top, Space.x1)
         }
@@ -125,14 +135,14 @@ struct InspectorTriageFillRow: View {
         }
     }
 
-    /// One undo step: `applyTriage` wraps every field it writes in a single `groupedUndo`
-    /// (TaskStore+Triage.swift), so the store's own generic `undo()` — the same call
-    /// `InspectorFooter`'s delete-undo and the list's undo pill already use — undoes exactly
-    /// that step, whatever it touched, and nothing more.
-    private func undo() {
-        model.store.undo()
+    /// Clears exactly the fields the last triage filled (the store keeps that record), one undo
+    /// step; anything edited since, the title included, stays.
+    private func discard() {
+        model.store.revertTriageFill(task: task.id)
+        // Drop the record before the refresh: the line renders from it, so refreshing first would
+        // leave "Filled: ..." on screen until the next unrelated change.
+        AutoTriage.live?.clearFill(task.id)
         model.didMutate()
-        AppDelegate.shared?.autoTriage?.clearFill(task.id)
     }
 }
 
@@ -165,13 +175,13 @@ struct InspectorRetriageControl: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .animation(Motion.hover, value: isHovering)
-        .disabled(AppDelegate.shared?.autoTriage == nil)
-        .help(String(localized: "triage.retriage"))
+        .disabled(AutoTriage.live == nil)
+        .kTooltip(String(localized: "detail.help.resort"))
     }
 
     private func retriage() {
         let overwrite = NSEvent.modifierFlags.contains(.option)
-        AppDelegate.shared?.autoTriage?.triage(task.id, fillOnly: !overwrite)
+        AutoTriage.live?.triage(task.id, fillOnly: !overwrite)
     }
 }
 
@@ -248,7 +258,7 @@ struct InspectorNoteLinkRow: View {
                             .font(Typo.row).foregroundStyle(Tok.textPrimary).lineLimit(1)
                             .layoutPriority(1)
                         Spacer(minLength: Space.x2)
-                        Button(String(localized: "detail.calendar.unlink")) { unlink() }
+                        Button { unlink() } label: { Text(String(localized: "detail.calendar.unlink")).kHitTarget() }
                             .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textTertiary).fixedSize()
                     }
                     if !linkedSummaryLines.isEmpty {
@@ -259,7 +269,7 @@ struct InspectorNoteLinkRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.leading, Metrics.iconS + Space.x2)
                     }
-                    Button(String(localized: "detail.notelink.open")) { openNote(linkedNoteID) }
+                    Button { openNote(linkedNoteID) } label: { Text(String(localized: "detail.notelink.open")).kHitTarget() }
                         .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary)
                         .padding(.leading, Metrics.iconS + Space.x2)
                         .padding(.top, Space.x1)

@@ -11,6 +11,7 @@ import Foundation
 import SwiftUI
 import KeyboardShortcuts
 import Carbon.HIToolbox
+import KronosCore
 
 /// Where a binding is enforced. `global` bindings work anywhere on the Mac (KeyboardShortcuts);
 /// every other scope is only live while its part of the window has focus — plain SwiftUI
@@ -102,7 +103,7 @@ extension HotkeyBinding {
         "s": .s, "t": .t, "u": .u, "v": .v, "w": .w, "x": .x, "y": .y, "z": .z,
         "0": .zero, "1": .one, "2": .two, "3": .three, "4": .four,
         "5": .five, "6": .six, "7": .seven, "8": .eight, "9": .nine,
-        "space": .space, "backslash": .backslash,
+        "space": .space, "backslash": .backslash, "return": .return,
     ]
 }
 
@@ -153,13 +154,23 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "global.showordo", titleKey: "hotkey.global.showordo", scope: .global,
                     defaultBinding: HotkeyBinding("o", option: true, control: true), isRebindable: true,
                     registrationSite: "Kronos/QuickAdd/QuickAddController.swift"),
+        // Complete the focus task (the pin, else the first eligible row of the list shown) from any
+        // app, with the completion sound and the undo pill. Rectangle ships Maximize on the same
+        // chord: an acknowledged clash (scripts/verify-hotkeys.mjs), named in Settings when installed.
+        HotkeyEntry(id: "global.completecurrent", titleKey: "hotkey.global.completecurrent", scope: .global,
+                    defaultBinding: HotkeyBinding("return", option: true, control: true), isRebindable: true,
+                    registrationSite: "Kronos/Hotkeys/GlobalTaskHotkeys.swift"),
+        // Pick one (the one-task chooser) from any app: brings Kronos forward with the card open.
+        HotkeyEntry(id: "global.pickone", titleKey: "hotkey.global.pickone", scope: .global,
+                    defaultBinding: HotkeyBinding("p", option: true, control: true), isRebindable: true,
+                    registrationSite: "Kronos/Hotkeys/GlobalTaskHotkeys.swift"),
 
         // MARK: Window (menu commands — KronosApp.swift)
         HotkeyEntry(id: "window.newtask", titleKey: "menu.file.newtask", scope: .window,
-                    defaultBinding: HotkeyBinding("n", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("n", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.find", titleKey: "menu.edit.find", scope: .window,
-                    defaultBinding: HotkeyBinding("f", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("f", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.undo", titleKey: "menu.edit.undo", scope: .window,
                     defaultBinding: HotkeyBinding("z", command: true), isRebindable: false,
@@ -176,6 +187,15 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "window.sidebar", titleKey: "menu.view.sidebar", scope: .window,
                     defaultBinding: HotkeyBinding("backslash", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
+        // Cmd-] / Cmd-[: nest the selected task under the task above, promote the focused subtask.
+        // The brackets sit behind AltGr on a Croatian layout, so OptionChordDecider matches them by
+        // character (US) or by the physical key position (HR: Cmd-Dj / Cmd-S-caron).
+        HotkeyEntry(id: "window.nest", titleKey: "menu.task.nest", scope: .window,
+                    defaultBinding: HotkeyBinding("]", command: true), isRebindable: true,
+                    registrationSite: "Kronos/Commands/NestingCommands.swift"),
+        HotkeyEntry(id: "window.unnest", titleKey: "menu.task.unnest", scope: .window,
+                    defaultBinding: HotkeyBinding("[", command: true), isRebindable: true,
+                    registrationSite: "Kronos/Commands/NestingCommands.swift"),
         HotkeyEntry(id: "window.chroma.focus", titleKey: "chroma.mode.focus", scope: .window,
                     defaultBinding: HotkeyBinding("1", control: true, command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
@@ -192,31 +212,31 @@ public enum HotkeyRegistry {
                     defaultBinding: HotkeyBinding("n", shift: true, command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.palette", titleKey: "menu.view.palette", scope: .window,
-                    defaultBinding: HotkeyBinding("k", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("k", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.keymap", titleKey: "settings.shortcuts.all", scope: .window,
-                    defaultBinding: HotkeyBinding("/", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("/", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.timeblocks", titleKey: "timeblocks.title", scope: .window,
                     defaultBinding: HotkeyBinding("b", option: true, command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.1", titleKey: "sidebar.inbox", scope: .window,
-                    defaultBinding: HotkeyBinding("1", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("1", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.2", titleKey: "sidebar.today", scope: .window,
-                    defaultBinding: HotkeyBinding("2", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("2", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.3", titleKey: "sidebar.next7", scope: .window,
-                    defaultBinding: HotkeyBinding("3", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("3", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.4", titleKey: "sidebar.waiting", scope: .window,
-                    defaultBinding: HotkeyBinding("4", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("4", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.5", titleKey: "sidebar.someday", scope: .window,
-                    defaultBinding: HotkeyBinding("5", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("5", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.goto.6", titleKey: "sidebar.all", scope: .window,
-                    defaultBinding: HotkeyBinding("6", command: true), isRebindable: false,
+                    defaultBinding: HotkeyBinding("6", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
 
         // MARK: List (TaskListScreen.swift; live only while the list has focus)
@@ -238,8 +258,46 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "list.open", titleKey: "hotkey.list.open", scope: .list,
                     defaultBinding: HotkeyBinding("return"), isRebindable: false,
                     registrationSite: "Kronos/List/TaskListScreen.swift"),
+        // Range selection from the keyboard: grows or shrinks the selection from the anchor.
+        HotkeyEntry(id: "list.extend.up", titleKey: "hotkey.list.extendup", scope: .list,
+                    defaultBinding: HotkeyBinding("up", shift: true), isRebindable: false,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.extend.down", titleKey: "hotkey.list.extenddown", scope: .list,
+                    defaultBinding: HotkeyBinding("down", shift: true), isRebindable: false,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        // The single-key grammar (Kronos/List/ListKeyGrammar.swift), also used by triage cards.
+        HotkeyEntry(id: "list.plan.today", titleKey: "hotkey.list.plantoday", scope: .list,
+                    defaultBinding: HotkeyBinding("t"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.plan.tomorrow", titleKey: "hotkey.list.plantomorrow", scope: .list,
+                    defaultBinding: HotkeyBinding("t", shift: true), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.due", titleKey: "hotkey.list.due", scope: .list,
+                    defaultBinding: HotkeyBinding("d"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.project", titleKey: "hotkey.list.project", scope: .list,
+                    defaultBinding: HotkeyBinding("p"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
         HotkeyEntry(id: "list.snooze", titleKey: "hotkey.list.snooze", scope: .list,
                     defaultBinding: HotkeyBinding("h"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.effort.small", titleKey: "hotkey.list.effort.small", scope: .list,
+                    defaultBinding: HotkeyBinding("s"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.effort.medium", titleKey: "hotkey.list.effort.medium", scope: .list,
+                    defaultBinding: HotkeyBinding("m"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.effort.large", titleKey: "hotkey.list.effort.large", scope: .list,
+                    defaultBinding: HotkeyBinding("l"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.breakdown", titleKey: "hotkey.list.breakdown", scope: .list,
+                    defaultBinding: HotkeyBinding("b"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.waiting", titleKey: "hotkey.list.waiting", scope: .list,
+                    defaultBinding: HotkeyBinding("w"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.someday", titleKey: "hotkey.list.someday", scope: .list,
+                    defaultBinding: HotkeyBinding("y"), isRebindable: true,
                     registrationSite: "Kronos/List/TaskListScreen.swift"),
         HotkeyEntry(id: "list.focuspin", titleKey: "hotkey.list.focuspin", scope: .list,
                     defaultBinding: HotkeyBinding("f"), isRebindable: true,
@@ -269,18 +327,20 @@ public enum HotkeyRegistry {
     private static let overrideKey = "kronos.hotkeys.overrides.v1"
     private static let migratedQuickAddKey = "kronos.hotkeys.migratedQuickAddDefault.v1"
 
-    private static var isHermetic: Bool { ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil }
+    private static var isHermetic: Bool { KronosEnv.isHermetic }
 
+    /// Overrides live in `KronosEnv.defaults`: the standard domain in a normal launch, a scratch
+    /// suite under the live test, snapshots or a custom store dir, so a test that rebinds a key
+    /// never touches the person's shortcuts.
     private static func loadOverrides() -> [String: HotkeyBinding] {
-        guard !isHermetic, let data = UserDefaults.standard.data(forKey: overrideKey),
+        guard let data = KronosEnv.defaults.data(forKey: overrideKey),
               let v = try? JSONDecoder().decode([String: HotkeyBinding].self, from: data) else { return [:] }
         return v
     }
 
     private static func saveOverrides(_ overrides: [String: HotkeyBinding]) {
-        guard !isHermetic else { return }
         if let data = try? JSONEncoder().encode(overrides) {
-            UserDefaults.standard.set(data, forKey: overrideKey)
+            KronosEnv.defaults.set(data, forKey: overrideKey)
         }
     }
 
@@ -303,6 +363,30 @@ public enum HotkeyRegistry {
     public static func resetToDefaults() {
         saveOverrides([:])
         NotificationCenter.default.post(name: changed, object: nil)
+    }
+
+    /// The Control scheme preset (HotkeyControlScheme): every rebindable window shortcut with
+    /// Command moves to Control wherever that chord is free, written as ordinary overrides (so
+    /// Reset to defaults undoes it). `taken` = chords macOS holds right now; Settings passes
+    /// `SymbolicHotkeyReader.enabledDefaults()`. Returns the ids that moved.
+    @discardableResult
+    public static func applyControlScheme(taken: Set<HotkeyBinding>) -> [String] {
+        let inputs = entries.map { e in
+            HotkeyControlScheme.Input(id: e.id, isWindowScope: e.scope == .window, isRebindable: e.isRebindable,
+                                      binding: current(for: e.id) ?? e.defaultBinding)
+        }
+        let moved = HotkeyControlScheme.preset(inputs, taken: taken)
+        guard !moved.isEmpty else { return [] }
+        var overrides = loadOverrides()
+        for (id, binding) in moved { overrides[id] = binding }
+        saveOverrides(overrides)
+        NotificationCenter.default.post(name: changed, object: nil)
+        return moved.keys.sorted()
+    }
+
+    /// The live system chords the preset must not take (enabled macOS symbolic hotkeys).
+    public static func systemTakenBindings() -> Set<HotkeyBinding> {
+        Set(SymbolicHotkeyReader.enabledDefaults().map(\.binding))
     }
 
     /// One-time silent migration: a user who never touched the old ⌥Space quick-add default

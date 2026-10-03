@@ -48,7 +48,7 @@ struct SecretStoringTests {
         #expect(store.readCount("example") == 2)
     }
 
-    // MARK: - KeyProviding (GhostCLIClient's seam) resolves through the app-owned store
+    // MARK: - KeyProviding (OpenAICompatibleClient's seam) resolves through the app-owned store
 
     @Test func keychainKeyProviderReadsThroughTheInjectedStore() throws {
         let store = FakeSecretStore()
@@ -79,14 +79,14 @@ struct SecretStoringTests {
         #expect(!legacy.existsLegacy(service: "kronos_mcp_token", account: "token"))
     }
 
-    // MARK: - GhostCLIClient reads the key exactly once per request, through the injected fake
+    // MARK: - OpenAICompatibleClient reads the key exactly once per request, through the injected fake
 
     @Test func ghostCLIClientReadsKeyOnceOnSendNeverBeforeOrAfterConstruction() async throws {
         let secretStore = FakeSecretStore()
         try secretStore.write("sk-fake", name: "ai.ghostcli")
         let keyProvider = KeychainKeyProvider(store: secretStore)
         let transport = FakeHTTPTransport(responseJSON: #"{"choices":[{"message":{"content":"{\"ok\":true}"}}]}"#)
-        let client = GhostCLIClient(modelID: "claude-sonnet-5", keyProvider: keyProvider,
+        let client = OpenAICompatibleClient(modelID: "claude-sonnet-5", keyProvider: keyProvider,
                                      keyService: "ai.ghostcli", transport: transport)
         // Constructing the client must not itself read anything.
         #expect(secretStore.readCount("ai.ghostcli") == 0)
@@ -95,7 +95,7 @@ struct SecretStoringTests {
         _ = try await client.send(request)
         #expect(secretStore.readCount("ai.ghostcli") == 1, "exactly one read for the first request")
         _ = try? await client.send(request)
-        // GhostCLIClient does not cache internally (each call is a fresh struct-level send);
+        // OpenAICompatibleClient does not cache internally (each call is a fresh struct-level send);
         // this documents that fact rather than asserting a cache that doesn't exist here —
         // the caching-after-first-read requirement belongs to the launch-path self-test's
         // MCPServer, which owns a token's lifetime across many requests.

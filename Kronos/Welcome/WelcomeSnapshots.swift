@@ -3,20 +3,18 @@
 // whole registry keeps it out of the shipped binary's strings/symbols.
 #if !RELEASE
 // Kronos/Welcome/WelcomeSnapshots.swift
-// Extra named screens for Kronos/Shared/SnapshotHarness.swift: one per tour page, keyed
-// `welcome.1`…`welcome.7`, each opened directly to its own page rather than the first — a
-// gate never has to click "Next" six times to prove page 7 renders.
+// Extra named screens for Kronos/Shared/SnapshotHarness.swift: the intro, the permission
+// explainer, the "Learn Kronos" card in its states, and the guided tour step by step over the
+// real shell. A gate never has to click "Next" to prove step 7 renders.
 import SwiftUI
 
 @MainActor
 enum WelcomeSnapshots {
     static func screens(model: AppModel) -> [String: AnyView] {
         var screens: [String: AnyView] = [:]
-        for page in WelcomePages.all {
-            screens["welcome.\(page.id)"] = AnyView(preview(pageIndex: page.id - 1))
-        }
-        // Wave 19 "Start here": the intro, and the card on the real list in four states.
+        // The intro, the permission explainer, and the card on the real list in its states.
         screens["onboarding.intro"] = AnyView(OnboardingIntroView().fixedSize())
+        screens["onboarding.primer"] = AnyView(PermissionsPrimerView().fixedSize())
         let t0 = Date(timeIntervalSinceNow: -600)
         let basics = Quest.basics
         screens["onboarding.card.start"] = card(model, OnboardingState(startedAt: t0))
@@ -24,12 +22,14 @@ enum WelcomeSnapshots {
         screens["onboarding.card.expanded"] = card(model, OnboardingState(startedAt: t0, done: [.capture, .firstStep]), expanded: true)
         screens["onboarding.card.power"] = card(model, OnboardingState(startedAt: t0, done: basics + [.palette]))
         screens["onboarding.card.all"] = card(model, OnboardingState(startedAt: t0, done: [.capture, .seeNext, .impuls]), expanded: true)
-        // Wave 21 guided tour over the real shell, one screen per interesting step.
-        for (name, index) in [("lists", 0), ("add", 1), ("now", 2), ("inspector", 4), ("stuck", 5),
+        screens["onboarding.card.hint"] = card(model, OnboardingState(startedAt: t0, done: [.capture], captureHintOpen: true))
+        // The guided tour over the real shell, one screen per step. On an empty store the tour
+        // makes its own sample task exactly as it does for a first-run user.
+        for (name, index) in [("lists", 0), ("add", 1), ("now", 2), ("finish", 3), ("inspector", 4), ("stuck", 5),
                               ("menubar", 6), ("learn", 7)] {
             screens["tour.\(name)"] = AnyView(AppShellView(model: model).onAppear {
                 OnboardingCenter.shared.setFixture(OnboardingState(startedAt: t0, done: [.capture]))
-                TourCenter.shared.setFixture(index: index)
+                TourCenter.shared.setFixture(index: index, model: model, sample: model.store.allTasks().isEmpty)
             })
         }
         return screens
@@ -50,15 +50,6 @@ enum WelcomeSnapshots {
         }
         .background(Tok.bg)
         .onAppear { OnboardingCenter.shared.setFixture(state, justDone: justDone) })
-    }
-
-    private static func preview(pageIndex: Int) -> some View {
-        let welcomeModel = WelcomeModel()
-        return WelcomeWindow(model: welcomeModel)
-            .onAppear {
-                while welcomeModel.index < pageIndex { welcomeModel.next() }
-            }
-            .fixedSize()
     }
 }
 #endif

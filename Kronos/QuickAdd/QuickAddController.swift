@@ -1,7 +1,12 @@
 // Kronos/QuickAdd/QuickAddController.swift
 // Global-hotkey quick-add panel (spec §4): a non-activating NSPanel over any app,
 // running the one QuickAddParser grammar live and showing its result as chips.
-// Return creates via `model.store.create`, posts the undo pill and keeps the panel open (rapid dump); Esc or click-outside closes and returns focus to the previous app.
+// Return creates and closes (focus goes back to the app it was opened over); Command-Return
+// creates and stays open for the next thought; Option-Return creates and keeps the pills;
+// Return on an empty field closes (QuickAddPolicy). Esc closes and returns focus too; a click
+// into another app closes WITHOUT re-activating the previous app (that click chose the focus).
+// Opened over another app, the panel reads that app's context once (QuickAddContextLive.swift):
+// selected text or a page title / mail subject as the starting title, link chips to attach.
 
 import AppKit
 import SwiftUI
@@ -52,8 +57,21 @@ final class QuickAddController: NSObject, NSWindowDelegate {
     let model: AppModel
 
     private var panel: NSPanel?
+    /// The entry field of the panel as last opened (text, pills, suggestions). Read by the live UI test.
+    private(set) var entry: EntryFieldModel?
+    /// The context chips of the panel as last opened. Read by the live UI test.
+    private(set) var context: QuickAddContextState?
     private var previousApp: NSRunningApplication?
     private var hotkeyNotice: String?
+    /// Where context is read from. Nothing is read under a snapshot, the live UI test or a
+    /// scratch store; the live test injects a scripted environment and `frontAppOverride`.
+    var contextEnvironment: QuickAddContextEnvironment = KronosEnv.isHermetic
+        ? NullQuickAddContextEnvironment() : LiveQuickAddContextEnvironment()
+    /// Live UI test only: the app the panel pretends it was opened over.
+    var frontAppOverride: QuickAddFrontApp?
+    /// How many tasks quick add has created so far (the legend opens by itself for the first
+    /// few, QuickAddPolicy.legendAutoOpenAdds).
+    static let addsCountKey = "kronos.quickadd.addsCount"
 
     init(model: AppModel) { self.model = model }
 
@@ -131,12 +149,38 @@ final class QuickAddController: NSObject, NSWindowDelegate {
     }
 
     func toggle() {
-        if let panel, panel.isVisible { close(); return }
+        if let panel, panel.isVisible { close(.finished); return }
         open()
+    }
+
+    /// The app the panel opens over, for the context reader; nil over Kronos itself.
+    private func frontApp(kronosIsFrontmost: Bool) -> QuickAddFrontApp? {
+        if let frontAppOverride { return frontAppOverride }
+        guard !kronosIsFrontmost, let app = previousApp else { return nil }
+        return QuickAddFrontApp(bundleID: app.bundleIdentifier, pid: app.processIdentifier,
+                                name: app.localizedName ?? app.bundleIdentifier ?? "")
+    }
+
+    /// The destination pill a fresh panel starts with: the project or area list Kronos itself is
+    /// showing, when Kronos is the app the panel was opened over. Over any other app, or on a
+    /// fixed list (Inbox, Today ...), no pill: a task with no destination keeps its old meaning.
+    static func prefilledPills(scope: ListScope, store: TaskStore, kronosIsFrontmost: Bool) -> [EntryPill] {
+        guard kronosIsFrontmost else { return [] }
+        switch scope {
+        case .project(let id):
+            guard let p = store.allProjects().first(where: { $0.id == id }) else { return [] }
+            return [.destination(EntryDestination(kind: .project, name: p.name, id: p.id))]
+        case .area(let id):
+            guard let a = store.allAreas().first(where: { $0.id == id }) else { return [] }
+            return [.destination(EntryDestination(kind: .area, name: a.name, id: a.id))]
+        default:
+            return []
+        }
     }
 
     private func open() {
         previousApp = NSWorkspace.shared.frontmostApplication
+        let kronosIsFrontmost = previousApp?.processIdentifier == ProcessInfo.processInfo.processIdentifier
         let panel = self.panel ?? makePanel()
         self.panel = panel
         // Fresh root per open: clears text/legend/waiting, re-runs onAppear focus, and re-reads
@@ -144,10 +188,47 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         hotkeyNotice = KeyboardShortcuts.getShortcut(for: .quickAdd) == nil ? String(localized: "quickadd.hint.noshortcut") : nil
         let seed = QuickAddDraft.takeSeed()
         // "/" is the palette's template opener, not a restored thought: no Draft caption, no selection.
-        if let host = panel.contentView as? QuickAddHostingView { host.rootView = makeRoot(seed: seed, isDraft: seed != "/") }
+        let entry = EntryFieldModel(text: seed,
+                                    pills: Self.prefilledPills(scope: model.scope, store: model.store,
+                                                               kronosIsFrontmost: kronosIsFrontmost),
+                                    catalog: EntryCatalog.make(store: model.store))
+        self.entry = entry
+        // Context of the app the panel opens over: read once, in the background; a starting
+        // title only lands while the field is still empty (a restored draft or typing wins).
+        let front = frontApp(kronosIsFrontmost: kronosIsFrontmost)
+        let context = QuickAddContextState(environment: contextEnvironment, front: front)
+        context.onPrefill = { [weak entry] title in
+            guard let entry, entry.text.isEmpty else { return }
+            entry.setText(title, caret: title.utf16.count)
+            entry.selectAllText()
+            // The text view may attach a moment later (a fast answer lands before it): select
+            // again then, so typing still replaces the starting title.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak entry] in
+                guard let entry, entry.text == title else { return }
+                entry.selectAllText()
+            }
+        }
+        context.askConsent = { [weak self, weak context] in
+            guard let self, let context else { return }
+            self.askConsent(context)
+        }
+        self.context = context
+        if front != nil { Task { await context.read() } }
+        if let host = panel.contentView as? QuickAddHostingView {
+            host.rootView = makeRoot(seed: seed, isDraft: seed != "/", entry: entry, context: context)
+        }
         position(panel)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        // The field's autofocus runs from onAppear, which can land before the panel is key; then
+        // typing went nowhere (the panel itself stayed first responder). Make sure, once the text
+        // view is attached (it attaches asynchronously), that the caret is in the field.
+        for delay in [0.15, 0.45] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak entry, weak panel] in
+                guard let entry, let panel, panel.isVisible, panel.isKeyWindow else { return }
+                entry.focusTextView()
+            }
+        }
         if Motion.reduceMotion {
             panel.alphaValue = 1
         } else {
@@ -159,24 +240,31 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func close() {
-        guard let panel else { return }
+    /// `.finished` (Esc, Return, the hotkey) gives focus back to the app the panel was opened
+    /// over; `.resignedKey` (a click elsewhere) leaves focus where that click put it.
+    private func close(_ reason: QuickAddPolicy.CloseReason) {
+        guard let panel, panel.isVisible, !isClosing else { return }
+        isClosing = true
+        let reactivate = QuickAddPolicy.reactivatesPreviousApp(reason)
         if Motion.reduceMotion {
-            finishClose(panel)
+            finishClose(panel, reactivate: reactivate)
         } else {
             NSAnimationContext.runAnimationGroup { ctx in
                 ctx.duration = Motion.fast
                 panel.animator().alphaValue = 0
             } completionHandler: { [weak self] in
-                MainActor.assumeIsolated { self?.finishClose(panel) }
+                MainActor.assumeIsolated { self?.finishClose(panel, reactivate: reactivate) }
             }
         }
     }
 
-    private func finishClose(_ panel: NSPanel) {
+    private var isClosing = false
+
+    private func finishClose(_ panel: NSPanel, reactivate: Bool) {
+        isClosing = false
         QuickAddDraft.closedAt = Date()
         panel.orderOut(nil)
-        previousApp?.activate()
+        if reactivate { previousApp?.activate() }
         previousApp = nil
     }
 
@@ -189,16 +277,21 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
-    private func makeRoot(seed: String, isDraft: Bool = false) -> AnyView {
+    private func makeRoot(seed: String, isDraft: Bool = false, entry: EntryFieldModel? = nil,
+                          context: QuickAddContextState? = nil) -> AnyView {
         let accent = Accent.resolve(model.coach.settings.accentHex, mode: model.chromaMode)
         return AnyView(QuickAddPanelView(
             model: model,
             hotkeyNotice: hotkeyNotice,
             seedText: seed,
             seedIsDraft: isDraft,
-            // Create keeps the panel open (the shell shows the undo pill); only Esc/click-away closes.
-            onSubmit: { },
-            onClose: { [weak self] in self?.close() }
+            entry: entry,
+            context: context,
+            // Return (plain) after an add, or on an empty field: the panel's job is done and
+            // focus goes back to the app it was opened over. Command-/Option-Return stay open
+            // and never call this (QuickAddPanelView.submit, QuickAddPolicy.onReturn).
+            onSubmit: { [weak self] in self?.close(.finished) },
+            onClose: { [weak self] in self?.close(.finished) }
         )
             // Separate root from the shell (its own NSPanel/NSHostingView), so it needs the
             // same accent injection AppShellView.swift gives the main window.
@@ -272,6 +365,28 @@ final class QuickAddController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
-        close()
+        // The system's Automation prompt takes key while the consent chip waits for an answer;
+        // that is not "the person clicked away".
+        guard !isAskingConsent else { return }
+        close(.resignedKey)
+    }
+
+    private var isAskingConsent = false
+
+    /// The consent chip: the one place a context read may show the system prompt. The panel
+    /// stays open through the prompt and takes key back afterwards.
+    private func askConsent(_ context: QuickAddContextState) {
+        guard !isAskingConsent else { return }
+        isAskingConsent = true
+        Task { [weak self] in
+            await context.read(ask: true)
+            guard let self else { return }
+            self.isAskingConsent = false
+            if let panel = self.panel, panel.isVisible {
+                panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                self.entry?.focusTextView()
+            }
+        }
     }
 }

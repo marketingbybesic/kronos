@@ -21,13 +21,31 @@ struct SettingsOrdoTab: View {
     @State private var fillToCamera: Bool = MenuBarPrefs.fillToCamera
     @State private var menuBarPoints: Double = MenuBarPrefs.maxPoints
 
+    /// Which part of the old Ordo tab to show: the menu bar item stays on the Planning tab, the
+    /// presets editor and per-list defaults sit under its Advanced disclosure.
+    enum Part { case menuBar, presets }
+    let part: Part
+
+    init(model: AppModel, part: Part) {
+        self.model = model
+        self.part = part
+    }
+
     var body: some View {
+        switch part {
+        case .menuBar: menuBarSection
+        case .presets: presetSections
+        }
+    }
+
+    @ViewBuilder private var presetSections: some View {
         SettingsSection(title: String(localized: "settings.ordo.section.presets")) {
             Text(String(localized: "settings.ordo.presets.help"))
                 .font(Typo.meta)
                 .foregroundStyle(Tok.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, Space.x1)
+                .uiTestAnchor("settings.planning.presets")
             ForEach(model.coach.settings.presets) { preset in
                 presetRow(preset)
                 if editingPresetID == preset.id {
@@ -67,7 +85,9 @@ struct SettingsOrdoTab: View {
                 .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
             }
         }
+    }
 
+    @ViewBuilder private var menuBarSection: some View {
         SettingsSection(title: String(localized: "settings.ordo.section.menubar")) {
             SettingsRow(label: String(localized: "settings.ordo.menubar.shows")) {
                 Picker("", selection: $titleMode) {
@@ -169,18 +189,6 @@ struct SettingsOrdoTab: View {
                         .toggleStyle(.switch)
                         .tint(Tok.textPrimary)
                         .labelsHidden()
-                }
-                if preset.usesCoachRanking {
-                    SettingsRow(label: String(localized: "settings.coach.defaultenergy")) {
-                        KSegmented(selection: Binding(
-                            get: { preset.energy ?? .mid },
-                            set: { v in updatePreset(preset.id) { $0.energy = v } }
-                        ), segments: [
-                            KSegment(value: KEnergyLevel.low, text: String(localized: "energy.low")),
-                            KSegment(value: KEnergyLevel.mid, text: String(localized: "energy.mid")),
-                            KSegment(value: KEnergyLevel.high, text: String(localized: "energy.high")),
-                        ])
-                    }
                 }
             }
         }

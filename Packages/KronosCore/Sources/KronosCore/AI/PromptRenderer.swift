@@ -28,7 +28,7 @@ public func detectLanguage(_ text: String) -> Lang {
 /// be usable from an `async` call site, so the caller (which owns
 /// `TaskStoring` / `MainActor` access to the real rules) converts once at the
 /// boundary rather than this file holding model objects across `await`.
-public struct HouseRule: Sendable {
+public struct HouseRule: Sendable, Equatable {
     public let text: String
     public let scope: KRuleScope
     public let isActive: Bool

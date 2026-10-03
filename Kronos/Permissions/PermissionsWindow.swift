@@ -14,22 +14,29 @@ final class PermissionsModel {
     private let requestCalendarAccess: () async -> Void
     private let requestNotesAccess: () async -> Void
     private let requestRemindersAccess: () async -> Void
+    private let requestSelectedTextAccess: () -> Void
     private let enableLaunchAtLogin: () -> Void
     /// Set by `PermissionsWindow` once it knows how to switch to the MCP tab; the model has
     /// no notion of "tabs" itself, only that Claude access's button asks for one.
     var onOpenSettingsTab: () -> Void = {}
     private(set) var statuses: [PermissionKind: PermissionStatus] = [:]
+    /// Rows the person pressed in this window: their status line shows from then on.
+    private(set) var actedOn: Set<PermissionKind> = []
 
     init(statusProvider: PermissionsStatusProviding,
          requestCalendarAccess: @escaping () async -> Void = {},
          requestNotesAccess: @escaping () async -> Void = {},
          requestRemindersAccess: @escaping () async -> Void = {},
-         enableLaunchAtLogin: @escaping () -> Void = {}) {
+         requestSelectedTextAccess: @escaping () -> Void = {},
+         enableLaunchAtLogin: @escaping () -> Void = {},
+         actedOn: Set<PermissionKind> = []) {
         self.statusProvider = statusProvider
         self.requestCalendarAccess = requestCalendarAccess
         self.requestNotesAccess = requestNotesAccess
         self.requestRemindersAccess = requestRemindersAccess
+        self.requestSelectedTextAccess = requestSelectedTextAccess
         self.enableLaunchAtLogin = enableLaunchAtLogin
+        self.actedOn = actedOn
         refresh()
     }
 
@@ -39,7 +46,12 @@ final class PermissionsModel {
 
     func status(for kind: PermissionKind) -> PermissionStatus { statuses[kind] ?? .notDetermined }
 
+    func showsStatus(for kind: PermissionKind) -> Bool {
+        PermissionRowLogic.showsStatus(status(for: kind), actedOn: actedOn.contains(kind))
+    }
+
     func act(on kind: PermissionKind) {
+        actedOn.insert(kind)
         switch PermissionRowLogic.action(for: status(for: kind), kind: kind) {
         case .allow, .turnOn:
             allow(kind)
@@ -66,6 +78,9 @@ final class PermissionsModel {
             Task { await requestNotesAccess(); refresh() } // prompt-ok: only runs from this explicit button tap
         case .reminders:
             Task { await requestRemindersAccess(); refresh() } // prompt-ok: only runs from this explicit button tap
+        case .selectedText:
+            requestSelectedTextAccess() // prompt-ok: only runs from this explicit button tap
+            refresh()
         case .launchAtLogin:
             enableLaunchAtLogin()
             refresh()
@@ -100,7 +115,7 @@ struct PermissionsWindow: View {
 
     // Only rows that can ask the user for something: Siri & Shortcuts and Spotlight ("Not
     // needed") have no action, and Launch at login lives in Settings > General only.
-    private let rows: [PermissionKind] = [.calendar, .reminders, .notes, .claudeAccess]
+    private let rows: [PermissionKind] = [.calendar, .reminders, .notes, .selectedText, .claudeAccess]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -108,7 +123,9 @@ struct PermissionsWindow: View {
             KHairline()
             VStack(spacing: 0) {
                 ForEach(rows) { kind in
-                    PermissionRow(kind: kind, status: model.status(for: kind)) { model.act(on: kind) }
+                    PermissionRow(kind: kind, status: model.status(for: kind), showsStatus: model.showsStatus(for: kind)) {
+                        model.act(on: kind)
+                    }
                     if kind != rows.last { KHairline() }
                 }
             }
@@ -174,6 +191,9 @@ struct PermissionsWindow: View {
 private struct PermissionRow: View {
     let kind: PermissionKind
     let status: PermissionStatus
+    /// False until the person acts on the row or the system holds an answer:
+    /// "Not set up" under every row made the whole window read unfinished.
+    let showsStatus: Bool
     let action: () -> Void
     @State private var isHovering = false
 
@@ -192,9 +212,11 @@ private struct PermissionRow: View {
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(statusText)
-                    .font(Typo.meta)
-                    .foregroundStyle(Tok.textSecondary)
+                if showsStatus {
+                    Text(statusText)
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textSecondary)
+                }
             }
 
             Spacer(minLength: Space.x2)
@@ -263,6 +285,7 @@ enum PermissionsWindowController {
             requestCalendarAccess: { await model.coach.requestCalendarAccess() },
             requestNotesAccess: { _ = try? await model.notes.folders() },
             requestRemindersAccess: { _ = await EventKitReminders.shared.requestAccess() },
+            requestSelectedTextAccess: { SelectedTextPermission.request() },
             enableLaunchAtLogin: { LaunchAtLogin.setEnabled(true) })
         show(model: permModel)
     }

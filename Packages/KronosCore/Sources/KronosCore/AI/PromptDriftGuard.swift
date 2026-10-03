@@ -29,7 +29,7 @@ public enum PromptRequiredKeys {
     /// `triage`'s strictly required, non-null keys — kept as its own list so
     /// a drift test can assert the key name appears without asserting it
     /// can never be null.
-    public static let triageNullable: [String] = ["effort", "reason"]
+    public static let triageNullable: [String] = ["effort", "reason", "dread"]
 
     /// Retriage adds exactly one key on top of `triage`.
     public static let retriageAddition: [String] = ["proposedRule"]

@@ -37,6 +37,13 @@ struct DesignGalleryControlsSection: View {
                     .init(value: .c, text: "Custom"),
                 ])
             }
+            // The fill style: equal shares of the offered width (energy picker, time-block tabs).
+            KSegmented(selection: $segmentSample, segments: [
+                .init(value: .a, text: "Low"),
+                .init(value: .b, text: "Mid"),
+                .init(value: .c, text: "High"),
+            ], style: .fill)
+            .frame(width: Metrics.popoverWidth)
             VStack(alignment: .leading, spacing: Space.x2) {
                 KToggleRow("Show completed", isOn: $toggleOn)
                 KToggleRow("Disabled toggle", isOn: .constant(false), isDisabled: true)
@@ -63,7 +70,7 @@ struct DesignGalleryControlsSection: View {
                 Text("Keyboard focus (buttons/fields only — never from selection)").font(Typo.meta).foregroundStyle(Tok.textTertiary)
                 Text("Cancel").font(Typo.rowStrong).foregroundStyle(Tok.textPrimary)
                     .padding(.horizontal, Space.x4).frame(height: Metrics.controlRegular)
-                    .background(Color.white.opacity(0.04))
+                    .background(Tok.hoverFill)
                     .kBorder(Tok.borderControl, radius: Radius.control)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
                     .kFocusRing(true, radius: Radius.control)
@@ -98,6 +105,14 @@ struct DesignGalleryControlsSection: View {
                 KBadge("3")
                 KDeadlineLabel(text: "Today", carryDays: 3)
                 KKeyHint("⌥", "V")
+            }
+            // The two pill shapes side by side: KChip acts (24 pt, edge), KTag only shows (16 pt, plate).
+            HStack(spacing: Space.x2) {
+                KChip("Interactive chip", trailing: .chevron)
+                KTag("Passive tag")
+                KTag("1/5", tone: Tok.textSecondary)
+                KTag("Waiting", dot: Tok.textSecondary)
+                KKeyHintItem(["\u{238B}"], label: "Close")   // the Escape glyph renders as the word esc
             }
             // KChip's leading glyph slot (defect fix): the quick-add panel had to
             // float a project dot / priority bars OUTSIDE the chip before this existed.

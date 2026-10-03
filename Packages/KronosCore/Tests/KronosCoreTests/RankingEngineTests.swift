@@ -26,7 +26,7 @@ struct RankingEngineTests {
         #expect(!c.contains { $0.taskID == deep.id })
     }
 
-    @Test func midEnergyPriorityFirstDreadTiebreak() throws {
+    @Test func midEnergyPriorityFirstDreadIgnored() throws {
         let store = try makeStore()
         let low = store.create(title: "low")
         store.update(low.id) { $0.priorityRaw = KPriority.low.rawValue; $0.dread = false }

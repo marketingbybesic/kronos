@@ -134,27 +134,32 @@ struct AutomaticStatusRuleTests {
         let store = try makeStore()
         let t = store.create(title: "Blocked", status: .todo, dueDay: nil)
         store.setWaiting(t.id, true)
-        store.snooze(t.id) // sets dueDay = today + 1 when nil
-        #expect(store.task(t.id)?.dueDay != nil)
+        store.snooze(t.id) // plans tomorrow; the deadline stays empty
+        #expect(store.task(t.id)?.plannedDay == Day.today() + 1)
+        #expect(store.task(t.id)?.dueDay == nil)
         #expect(store.task(t.id)?.status == .waiting) // waiting never auto-changes
     }
 
     // Live audit 30.09.: "Snooze to tomorrow" on a task due 5 days ago moved it to 4 days ago.
-    @Test func snoozeOnAnOverdueTaskLandsOnTomorrow() throws {
+    // Now it plans tomorrow and leaves the deadline alone, so the task leaves Today.
+    @Test func snoozeOnAnOverdueTaskPlansTomorrowAndKeepsTheDeadline() throws {
         let store = try makeStore()
         let t = store.create(title: "late", status: .todo, dueDay: Day.today() - 5)
         store.snooze(t.id)
-        #expect(store.task(t.id)?.dueDay == Day.today() + 1)
+        #expect(store.task(t.id)?.plannedDay == Day.today() + 1)
+        #expect(store.task(t.id)?.dueDay == Day.today() - 5)
         let u = store.create(title: "next week", status: .todo, dueDay: Day.today() + 7)
         store.snooze(u.id)
-        #expect(store.task(u.id)?.dueDay == Day.today() + 8)
+        #expect(store.task(u.id)?.plannedDay == Day.today() + 1)
+        #expect(store.task(u.id)?.dueDay == Day.today() + 7)
     }
 
-    @Test func snoozeOnAnOpenTaskSetsDueAndKeepsTodo() throws {
+    @Test func snoozeOnAnOpenTaskPlansTomorrowAndKeepsTodo() throws {
         let store = try makeStore()
         let t = store.create(title: "a", status: .todo, dueDay: nil)
         store.snooze(t.id)
-        #expect(store.task(t.id)?.dueDay != nil)
+        #expect(store.task(t.id)?.plannedDay == Day.today() + 1)
+        #expect(store.task(t.id)?.dueDay == nil)
         #expect(store.task(t.id)?.status == .todo)
     }
 

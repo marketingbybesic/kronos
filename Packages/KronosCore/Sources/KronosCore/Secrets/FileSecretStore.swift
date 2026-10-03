@@ -45,11 +45,9 @@ public struct FileSecretStore: SecretStoring {
         let fm = FileManager.default
         try fm.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-        // Create with 0600 BEFORE the secret is in it: write-then-chmod leaves a window in which
-        // the file is world-readable under a permissive umask.
-        fm.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        try Data(value.utf8).write(to: url, options: [])
+        // 0600 from creation and one rename over the old file: a reader sees the old value or the
+        // new one, never an empty or partial file (AtomicSecretFile).
+        try AtomicSecretFile.write(Data(value.utf8), to: url)
     }
 
     public func delete(_ name: String) {

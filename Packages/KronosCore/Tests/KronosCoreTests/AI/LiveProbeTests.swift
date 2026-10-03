@@ -30,7 +30,7 @@ struct LiveProbeTests {
         guard ProcessInfo.processInfo.environment["KRONOS_LIVE_AI"] == "1" else {
             return   // skipped: not opted in
         }
-        let client = GhostCLIClient(modelID: "claude-sonnet-5")
+        let client = OpenAICompatibleClient(modelID: "claude-sonnet-5")
         let router = AIRouter(mode: .allowAny, candidates: [AIRoutedCandidate(client: client)])
 
         let result = try await router.triage(
@@ -43,7 +43,7 @@ struct LiveProbeTests {
         #expect((0...4).contains(result.priority))
     }
 
-    /// Calls `GhostCLIClient` DIRECTLY — no router, no fallback, errors
+    /// Calls `OpenAICompatibleClient` DIRECTLY — no router, no fallback, errors
     /// THROW. This is the test that actually proves the gateway answered:
     /// a down gateway or expired key fails this test instead of silently
     /// passing. Prints only non-secret diagnostics (model id, latency,
@@ -65,7 +65,7 @@ struct LiveProbeTests {
         let request = AIRequest(model: "claude-sonnet-5",
                                 messages: [.system(system), .user(user)], kind: .triage)
 
-        let client = GhostCLIClient(modelID: "claude-sonnet-5")
+        let client = OpenAICompatibleClient(modelID: "claude-sonnet-5")
         let response = try await client.send(request)   // THROWS on failure — no try?
         try response.validated()                        // finish_reason gate
 
@@ -104,8 +104,8 @@ struct LiveProbeTests {
         guard ProcessInfo.processInfo.environment["KRONOS_LIVE_AI"] == "1" else {
             return   // skipped: not opted in
         }
-        let sonnet = GhostCLIClient(modelID: "claude-sonnet-5")
-        let astra = GhostCLIClient(modelID: "gpt-6-astra")
+        let sonnet = OpenAICompatibleClient(modelID: "claude-sonnet-5")
+        let astra = OpenAICompatibleClient(modelID: "gpt-6-astra")
         let router = AIRouter(mode: .allowAny,
                               candidates: [AIRoutedCandidate(client: sonnet), AIRoutedCandidate(client: astra)])
 

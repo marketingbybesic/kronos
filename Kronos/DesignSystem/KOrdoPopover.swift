@@ -50,7 +50,7 @@ public struct KOrdoPopover: View {
                     Button(action: onComplete) {
                         Circle()
                             .strokeBorder(Tok.textSecondary, lineWidth: 1.5)
-                            .background(Circle().fill(isPressed ? Color.white.opacity(0.08) : .clear))
+                            .background(Circle().fill(isPressed ? Tok.pressedFill : .clear))
                             .overlay(Icon("check", size: 22).foregroundStyle(Tok.textSecondary))
                             .frame(width: 56, height: 56)
                     }

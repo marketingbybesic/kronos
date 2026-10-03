@@ -17,15 +17,23 @@ import KronosCore
 /// opencode-go is deliberately NOT a case here — its endpoint only serves the opencode
 /// client, never Kronos.
 enum AIProvider: String, CaseIterable, Identifiable {
+    #if !KRONOS_PUBLIC
     case ghostCLI
+    #endif
     case openRouter
     case custom
 
     var id: String { rawValue }
 
+    /// The providers the picker lists by name. `.custom` is not one of them: the picker ends with
+    /// "Other…", which is where a gateway of your own goes.
+    static var presets: [AIProvider] { allCases.filter { $0 != .custom } }
+
     var defaultBaseURL: String {
         switch self {
+        #if !KRONOS_PUBLIC
         case .ghostCLI:   return "https://ghostcli.dev/v1"
+        #endif
         case .openRouter: return "https://openrouter.ai/api/v1"
         case .custom:     return ""
         }
@@ -35,7 +43,9 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// field is free text only.
     var models: [String] {
         switch self {
+        #if !KRONOS_PUBLIC
         case .ghostCLI:   return ["claude-opus-5", "claude-sonnet-5", "claude-fable-5.1", "gpt-6-astra"]
+        #endif
         case .openRouter: return ["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "nex-agi/nex-n2.5-pro:free"]
         case .custom:     return []
         }
@@ -50,7 +60,9 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// leaf's file) already reads this property by that name to build the live AI client.
     var keychainService: String {
         switch self {
+        #if !KRONOS_PUBLIC
         case .ghostCLI:   return GhostCLIClient.keychainService   // "ai.ghostcli"
+        #endif
         case .openRouter: return "ai.openrouter"
         case .custom:     return "ai.custom"
         }
@@ -63,7 +75,9 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// directly via the `security` CLI and must keep working regardless of what the app does.
     var legacyKeychainService: String {
         switch self {
+        #if !KRONOS_PUBLIC
         case .ghostCLI:   return GhostCLIClient.legacyKeychainService
+        #endif
         case .openRouter: return "OPENROUTER_API_KEY"
         case .custom:     return "kronos.ai.custom_key"
         }
@@ -123,7 +137,7 @@ final class AISettingsController {
     /// this tab never triggers the one-time Keychain dialog the legacy item would raise.
     var canAdoptLegacyKey: Bool = false
 
-    init(hermetic: Bool = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil,
+    init(hermetic: Bool = KronosEnv.isHermetic,
          store: any SecretStoring = KeychainSecretStore(),
          legacyReader: any LegacySecretReading = KeychainLegacySecretReader()) {
         self.isHermetic = hermetic
@@ -215,8 +229,8 @@ final class AISettingsController {
             testPassedForCurrentConfig = false
             return
         }
-        let client = GhostCLIClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
-                                     extraHeaders: provider.extraHeaders)
+        let client = OpenAICompatibleClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
+                                            extraHeaders: provider.extraHeaders)
         let request = AIRequest(model: modelID,
                                  messages: [.user("Return only this JSON and nothing else: {\"ok\":true}")],
                                  kind: .triage,
@@ -262,24 +276,29 @@ enum AppSettingsStore {
     private static let urlKey = "kronos.ai.baseURL"
     private static let modelKey = "kronos.ai.model"
 
+    #if KRONOS_PUBLIC
+    static let defaultProvider = AIProvider.openRouter
+    static let defaultModel = AIProvider.openRouter.models[0]
+    #else
     static let defaultProvider = AIProvider.ghostCLI
-    static var defaultBaseURL: String { defaultProvider.defaultBaseURL }
     static let defaultModel = "claude-sonnet-5"
+    #endif
+    static var defaultBaseURL: String { defaultProvider.defaultBaseURL }
 
     static var aiMode: AIMode {
-        get { AIMode(rawValue: UserDefaults.standard.string(forKey: modeKey) ?? "") ?? .allowAny }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: modeKey) }
+        get { AIMode(rawValue: KronosEnv.defaults.string(forKey: modeKey) ?? "") ?? .allowAny }
+        set { KronosEnv.defaults.set(newValue.rawValue, forKey: modeKey) }
     }
     static var aiProvider: AIProvider {
-        get { AIProvider(rawValue: UserDefaults.standard.string(forKey: providerKey) ?? "") ?? defaultProvider }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: providerKey) }
+        get { AIProvider(rawValue: KronosEnv.defaults.string(forKey: providerKey) ?? "") ?? defaultProvider }
+        set { KronosEnv.defaults.set(newValue.rawValue, forKey: providerKey) }
     }
     static var aiBaseURL: String {
-        get { UserDefaults.standard.string(forKey: urlKey) ?? defaultBaseURL }
-        set { UserDefaults.standard.set(newValue, forKey: urlKey) }
+        get { KronosEnv.defaults.string(forKey: urlKey) ?? defaultBaseURL }
+        set { KronosEnv.defaults.set(newValue, forKey: urlKey) }
     }
     static var aiModel: String {
-        get { UserDefaults.standard.string(forKey: modelKey) ?? defaultModel }
-        set { UserDefaults.standard.set(newValue, forKey: modelKey) }
+        get { KronosEnv.defaults.string(forKey: modelKey) ?? defaultModel }
+        set { KronosEnv.defaults.set(newValue, forKey: modelKey) }
     }
 }

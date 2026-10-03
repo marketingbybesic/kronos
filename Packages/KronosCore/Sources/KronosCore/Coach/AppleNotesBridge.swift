@@ -76,6 +76,7 @@ public protocol AppleNotesBridge: Sendable {
     func noteIDs(titled title: String) async throws -> [NoteInfo]
 }
 
+#if os(macOS)
 // MARK: - osascript implementation
 
 /// Runs AppleScript via `/usr/bin/osascript`, one `Process` per call, with
@@ -339,6 +340,8 @@ enum NotesBridgeErrorMapper {
         return .unexpected(stderr.isEmpty ? "osascript exited \(status)" : stderr)
     }
 }
+#endif // os(macOS): osascript runs only on the Mac
+
 
 // MARK: - HTML -> plain text
 

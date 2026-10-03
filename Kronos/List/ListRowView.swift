@@ -7,8 +7,8 @@
 // columns align down the list regardless of which attributes a given row has set; an
 // unset attribute renders nothing by default and only reveals a faint hover affordance
 // rather than a "None"/dash placeholder; priority shows its bars glyph only (name moves
-// to tooltip + accessibilityLabel) and draws NOTHING at all for `.none`; overdue shows
-// just the calm carry pill, not the words "Carried over" repeated on every row.
+// to tooltip + accessibilityLabel) and draws NOTHING at all for `.none`; an earlier date shows
+// as the date it was, muted, with no verdict word (ListDueText.swift).
 //
 // Round-2 defects fixed here (both measured in screenshots, not guessed):
 // 1. The deadline slot's `.frame(width:)` was a proposal, not a hard constraint: the
@@ -89,32 +89,55 @@ struct ListRowView: View {
     let onSelect: () -> Void
 
     @State private var subtasksExpanded = false
+    @FocusState private var focusedSubID: UUID?   // the step row that has keyboard focus (Cmd-[ acts on it)
     @State private var showDeadlinePopover = false
+    @State private var showProjectPicker = false   // key P
     @State private var isHovering = false
     @State var isEditingTitle = false   // Title edit; not private — ListRowTitleEdit.swift needs it.
     @State var editedTitle = ""
     @FocusState var titleFieldFocused: Bool
+    @Environment(\.chromaMode) private var chromaMode
+    @Environment(\.kAccent) private var accent
     static var snapshotEditingTaskID: UUID?   // Snapshot-only trigger, set by ListSnapshots.
 
-    private var isManualSort: Bool { ctx.options.sort == [.asc(.manual)] }
     private var today: Int { Day.today() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             row.uiTestAnchor("row." + task.title)
             if subtasksExpanded {
-                ForEach(task.orderedSubtasks, id: \.id) { sub in
-                    subtaskRow(sub).uiTestAnchor("subrow." + sub.title)
+                let labelMatches = Set(task.childrenCarryingAnyLabel(of: ctx.markedLabelIDs).map(\.id))
+                ForEach(task.orderedChildren, id: \.id) { sub in
+                    ChildTaskRow(model: model, child: sub, parent: task, isDriver: task.isDueDriver(sub),
+                                 isLabelMatch: labelMatches.contains(sub.id),
+                                 columnMode: columnMode, focus: $focusedSubID) {
+                        if model.selectedTaskID != task.id { onSelect() }
+                    }
+                    .uiTestAnchor("subrow." + sub.title)
                 }
                 inlineAddSubtask
             }
         }
-        .onAppear { if task.id == ListRowView.snapshotEditingTaskID { beginTitleEdit() } }
+        .onAppear {
+            if task.id == ListRowView.snapshotEditingTaskID { beginTitleEdit() }
+            revealLabelledChildren()
+        }
+        .onChange(of: ctx.markedLabelIDs) { _, _ in revealLabelledChildren() }
+    }
+
+    /// Under a label filter, a row listed only because a child carries the label opens its
+    /// children, so the marked child is visible (the row alone would not say why it is here).
+    private func revealLabelledChildren() {
+        let ids = ctx.markedLabelIDs
+        guard !subtasksExpanded, !ids.isEmpty, !task.carriesAnyLabel(of: ids),
+              !task.childrenCarryingAnyLabel(of: ids).isEmpty else { return }
+        subtasksExpanded = true
     }
 
     private var row: some View {
         KListRow(isSelected: isSelected, isDone: task.status == .done, isChecked: task.status == .done,
-                  accessibilityLabel: accessibilityLabel,
+                  accessibilityLabel: accessibilityLabel, accessibilityValue: accessibilityValue,
+                  selectionTint: SelectionHue.forTask(task, neutral: chromaMode.isNeutralSelection).color(accent: accent),
                   onToggle: { ListCompletion.toggle(task, store: model.store, model: model) },
                   onSelect: onSelect) {
             HStack(spacing: Space.x1) {
@@ -122,7 +145,7 @@ struct ListRowView: View {
                 // align whether or not a row has subtasks.
                 ZStack {
                     Color.clear.frame(width: Metrics.minHit, height: Metrics.minHit)
-                    if !task.orderedSubtasks.isEmpty {
+                    if !task.orderedChildren.isEmpty {
                         Button {
                             withAnimation(Motion.curve(Motion.fast)) { subtasksExpanded.toggle() }
                         } label: {
@@ -140,16 +163,13 @@ struct ListRowView: View {
         } trailing: {
             trailingSlots
         }
-        .if(isManualSort) { $0.draggable(task.id.uuidString) }
-        .dropDestination(for: String.self) { items, _ in
-            guard isManualSort, let raw = items.first, let draggedID = UUID(uuidString: raw), draggedID != task.id else { return false }
-            reorderManual(draggedID, before: task.id)
-            return true
-        }
-        .kContextLinkDrop(taskID: task.id, model: model)
+        // Dragging works in every sort mode (nest and move-under do not depend on the order); the list's
+        // one AppKit drop destination (DropOverlayView) decides what a drop means, see DropZoneController.
+        .onDrag { DragOut.provider(id: task.id, title: task.title, isChild: false) }
+        .reportsDropRow(id: task.id)
         .contentShape(Rectangle())   // whole row answers a right click, selected or not
-        .contextMenu { contextMenuContent }
-        .followsExpandAll($subtasksExpanded, hasSubtasks: !task.orderedSubtasks.isEmpty)
+        .kTaskContextMenu(task, model: model, onSelect: onSelect, pickDue: { showDeadlinePopover = true })
+        .followsExpandAll($subtasksExpanded, hasSubtasks: !task.orderedChildren.isEmpty)
         .onHover { isHovering = $0 }
         .animation(Motion.curve(Motion.fast), value: isHovering)
     }
@@ -218,7 +238,7 @@ struct ListRowView: View {
     private var subtaskProgressSlot: some View {
         ZStack(alignment: .trailing) {
             Color.clear.frame(width: SlotWidth.subtasks, height: 1)
-            if !task.orderedSubtasks.isEmpty {
+            if !task.orderedChildren.isEmpty {
                 let progress = task.subtaskProgress
                 KBadge("\(progress.done)/\(progress.total)")
             }
@@ -250,8 +270,9 @@ struct ListRowView: View {
         Menu {
             ForEach(KPriority.allCases, id: \.self) { p in
                 Button {
+                    guard task.priority != p else { return }
                     model.store.setPriority(task.id, p)
-                    model.didMutate()
+                    model.commit(String(format: String(localized: "undo.priority.name"), ViewOptionsMapper.priorityName(p), task.title))
                 } label: {
                     if p == task.priority { Label(ViewOptionsMapper.priorityName(p), systemImage: "checkmark") }
                     else { Text(ViewOptionsMapper.priorityName(p)) }
@@ -279,8 +300,9 @@ struct ListRowView: View {
         Menu {
             ForEach(KEffort.allCases, id: \.self) { e in
                 Button {
+                    guard task.effort != e else { return }
                     model.store.setEffort(task.id, e)
-                    model.didMutate()
+                    model.commit(String(format: String(localized: "list.pill.effort"), ViewOptionsMapper.effortName(e), task.title))
                 } label: {
                     if e == task.effort { Label(ViewOptionsMapper.effortName(e), systemImage: "checkmark") }
                     else { Text(ViewOptionsMapper.effortName(e)) }
@@ -301,9 +323,8 @@ struct ListRowView: View {
     }
 
     /// No deadline: nothing shows at rest, a faint hairline hint appears on row hover so the
-    /// slot stays discoverable/clickable without adding permanent noise. Overdue: ONLY the
-    /// calm carry pill — the words "Carried over" are not repeated on every row, they move
-    /// to the tooltip/accessibility text.
+    /// slot stays discoverable/clickable without adding permanent noise. An earlier date: the
+    /// date itself, muted; how long it has been carried lives in the tooltip/accessibility text.
     ///
     /// Round-3 fix: an empty `Group` (both `if`/`else if` branches false, no final `else`)
     /// rendered ZERO views, and a `Button`'s native label-sizing measured that as zero
@@ -318,8 +339,22 @@ struct ListRowView: View {
         } label: {
             ZStack(alignment: .trailing) {
                 Color.clear.frame(width: SlotWidth.deadline, height: 1)
-                if task.dueDay != nil {
-                    KDeadlineLabel(text: deadlineText, carryDays: 0, isDone: task.status == .done)
+                if let due = task.effectiveDue {
+                    let shown = ListDueText.shown(due: due, original: task.originalDueDay, today: today)
+                    // A dotted underline marks a date that comes from a subtask, not from this task.
+                    // It shows on hover only: at rest it read as a link or an error on every row.
+                    if shown.muted {
+                        Text(shown.text)
+                            .font(Typo.count)
+                            .foregroundStyle(Tok.textTertiary)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .underline(isHovering && task.isDueDrivenBySubtask, pattern: .dot)
+                            .opacity(task.status == .done ? 0.6 : 1)
+                    } else {
+                        KDeadlineLabel(text: shown.text, carryDays: 0, isDone: task.status == .done)
+                            .underline(isHovering && task.isDueDrivenBySubtask, pattern: .dot)
+                    }
                 } else if isHovering {
                     Icon("calendar", size: Metrics.iconS).foregroundStyle(Tok.textDisabled)
                 }
@@ -329,171 +364,75 @@ struct ListRowView: View {
         .help(deadlineTooltip)
         .accessibilityLabel(deadlineTooltip)
         .popover(isPresented: $showDeadlinePopover) {
-            deadlinePopover
+            ListDueField(current: task.dueDay) { setDue($0) }
         }
-    }
-
-    /// The relative label only — the day COUNT for an overdue task is the carry pill's job
-    /// (`KDeadlineLabel`'s `carryDays`), so this never also renders "4d" for a task that
-    /// pill already reads "4d" on: rendering both duplicated the same number twice. Overdue
-    /// renders nothing here (the carry pill alone is the visible content). The slot was
-    /// already fixed-width — dropping the one-day special case is what fixed a "Tomorrow"
-    /// vs "3d" width mismatch.
-    private var deadlineText: String {
-        guard let due = task.dueDay else { return "" }
-        let delta = due - today
-        switch delta {
-        // Overdue says so in one calm word: the "8d" carry pill read as a guilt counter (audit F6),
-        // but dropping it left an overdue row looking like a task with no deadline at all.
-        case ..<0: return String(localized: "viewoptions.due.overdue")
-        case 0: return String(localized: "list.filter.due.today")
-        default: return "\(delta)d"
+        .onReceive(NotificationCenter.default.publisher(for: ListRowRequests.pickDue)) { note in
+            if ListRowRequests.taskID(note) == task.id { showDeadlinePopover = true }
+        }
+        // Closed by Esc or a click away: the keyboard goes back to the list, not to nothing.
+        .onChange(of: showDeadlinePopover) { _, open in
+            if !open { NotificationCenter.default.post(name: UIRequests.focusList, object: nil) }
+        }
+        // P: the shared type-ahead project picker, anchored on the row's date slot.
+        .popover(isPresented: $showProjectPicker, arrowEdge: .bottom) {
+            ListProjectPick(model: model, task: task) { showProjectPicker = false }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ListRowRequests.pickProject)) { note in
+            if ListRowRequests.taskID(note) == task.id, !task.isSubtask { showProjectPicker = true }
+        }
+        .onChange(of: showProjectPicker) { _, open in
+            if !open { NotificationCenter.default.post(name: UIRequests.focusList, object: nil) }
         }
     }
 
     /// Full wording for hover tooltip and VoiceOver, since the visible label is calm/short.
     private var deadlineTooltip: String {
-        guard let due = task.dueDay else { return String(localized: "list.filter.due.none") }
-        let carry = task.carryDays(today: today)
+        guard let due = task.effectiveDue else { return String(localized: "list.filter.due.none") }
+        let carry = KStatus.open.contains(task.status) ? max(0, today - due) : 0
         let dateText = ViewOptionsMapper.mediumDate(due)
-        let dueText = String(format: String(localized: "list.row.tooltip.due"), dateText)
+        let dueText = task.isDueDrivenBySubtask
+            ? String(format: String(localized: "list.row.tooltip.due.viasubtask"), dateText)
+            : String(format: String(localized: "list.row.tooltip.due"), dateText)
         guard carry > 0 else { return dueText }
         let carried = KPlural.hr(carry, one: String(localized: "a11y.carry.count.one"), few: String(localized: "a11y.carry.count.few"), many: String(localized: "a11y.carry.count.many"))
         return "\(carried) · \(dueText)"
     }
 
-    private var deadlinePopover: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Button(String(localized: "list.filter.due.today")) { setDue(today) }
-            Button(String(localized: "deadline.quick.tomorrow")) { setDue(today + 1) }
-            Button(String(localized: "deadline.quick.nextweek")) { setDue(today + 7) }
-            Button(String(localized: "list.filter.due.none")) { setDue(nil) }
-        }
-        .buttonStyle(.plain)
-        .font(Typo.row)
-        .foregroundStyle(Tok.textPrimary)
-        .padding(Space.x3)
-        .background(Tok.overlay)
-    }
-
+    /// One write, one pill; picking the date the task already has changes nothing.
     private func setDue(_ day: Int?) {
-        model.store.setDue(task.id, day: day)
-        model.didMutate()
         showDeadlinePopover = false
+        guard task.dueDay != day else { return }
+        model.store.setDue(task.id, day: day)
+        model.commit(ListPills.due(day, title: task.title))
     }
 
-    /// Manual drag reorder writes `sortIndex` directly via `update` (the only mutation
-    /// `TaskStoring` exposes for a plain scalar field) using the same between-index
-    /// arithmetic the protocol documents for `ordoIndex`: the mean of the two neighbours
-    /// in the CURRENT manual order, so the moved row lands exactly before `beforeID`.
-    private func reorderManual(_ draggedID: UUID, before beforeID: UUID) {
-        let manualOrder = KTaskSorter.sorted(ctx.rows, by: [.asc(.manual)])
-        guard let targetIndex = manualOrder.firstIndex(where: { $0.id == beforeID }) else { return }
-        let before = targetIndex > 0 ? manualOrder[targetIndex - 1].sortIndex : nil
-        let after = manualOrder[targetIndex].sortIndex
-        let newIndex: Double
-        if let before {
-            newIndex = draggedID == manualOrder[targetIndex].id ? after : (before + after) / 2
-        } else {
-            newIndex = after - 1024
-        }
-        model.store.update(draggedID) { $0.sortIndex = newIndex }
-        model.didMutate()
-    }
-
-    // MARK: - Subtasks
-
-    private func subtaskRow(_ sub: KSubtask) -> some View {
-        HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: sub.isDone, size: Metrics.listCheckboxSize, label: sub.title) {
-                model.store.toggleSubtask(sub.id)
-                model.didMutate()
-            }
-            Text(sub.title)
-                .font(Typo.meta)
-                .foregroundStyle(sub.isDone ? Tok.textTertiary : Tok.textSecondary)
-                .strikethrough(sub.isDone)
-        }
-        .padding(.leading, Metrics.listRowLeading + Metrics.listCheckboxSize + Metrics.listCheckboxTitleGap)
-        .frame(height: Metrics.rowHeightDense)
-    }
-
-    @State private var newSubtaskTitle = ""
+    // MARK: - Subtasks (the child rows live in ChildTaskRow.swift)
 
     private var inlineAddSubtask: some View {
-        HStack(spacing: Space.x2) {
-            Icon("plus", size: Metrics.iconS).foregroundStyle(Tok.textTertiary)
-            TextField(String(localized: "detail.subtasks.add"), text: $newSubtaskTitle)
-                .textFieldStyle(.plain)
-                .font(Typo.meta)
-                .foregroundStyle(Tok.textPrimary)
-                .onSubmit {
-                    let title = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !title.isEmpty else { return }
-                    model.store.addSubtask(task.id, title: title)
-                    model.didMutate()
-                    newSubtaskTitle = ""
-                }
-        }
-        .padding(.leading, Metrics.listRowLeading + Metrics.listCheckboxSize + Metrics.listCheckboxTitleGap)
-        .frame(height: Metrics.rowHeightDense)
+        SubtaskEntryRow(model: model, parentID: task.id, place: "list",
+                        leadingInset: ChildRowGeometry.entryInset, glyphColumn: ChildRowGeometry.checkboxColumn)
     }
 
-    // MARK: - Context menu
-
-    @ViewBuilder
-    private var contextMenuContent: some View {
-        Button(task.status == .done ? String(localized: "ctx.task.undone") : String(localized: "bar.menu.complete")) {
-            ListCompletion.toggle(task, store: model.store, model: model)
-        }
-        Button(task.id == model.pinnedFocusTaskID ? String(localized: "ctx.task.unpinfocus") : String(localized: "ctx.task.focusthis")) {
-            model.pinnedFocusTaskID = task.id == model.pinnedFocusTaskID ? nil : task.id
-        }
-        Button(String(localized: "ctx.task.breakdown")) {
-            onSelect()
-        }
-        Menu(String(localized: "ctx.task.priority")) {
-            ForEach(KPriority.allCases, id: \.self) { p in
-                Button(ViewOptionsMapper.priorityName(p)) { model.store.setPriority(task.id, p); model.didMutate() }
-            }
-        }
-        ListRowStatusMenu(task: task, model: model)
-        Menu(String(localized: "ctx.task.effort")) {
-            ForEach(KEffort.allCases, id: \.self) { e in
-                Button(ViewOptionsMapper.effortName(e)) { model.store.setEffort(task.id, e); model.didMutate() }
-            }
-        }
-        Menu(String(localized: "ctx.task.move")) {
-            Button(String(localized: "detail.noproject")) { model.store.move(task.id, toProject: nil); model.didMutate() }
-            ForEach(model.store.allProjects(), id: \.id) { p in
-                Button(p.name) { model.store.move(task.id, toProject: p); model.didMutate() }
-            }
-        }
-        Divider()
-        Button(String(localized: "ctx.task.delete")) {
-            model.store.softDelete(task.id)
-            model.didMutate()
-            UndoToastCenter.shared.show(String(format: String(localized: "undo.deleted.name"), task.title))
-        }
-    }
-
+    /// "<title>, <project>, due <date>, <state>" (RowAccessibility.swift).
     private var accessibilityLabel: String {
-        var parts = [task.title]
-        parts.append(ViewOptionsMapper.priorityName(task.priority))
-        if let due = task.dueDay {
-            parts.append(due <= today ? String(localized: "a11y.row.due.overdue")
-                                       : String(format: String(localized: "a11y.row.due.value"), ViewOptionsMapper.mediumDate(due)))
+        var due: String?
+        if let effective = task.effectiveDue {
+            let shownDay = ListDueKind.shownDay(due: effective, original: task.originalDueDay, today: today)
+            due = String(format: String(localized: "a11y.row.due.value"), ViewOptionsMapper.mediumDate(shownDay))
         }
-        if let project = task.project { parts.append(project.name) }
-        let progress = task.subtaskProgress
-        if progress.total > 0 { parts.append(String(format: String(localized: "a11y.row.subtasks.n_of_m"), progress.done, progress.total)) }
-        return parts.joined(separator: ", ")
+        return RowAccessibility.label(title: task.title, project: task.project?.name, due: due,
+                                      state: ViewOptionsMapper.statusName(task.status))
     }
-}
 
-private extension View {
-    @ViewBuilder
-    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
-        if condition { transform(self) } else { self }
+    /// What follows the label: priority, overdue, "due from a subtask", subtask progress.
+    private var accessibilityValue: String {
+        let progress = task.subtaskProgress
+        let overdue = task.status != .done && (task.effectiveDue.map { $0 < today } ?? false)
+        return RowAccessibility.value([
+            task.priority == .none ? nil : ViewOptionsMapper.priorityName(task.priority),
+            overdue ? String(localized: "a11y.row.overdue") : nil,
+            task.isDueDrivenBySubtask ? String(localized: "a11y.row.due.viasubtask") : nil,
+            progress.total > 0 ? String(format: String(localized: "a11y.row.subtasks.n_of_m"), progress.done, progress.total) : nil,
+        ])
     }
 }

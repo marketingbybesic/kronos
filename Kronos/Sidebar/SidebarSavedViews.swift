@@ -12,7 +12,8 @@ struct SidebarSavedViewsSection: View {
     @State private var renameText = ""
 
     var body: some View {
-        // Reading `model.version` makes @Observable re-evaluate `views`/counts on mutation.
+        // Reading `model.version` makes @Observable re-evaluate `views` on mutation. Saved views carry no
+        // number: only Inbox and Today do (SidebarScreen.showsCount).
         let _ = model.version
         Group {
             if !views.isEmpty {
@@ -32,7 +33,6 @@ struct SidebarSavedViewsSection: View {
     private func row(for view: KSavedView) -> some View {
         KSidebarRow(title: view.name,
                     leadingIcon: "bookmark",
-                    count: nilIfZero(count(for: view)),
                     isSelected: model.scope == .savedView(view.id)) {
             select(view)
         }
@@ -72,17 +72,6 @@ struct SidebarSavedViewsSection: View {
         .padding(Space.x4)
         .frame(width: Metrics.inspectorMin)
         .background(Tok.overlay)
-    }
-
-    private func nilIfZero(_ n: Int) -> Int? { n == 0 ? nil : n }
-
-    /// Open tasks matching the view's own filter — the same rule the list applies when the
-    /// view is selected, evaluated here just to count.
-    private func count(for view: KSavedView) -> Int {
-        let today = Day.today()
-        return model.store.allTasks().filter { task in
-            KStatus.open.contains(task.status) && view.filter.matches(task, today: today)
-        }.count
     }
 
     private func select(_ view: KSavedView) {

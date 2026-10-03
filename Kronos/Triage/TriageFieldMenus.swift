@@ -80,39 +80,45 @@ extension TriageFlowView {
         model.didMutate()
     }
 
+    /// The Project field. A click and the P key both open the same type-ahead picker (recents first, the one
+    /// the list and the inspector use), so the card has no second, menu-only way to file a task.
     func projectMenu(for task: KTask) -> some View {
-        let projects = model.store.allProjects()
-        return KMenuButton(text: task.project?.name ?? String(localized: "triage.flow.noproject")) {
-            Button(String(localized: "triage.flow.noproject")) {
-                lockedFields.insert(.project)
-                model.store.move(task.id, toProject: nil)
-                model.didMutate()
+        Button(previewProjectName(for: task) ?? String(localized: "triage.flow.noproject")) { isPickingProject = true }
+            .kButton(.ghost, size: .compact)
+            .uiTestAnchor("triage.project.field")
+            .popover(isPresented: $isPickingProject, arrowEdge: .bottom) {
+                ProjectPicker(model: model, currentProjectID: task.projectID,
+                              onPick: { pickProject($0) },
+                              onCancel: { isPickingProject = false })
+                .frame(width: 280)
+                .padding(Space.x3)
+                .background(Tok.overlay)
+                .uiTestAnchor("triage.project.picker")
             }
-            ForEach(projects) { project in
-                Button(project.name) {
-                    lockedFields.insert(.project)
-                    model.store.move(task.id, toProject: project)
-                    model.didMutate()
-                }
-            }
-        }
     }
 
-    // MARK: Preview values — the suggestion overlays the task's own value ONLY where the
-    // task's own field is still empty, so a field already set by hand (or quick-add) is
-    // shown and edited as-is, never silently swapped for the model's guess.
+    // MARK: Preview values — the suggestion overlays the task's own value ONLY for a field
+    // Return will really write (`plannedWrites`: empty on the task, allowed in Settings > Coach,
+    // decided by the source, a usable value, not picked by hand), so a field already set by
+    // hand (or quick-add) is shown and edited as-is, and what the row shows IS what Return does.
 
     func previewPriority(for task: KTask) -> KPriority {
-        guard task.priority == .none, let p = suggestion.flatMap({ KPriority(rawValue: $0.priority) }) else { return task.priority }
+        guard plannedWrites(for: task).contains(.priority), let p = suggestion.flatMap({ KPriority(rawValue: $0.priority) }) else { return task.priority }
         return p
     }
     func previewEffort(for task: KTask) -> KEffort {
-        guard task.effort == .none, let e = suggestion?.effort else { return task.effort }
+        guard plannedWrites(for: task).contains(.effort), let e = suggestion?.effort else { return task.effort }
         return e
     }
     func previewDueDay(for task: KTask) -> Int? {
-        guard task.dueDay == nil, let due = suggestion?.due, let day = Day.parseISO(due) else { return task.dueDay }
+        guard plannedWrites(for: task).contains(.due), let suggestion,
+              let day = TriagePlan.suggestedDue(suggestion, today: Day.today(calendar: KronosLocale.calendar)) else { return task.dueDay }
         return day
+    }
+    func previewProjectName(for task: KTask) -> String? {
+        if let name = task.project?.name { return name }
+        guard plannedWrites(for: task).contains(.project), let suggestion else { return nil }
+        return TriagePlan.suggestedProject(suggestion, in: model.store.allProjects())?.name
     }
 
     /// Same shape as `QuickAddPanelView.relativeDay` (that file's own private helper): each

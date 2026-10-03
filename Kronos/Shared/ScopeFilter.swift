@@ -10,18 +10,23 @@ enum ScopeFilter {
     /// Fixed scopes are open-only by definition. Project / area scopes include closed tasks —
     /// whether those are SHOWN is the list's `ViewOptions.showCompleted`, not membership.
     /// A saved view has no base membership: its own `KFilter` is the whole rule.
+    /// A task of an archived project belongs to no scope except that project itself, so it leaves
+    /// Today, Next 7, Waiting, Someday, All, areas and saved views along with the project.
     static func matches(_ task: KTask, scope: ListScope, today: Int) -> Bool {
-        guard task.deletedAt == nil else { return false }
+        // An undecided agent proposal (reviewRaw 1) is in no scope; only the Review queue shows it.
+        guard task.deletedAt == nil, task.reviewRaw != 1 else { return false }
+        if task.isProjectArchived, !isProjectScope(scope) { return false }
         let isOpen = KStatus.open.contains(task.status)
         switch scope {
         case .inbox:
             return task.projectID == nil && task.status != .someday && isOpen
         case .today:
-            guard isOpen, let due = task.dueDay else { return false }
-            return due <= today
+            // Schedule day (planned day, else effective due): an undone subtask due today or
+            // overdue brings its parent in (the subtask itself is never a row of its own), and a
+            // task planned for a later day stays out until that day.
+            return DueScope.isToday(task, today: today)
         case .next7:
-            guard isOpen, let due = task.dueDay else { return false }
-            return due >= today && due <= today + 7
+            return DueScope.isNext7(task, today: today)
         case .waiting:
             return task.status == .waiting
         case .someday:
@@ -35,6 +40,11 @@ enum ScopeFilter {
         case .savedView:
             return true
         }
+    }
+
+    private static func isProjectScope(_ scope: ListScope) -> Bool {
+        if case .project = scope { return true }
+        return false
     }
 
     /// SIDEBAR COUNT: what the badge next to a scope shows — always OPEN members only, so the

@@ -22,7 +22,7 @@ struct MenuBarCaptureField: View {
                 .foregroundStyle(Tok.textTertiary)
                 .fixedSize()
             KTextArea(String(localized: "menubar.capture.placeholder"), text: $text, minHeight: 48)
-                .addFieldBehaviour(marker: true, onCommandReturn: { if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { onFindTasks() } })
+                .addFieldBehaviour(onCommandReturn: { if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { onFindTasks() } })
                 .focused(isFocused, equals: .capture)
             HStack {
                 Spacer(minLength: 0)

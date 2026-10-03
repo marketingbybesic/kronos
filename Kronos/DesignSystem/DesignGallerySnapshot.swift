@@ -61,6 +61,12 @@ public enum DesignGallerySnapshot {
     }
 
     private static func writePNG(view: AnyView, width: CGFloat, to path: String) {
+        // The accessibility walker child (KAXDump) renders nothing: it reads its parent and exits.
+        KAXDump.walkIfChild()
+        // The design-system self-test rides on this tool so it needs no app target.
+        if let mode = ProcessInfo.processInfo.environment["KRONOS_DS_SELFTEST"], !mode.isEmpty {
+            DesignSelfTest.runAndExit(breaking: mode == "break")
+        }
         installLocalizations()
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
@@ -144,6 +150,10 @@ public enum DesignGallerySnapshot {
         } catch {
             FileHandle.standardError.write("FAIL: \(error)\n".data(using: .utf8)!)
         }
+        // KRONOS_SNAPSHOT_AXDUMP=<out.json>: a child process reads this window's accessibility tree
+        // for scripts/design/ax-check.mjs while the run loop stays free to answer; the run ends
+        // with the child's status.
+        if KAXDump.start(onExit: { status in exit(status) }) { return }
         app.terminate(nil)
     }
 }

@@ -84,7 +84,9 @@ struct JSONExporterTests {
         #expect(firstData == secondData)
         // Sanity: the payload is non-trivial, so an accidental early-return
         // that emits an empty envelope on both sides could not pass silently.
-        #expect(firstEnvelope.tasks.count == 3)
+        // 3 tasks + 2 subtasks (subtasks are exported as task rows with parentID)
+        #expect(firstEnvelope.tasks.count == 5)
+        #expect(firstEnvelope.tasks.filter { $0.parentID != nil }.count == 2)
         #expect(firstEnvelope.projects.count == 1)
     }
 

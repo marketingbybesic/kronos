@@ -1,18 +1,18 @@
 // Kronos/QuickAdd/QuickAddPanelView.swift
-// The panel's SwiftUI content, rebuilt larger and calmer, with a plain-word LEGEND replacing
-// an old bare-symbol strip that gave no indication what each symbol meant. The legend pairs
-// each real QuickAddParser token with its meaning in the UI language. It is COLLAPSED by
-// default (the placeholder carries one example line, so the panel hugs its content) and the
-// footer's "Show syntax" toggle opens the full legend; that choice is remembered.
-// Legend and the parsed chips never show at once (spec §2.3 "rapid dump"). Parsed chips stay
-// quieter than the input itself: tertiary glyphs, secondary text, no border, no fill.
+// The global quick add panel's SwiftUI content. The field, its pills and its suggestion list
+// are the shared entry field (Kronos/Shared/EntryField); this view adds what only the panel
+// has: the plain-word syntax LEGEND (opens by itself for the first few adds, then only on "Show
+// syntax", a remembered choice), a placeholder whose example cycles one token at a time, the
+// context chips of the app it was opened over, the `/` template list, the Waiting toggle and the
+// key hints. Return adds and closes, Command-Return adds and stays open, Option-Return adds and
+// keeps the pills (a batch into one project), Shift-Return starts a subtask line, Return on an
+// empty field closes (QuickAddPolicy.onReturn). Every other entry surface keeps "Return adds
+// and clears".
 //
 // The field is multi-line (TaskOutline grammar: "a > b > c" on one line, or Tab-indented /
-// bulleted lines under a task) so subtasks can be added from quick add too, using Tab on a
-// new line, integrated so tasks and subtasks can be added quickly from anywhere in the
-// interface. Submission runs through the shared `QuickAddCreate.create`, the same place
-// `ListInlineNewTaskRow` already uses, so quick add and the list's inline "+" row understand
-// identical text.
+// bulleted lines under a task) so subtasks can be added from quick add too. Submission runs
+// through the shared `QuickAddCreate.create`, the same place `ListInlineNewTaskRow` uses, so
+// every add field understands identical text.
 import SwiftUI
 import AppKit
 import KronosCore
@@ -21,49 +21,62 @@ struct QuickAddPanelView: View {
     let model: AppModel
     var hotkeyNotice: String?
     var seedText: String = ""
+    /// The panel's job is done: close and give focus back (Return after an add, Return on an
+    /// empty field).
     var onSubmit: () -> Void
     var onClose: () -> Void
 
-    @State private var text: String
-    @State private var legendPinned: Bool
+    /// Text + pills + suggestions (Kronos/Shared/EntryField). Owned by `QuickAddController` when the
+    /// panel is real (so the live UI test can read it), created here for a snapshot.
+    @State private var entry: EntryFieldModel
+    /// Chips read from the app the panel was opened over (nil: opened over Kronos, a snapshot).
+    private let context: QuickAddContextState?
+    /// Whether the legend shows now: by itself for the first few adds, else the remembered choice.
+    @State private var legendShown: Bool
     // A gap this fixes: there was no Waiting control in quick add at all. Resets to off each
-    // time the panel opens fresh (same as `text`/`legendPinned`): a leftover toggle from the
-    // last entry silently waiting-ing the next one would be worse than retyping it.
+    // time the panel opens fresh (same as `text`): a leftover toggle from the last entry
+    // silently waiting-ing the next one would be worse than retyping it.
     @State private var isWaiting: Bool
-    @FocusState private var isFocused: Bool
-    private let parser = QuickAddParser()
 
     /// True while the text is still the restored (<= 60 s) draft, untouched: it opens selected so
     /// typing replaces it, and a faint "Draft" caption says why there is text already.
     @State private var isDraft: Bool
-    /// "Added: <title>" shown under the field after Return (rapid-dump flow: the panel stays open).
-    @State private var addedNotice: String?
-    /// UserDefaults key for the remembered "Show syntax" state (default collapsed).
+    /// Which example the placeholder shows (cycles while the field is empty; fixed under Reduce
+    /// Motion and in snapshots).
+    @State private var ghostIndex: Int
+    private let ghostCycles: Bool
+
+    /// Remembered "Show syntax" choice (default collapsed). Through `KronosEnv.defaults`, so a
+    /// test run never writes the person's own domain.
     static let legendOpenKey = "kronos.quickadd.legendOpen"
+    /// Seconds each placeholder example stays.
+    static let ghostInterval: Duration = .seconds(3)
 
     init(model: AppModel, hotkeyNotice: String? = nil, seedText: String = "", seedIsDraft: Bool = false,
-         seedLegendPinned: Bool? = nil,
-         seedIsWaiting: Bool = false, onSubmit: @escaping () -> Void, onClose: @escaping () -> Void) {
+         seedLegendPinned: Bool? = nil, seedAddsCount: Int? = nil, seedPills: [EntryPill] = [],
+         entry: EntryFieldModel? = nil, context: QuickAddContextState? = nil, seedIsWaiting: Bool = false,
+         seedGhost: Int? = nil, onSubmit: @escaping () -> Void, onClose: @escaping () -> Void) {
         self.model = model
         self.hotkeyNotice = hotkeyNotice
         self.seedText = seedText
         self.onSubmit = onSubmit
         self.onClose = onClose
-        self._text = State(initialValue: seedText)
-        self._legendPinned = State(initialValue: seedLegendPinned ?? UserDefaults.standard.bool(forKey: Self.legendOpenKey))
+        self.context = context
+        self._entry = State(initialValue: entry ?? EntryFieldModel(text: seedText, pills: seedPills))
+        let pinned = seedLegendPinned ?? KronosEnv.defaults.bool(forKey: Self.legendOpenKey)
+        // A snapshot that pins the legend states it explicitly; one that does not is not a first run.
+        let adds = seedAddsCount ?? (seedLegendPinned != nil ? QuickAddPolicy.legendAutoOpenAdds
+                                     : KronosEnv.defaults.integer(forKey: QuickAddController.addsCountKey))
+        self._legendShown = State(initialValue: QuickAddPolicy.legendOpens(pinned: pinned, addsSoFar: adds))
         self._isDraft = State(initialValue: seedIsDraft && !seedText.isEmpty)
         self._isWaiting = State(initialValue: seedIsWaiting)
+        self._ghostIndex = State(initialValue: seedGhost ?? 0)
+        self.ghostCycles = seedGhost == nil && !KronosEnv.isSnapshot
     }
 
-    /// The outline's first item: chips summarise its task-line syntax, same as before the
-    /// multi-line change. Later items (more tasks, or that item's own subtasks) are covered by
-    /// `subtaskSummary` below — the chip row never tries to represent more than one task.
-    private var firstItem: TaskOutline.Item? { TaskOutline.parse(text).first }
-
-    private var parsed: QuickAddParser.Parsed {
-        let line = firstItem?.line ?? ""
-        return parser.parse(line, projects: model.store.allProjects().map(\.name), today: Day.today(calendar: KronosLocale.calendar))
-    }
+    /// The outline's first item: the pills summarise its task-line syntax. Later items (more
+    /// tasks, or that item's own subtasks) are covered by `subtaskSummary` below.
+    private var firstItem: TaskOutline.Item? { TaskOutline.parse(entry.text).first }
 
     /// "2 subtasks: find template, fill in prices" under the chips, or nil when the first task
     /// has none. A flat multi-task list (no subtasks anywhere) has nothing to summarise here —
@@ -85,6 +98,18 @@ struct QuickAddPanelView: View {
         return String(format: pattern, subtasks.count, subtasks.joined(separator: ", "))
     }
 
+    /// The placeholder: the question plus one example, each example showing one token kind.
+    /// Literal keys only (a key built at runtime would print raw).
+    static func ghost(_ index: Int) -> String {
+        switch index % 5 {
+        case 0: return String(localized: "quickadd.ghost.project")
+        case 1: return String(localized: "quickadd.ghost.date")
+        case 2: return String(localized: "quickadd.ghost.priority")
+        case 3: return String(localized: "quickadd.ghost.effort")
+        default: return String(localized: "quickadd.ghost.repeat")
+        }
+    }
+
     var body: some View {
         // Read `model.version` so `@Observable` re-renders this view after a store mutation
         // made elsewhere (e.g. a project created after this view first appeared) — `parsed`
@@ -98,38 +123,35 @@ struct QuickAddPanelView: View {
                     .foregroundStyle(Tok.textTertiary)
             }
 
-            inputRow
+            EntryField(model: entry, placeholder: Self.ghost(ghostIndex),
+                       selectAllOnAppear: isDraft, showSuggestions: !isTemplateLine,
+                       fieldAnchor: "quickadd.field", onSubmit: submit) {
+                if isDraft {
+                    Text(String(localized: "quickadd.draft.caption"))
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                        .padding(.top, Space.x1)
+                        .accessibilityIdentifier("quickadd.draft")
+                }
+            }
 
-            if let addedNotice, text.isEmpty {
-                Text(addedNotice)
+            if let context { QuickAddContextChips(context: context) }
+
+            if QuickAddTemplateList.isShowing(text: entry.text, templates: TemplateStore.shared.templates) {
+                // `/` prefix: the saved templates replace the legend (QuickAddTemplates.swift).
+                QuickAddTemplateList(templates: TemplateStore.shared.templates, text: entry.text) { t in
+                    let completed = "/" + t.name + " "
+                    entry.setText(completed, caret: completed.utf16.count)
+                }
+            } else if legendShown {
+                legend
+                    .uiTestAnchor("quickadd.legend")
+            } else if let subtaskSummary {
+                Text(subtaskSummary)
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .transition(.opacity)
-            }
-
-            if QuickAddTemplateList.isShowing(text: text, templates: TemplateStore.shared.templates) {
-                // `/` prefix: the saved templates replace the legend and chips (QuickAddTemplates.swift).
-                QuickAddTemplateList(templates: TemplateStore.shared.templates, text: text) { t in
-                    text = "/" + t.name + " "
-                }
-            } else if legendPinned {
-                // Only "Show syntax" opens the full legend (collapsed by default); the legend
-                // and the parsed chips never show at once (spec §2.3 "rapid dump"), so
-                // pinning it while typing still hides `chipRow` below.
-                legend
-            } else if !parsed.isEmptyResult || subtaskSummary != nil {
-                VStack(alignment: .leading, spacing: Space.x2) {
-                    if !parsed.isEmptyResult { chipRow }
-                    if let subtaskSummary {
-                        Text(subtaskSummary)
-                            .font(Typo.meta)
-                            .foregroundStyle(Tok.textTertiary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
             }
 
             // Exactly one separator: the legend/chips block above already ends in its own
@@ -149,88 +171,36 @@ struct QuickAddPanelView: View {
         // panel outside the window hierarchy) does not inherit the shell's environment,
         // so the colour mode is injected here and re-read every render via `model.chromaMode`.
         .environment(\.chromaMode, model.chromaMode)
-        .onAppear { DispatchQueue.main.async { isFocused = true } }
-        .onChange(of: text) { _, new in
+        .onAppear { entry.update(catalog: EntryCatalog.make(store: model.store)) }
+        .onChange(of: model.version) { _, _ in entry.update(catalog: EntryCatalog.make(store: model.store)) }
+        .onChange(of: entry.text) { _, new in
             QuickAddDraft.text = new  // lets the controller keep a half-typed thought for 60 s
             if new != seedText { isDraft = false }
-            if !new.isEmpty { addedNotice = nil }
         }
-        .onChange(of: legendPinned) { _, new in UserDefaults.standard.set(new, forKey: Self.legendOpenKey) }
+        // Cycling placeholder: one example every few seconds while the field is empty. A timed
+        // loop, so it never runs under Reduce Motion (the first example stays).
+        .task {
+            guard ghostCycles, !Motion.reduceMotion else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.ghostInterval)
+                guard !Task.isCancelled else { return }
+                if entry.text.isEmpty { withAnimation(Motion.hover) { ghostIndex += 1 } }
+            }
+        }
         .onExitCommand(perform: onClose)
-        .animation(Motion.hover, value: text.isEmpty)
     }
 
-    /// The input itself, built larger than `KTextField`'s fixed control height so it reads
-    /// as the hero of a calmer, more generous panel — same tokens (`Typo.title`, `Tok`,
-    /// `Space`, `Radius`) the design system's own controls are built from, just a bigger
-    /// composition of them for this one field. Multi-line, so subtasks can be entered with
-    /// Tab on a new line: a plain `TextField` cannot hold more than one line, so this is a
-    /// `TextEditor` — its backing `NSTextView` is a real multi-line editor (not a single-line
-    /// field editor), so Tab already inserts a literal tab character with no extra code,
-    /// which is exactly what `TaskOutline.dissect` reads as one level of indent. Only Return
-    /// needs custom handling: plain Return submits (`QuickAddKeyCatcher` below), Option/Shift-
-    /// Return fall through to `TextEditor`'s own default and insert a newline.
-    private var inputRow: some View {
-        HStack(alignment: .top, spacing: Space.x3) {
-            Icon("plus", size: Metrics.iconL)
-                .foregroundStyle(Tok.textTertiary)
-                .padding(.top, Space.x1)
-            ZStack(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text(String(localized: "quickadd.placeholder"))
-                        .font(Typo.title)
-                        // Tertiary, not `textDisabled`: this placeholder is an active
-                        // invitation to type, not a disabled control.
-                        .foregroundStyle(Tok.textTertiary)
-                        .allowsHitTesting(false)
-                }
-                TextEditor(text: $text)
-                    .font(Typo.title)
-                    .foregroundStyle(Tok.textPrimary)
-                    .scrollContentBackground(.hidden)
-                    .focused($isFocused)
-                    // No horizontal/vertical padding of its own beyond TextEditor's built-in
-                    // inset, so a one-line entry lines up with the old TextField exactly.
-                    .padding(.horizontal, -Space.x1)
-                    .background(QuickAddKeyCatcher(onReturn: submit, selectAllOnAppear: isDraft))
-                    .addFieldBehaviour(marker: true)
-                    .uiTestAnchor("quickadd.field")
-            }
-            if isDraft {
-                Text(String(localized: "quickadd.draft.caption"))
-                    .font(Typo.meta)
-                    .foregroundStyle(Tok.textTertiary)
-                    .padding(.top, Space.x1)
-                    .accessibilityIdentifier("quickadd.draft")
-            }
-        }
-        .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
-        // No max height — the box grows with every line, same as the legend already does. A
-        // capped height needs an internal scroll view, and a `TextEditor` scrolled to the caret
-        // mid-outline clips its last line with no fade, which reads as broken. Fine for a
-        // quick-add outline (a handful of subtasks); revisit with a scroll + top/bottom fade
-        // mask if someone pastes a genuinely long list in here.
-        .frame(minHeight: Metrics.controlRegular + Space.x4)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(isFocused ? Tok.bg : Tok.controlFill)
-        .kBorder(isFocused ? Tok.borderActive : Color.clear, radius: Radius.control)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-        .animation(Motion.hover, value: isFocused)
-    }
+    private var isTemplateLine: Bool { QuickAddTemplateList.isShowing(text: entry.text, templates: TemplateStore.shared.templates) }
 
     /// Plain-word syntax legend: the empty-field state AND the "Show syntax" full legend are
     /// the exact same view — "Show syntax" must open the FULL legend, not a one-line hint.
     /// Every row here is verified true against `QuickAddParser`; nothing here is invented
-    /// syntax. Never shown together with the parsed chips (spec §2.3 "rapid dump").
+    /// syntax.
     private var legend: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
             Text(String(localized: "quickadd.legend.title"))
                 .font(Typo.hero)
                 .foregroundStyle(Tok.textPrimary)
-            // REVIEW FIX: dropped the duplicate one-token example line that used to sit here —
-            // `quickadd.legend.order_example` at the bottom already shows a real line with every
-            // token in order, which is strictly more useful than a second, shorter example above it.
             legendRow(key: "quickadd.legend.project") { KKeyHint(String(localized: "quickadd.legend.token.project")) }
             legendRow(key: "quickadd.legend.label") { KKeyHint(String(localized: "quickadd.legend.token.label")) }
             // All four real levels (`KPriority.low...urgent`), not just the two endpoints:
@@ -241,46 +211,32 @@ struct QuickAddPanelView: View {
             // shows it). The word aliases (`*xs`..`*xl`) still parse but are not taught, so quick
             // add, Triage (S M L) and the legend agree on three sizes.
             legendRow(key: "quickadd.legend.effort") { KKeyHint("*", "**", "***") }
-            // Used to be one dynamic "Tomorrow" chip. Every shape `QuickAddParser
-            // .matchDatePhrase` actually accepts is real vocabulary, not just the relative-day
-            // word: a bare weekday abbreviation, "next week", and "in N days" all resolve too
-            // (see QuickAddParserTests.QuickAddNaturalDateTests), and the legend claiming only
-            // "tomorrow" undersold what typing a date here can do.
+            // Every shape `QuickAddParser.matchDatePhrase` accepts is real vocabulary: a bare
+            // weekday abbreviation, "next week", "in N days" and "25.9." all resolve.
             legendRow(key: "quickadd.legend.date") {
-                KKeyHint(relativeDay(Day.today(calendar: KronosLocale.calendar) + 1),
+                KKeyHint(EntryFormat.relativeDay(Day.today(calendar: KronosLocale.calendar) + 1),
                          String(localized: "quickadd.legend.token.date.weekday"),
                          String(localized: "quickadd.legend.token.date.nextweek"),
                          String(localized: "quickadd.legend.token.date.indays"), "25.9.")
             }
-            // Subtasks: TaskOutline's own grammar — "a > b" on one line, or an Option/Shift-Return
-            // new line that starts with Tab or a bullet ("-"). `>` here is the real separator
-            // `TaskOutline.split` matches (it needs a space on both sides).
+            // "every week" / "svaki tjedan" (RepeatPhrase): the task repeats.
+            legendRow(key: "quickadd.legend.repeat") { KKeyHint(String(localized: "quickadd.legend.token.repeat")) }
+            // Subtasks: TaskOutline's own grammar — "a > b" on one line, or a Shift-Return
+            // new line that starts with Tab or a bullet ("-").
             legendRow(key: "quickadd.legend.outline") { KKeyHint(">", "⇥") }
-            // One line showing every token together in the order QuickAddParser actually
-            // reads them, so the legend answers "what order do I type these in" without the
-            // reader assembling it from the rows above. Monospace, like the existing
-            // one-token example above.
+            // One line showing every token together in the order QuickAddParser reads them.
             Text(String(localized: "quickadd.legend.order_example"))
                 .font(Typo.mono)
                 .foregroundStyle(Tok.textTertiary)
         }
     }
 
-    /// REVIEW FIX: was a hard `.frame(width: 210)`, sized for the shortest rows — that left
-    /// ~440px of dead air after the priority row's lone "!" chip. `minWidth` (not `width`) keeps
-    /// every SHORT row tight against the same 130pt column while letting the one genuinely wide
-    /// row (5 date chips: tomorrow/weekday/next week/in N days/25.9.) grow past it on its own —
-    /// a custom `HorizontalAlignment` guide was tried first and rejected: aligning every row's
-    /// TRAILING edge to the widest one forces the whole VStack wider than its own 720pt `.frame`
-    /// to satisfy that alignment, which pushed the card's LEFT edge off-screen (caught by
-    /// re-shooting and reading the snapshot — exactly what "re-shoot + READ" is for).
+    /// `minWidth` (not `width`) keeps every SHORT row tight against the same column while
+    /// letting the one wide row (5 date chips) grow past it on its own.
     private func legendRow(key: String, @ViewBuilder hint: () -> some View) -> some View {
         HStack(alignment: .top, spacing: Space.x3) {
             hint()
                 .frame(minWidth: 130, alignment: .leading)
-            // The explanation is the actual content of a legend row, not a caption about it
-            // (art-direction's tonal-hierarchy rule: "nothing decorative may be primary" cuts
-            // the other way too — a row's one useful line is secondary, not tertiary).
             Text(String(localized: String.LocalizationValue(key)))
                 .font(Typo.rowStrong)
                 .foregroundStyle(Tok.textSecondary)
@@ -288,61 +244,38 @@ struct QuickAddPanelView: View {
         }
     }
 
-    @ViewBuilder private var chipRow: some View {
-        HStack(spacing: Space.x2) {
-            if let projectName = parsed.projectName {
-                let project = model.store.allProjects().first { $0.name == projectName }
-                KChip(String(format: String(localized: "quickadd.chip.project"), projectName)) {
-                    KProjectGlyph(icon: project?.icon, colorHex: project?.colorHex, size: Metrics.iconS)
-                }
-            } else if let unresolved = parsed.unresolvedProjectToken {
-                let name = String(unresolved.dropFirst()).replacingOccurrences(of: "-", with: " ")
-                // This chip used to be inert. Clicking it now creates that project for real
-                // (same bare-name creation other screens in this app already use, e.g. MenuBarSnapshots)
-                // and rewrites the raw text's `#token` through the pure `QuickAddParser
-                // .rewriteProjectToken`, so re-parsing resolves it and the chip becomes the normal
-                // resolved-project chip above.
-                KChip(String(format: String(localized: "quickadd.chip.noproject.name"), name), onTap: {
-                    _ = model.store.createProject(name: name)
-                    model.didMutate()
-                    text = QuickAddParser.rewriteProjectToken(in: text, unresolvedToken: unresolved,
-                                                              resolvedProjectName: name)
-                }) {
-                    Icon("plus", size: Metrics.iconS).foregroundStyle(Tok.textTertiary)
+    /// Key hints on the left, controls on the right; at large text sizes (or in Croatian) the
+    /// controls drop to a second line instead of squeezing the hints.
+    private var footer: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Space.x4) {
+                keyHints
+                Spacer()
+                controls
+            }
+            VStack(alignment: .leading, spacing: Space.x2) {
+                keyHints
+                HStack(spacing: Space.x4) {
+                    Spacer()
+                    controls
                 }
             }
-            if let labelName = parsed.labelName {
-                KChip(String(format: String(localized: "quickadd.chip.label"), labelName))
-            }
-            if parsed.priority != .none {
-                KChip(String(format: String(localized: "quickadd.chip.priority"), priorityName(parsed.priority))) {
-                    KPriorityIndicator(level: parsed.priority.rawValue, label: priorityName(parsed.priority), size: Metrics.iconS)
-                }
-            }
-            if let effort = parsed.effort, effort != .none {
-                KChip(String(format: String(localized: "quickadd.chip.effort.value"), effortName(effort))) {
-                    KEffortIndicator(level: effort.rawValue, of: KEffort.allCases.count - 1, label: nil, showLabel: false)
-                }
-            }
-            if let dueDay = parsed.dueDay {
-                KChip(String(format: String(localized: "quickadd.chip.due"), relativeDay(dueDay))) {
-                    Icon("calendar", size: Metrics.iconS).foregroundStyle(Tok.textTertiary)
-                }
-            }
-            Spacer(minLength: 0)
         }
     }
 
-    private var footer: some View {
+    private var keyHints: some View {
         HStack(spacing: Space.x4) {
-            KKeyHintItem(["⏎"], label: String(localized: "quickadd.hint.return"))
-            KKeyHintItem(["⌥", "⏎"], label: String(localized: "quickadd.hint.newline.short"))
-            Spacer()
-            // A real Waiting toggle, previously missing entirely. Filled (`.secondary`) when
-            // on so it reads as a pressed state, quiet ghost when off; wins the status over
-            // every scope (ListScopeDefaultsTests.waitingToggleAlwaysWinsOverEveryScope).
+            KKeyHintItem(["⏎"], label: String(localized: "quickadd.hint.add.close"))
+            KKeyHintItem(["⌘", "⏎"], label: String(localized: "quickadd.hint.add.stay"))
+            KKeyHintItem(["⌥", "⏎"], label: String(localized: "quickadd.hint.keep"))
+            KKeyHintItem(["⇧", "⏎"], label: String(localized: "quickadd.hint.newline.short"))
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: Space.x4) {
             // Off: "Mark as waiting" (ghost). On: "Waiting" with a check (filled), so the label
-            // names the state it is in and nobody has to guess which side is on (audit D1).
+            // names the state it is in and nobody has to guess which side is on.
             Button {
                 isWaiting.toggle()
             } label: {
@@ -354,108 +287,67 @@ struct QuickAddPanelView: View {
             .kButton(isWaiting ? .secondary : .ghost, size: .compact)
             .uiTestAnchor("quickadd.waiting")
             // A button, not a "?" key: a key handler on the field made "?" untypeable in a
-            // title. Always present (the legend is collapsed by default): "Show syntax" /
-            // "Hide syntax" reflects `legendPinned`, which is remembered across opens.
-            Button(String(localized: legendPinned ? "quickadd.legend.toggle.hide" : "quickadd.legend.toggle")) {
-                legendPinned.toggle()
+            // title. "Show syntax" / "Hide syntax" reflects the legend and is remembered.
+            Button(String(localized: legendShown ? "quickadd.legend.toggle.hide" : "quickadd.legend.toggle")) {
+                legendShown.toggle()
+                KronosEnv.defaults.set(legendShown, forKey: Self.legendOpenKey)
             }
             .kButton(.ghost, size: .compact)
             .uiTestAnchor("quickadd.legend.toggle")
-            KKeyHintItem(["⎋"], label: String(localized: "quickadd.hint.close"))
+            KKeyHintItem(["esc"], label: String(localized: "quickadd.hint.close"))
         }
     }
 
-    /// Today / Tomorrow / weekday name / "20 Sep" — `KDeadlineLabel`'s doc says relative-date
-    /// logic lives outside DesignSystem, so each caller formats its own. "Today" reuses the
-    /// app's own catalog key; "Tomorrow" and weekday names come from `RelativeDateTimeFormatter`
-    /// / `DateFormatter`, both built with `KronosLocale.current` (the APP language, e.g. HR
-    /// "Sutra" regardless of the system locale) — never `Locale.current`.
-    private func relativeDay(_ day: Int) -> String {
-        let calendar = KronosLocale.calendar
-        let today = Day.today(calendar: calendar)
-        let date = Day.date(day, calendar: calendar)
-        if day == today { return String(localized: "list.filter.due.today") }
-        if day == today + 1 {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.calendar = calendar
-            formatter.locale = KronosLocale.current
-            formatter.dateTimeStyle = .named
-            formatter.formattingContext = .beginningOfSentence
-            return formatter.localizedString(for: date, relativeTo: Day.date(today, calendar: calendar))
+    /// Return chords per `QuickAddPolicy.onReturn`. Runs through the one shared
+    /// `QuickAddCreate` — the same place `ListInlineNewTaskRow` calls — so quick add and every
+    /// other add field understand identical text, all as one undo step.
+    private func submit(_ mode: EntrySubmitMode) {
+        let text = entry.text
+        let key: QuickAddPolicy.ReturnKey
+        switch mode {
+        case .clear: key = .plain
+        case .stay: key = .command
+        case .keepPills: key = .option
         }
-        if day > today, day - today < 7 {
-            let formatter = DateFormatter()
-            formatter.calendar = calendar
-            formatter.locale = KronosLocale.current
-            formatter.setLocalizedDateFormatFromTemplate("EEEE")
-            return formatter.string(from: date)
+        let action = QuickAddPolicy.onReturn(key, hasText: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        switch action {
+        case .close: onSubmit(); return
+        case .ignore: return
+        case .addAndClose, .addAndStay, .addAndKeepPills: break
         }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = KronosLocale.current
-        formatter.setLocalizedDateFormatFromTemplate("d MMM")
-        return formatter.string(from: date)
-    }
-
-    private func priorityName(_ p: KPriority) -> String {
-        switch p {
-        case .none: return String(localized: "priority.none")
-        case .low: return String(localized: "priority.low")
-        case .medium: return String(localized: "priority.medium")
-        case .high: return String(localized: "priority.high")
-        case .urgent: return String(localized: "priority.urgent")
-        }
-    }
-
-    private func effortName(_ e: KEffort) -> String {
-        switch e {
-        case .none: return String(localized: "effort.none")
-        case .xs: return String(localized: "effort.xs")
-        case .s: return String(localized: "effort.s")
-        case .m: return String(localized: "effort.m")
-        case .l: return String(localized: "effort.l")
-        case .xl: return String(localized: "effort.xl")
-        }
-    }
-
-    /// §4.1.6: empty title -> Return does nothing. Runs through the one shared
-    /// `QuickAddCreate` (Kronos/Shared/QuickAddCreate.swift) — the same place
-    /// `ListInlineNewTaskRow` calls — instead of this view creating tasks itself, so quick add
-    /// and every other add field understand identical text (project/label/priority/effort/date
-    /// per task line via QuickAddParser, plus "a > b" / Tab / bulleted subtasks via TaskOutline,
-    /// all as one undo step).
-    private func submit() {
         // `/name rest` creates from a template (QuickAddTemplates.swift); anything else is plain text.
         switch QuickAddTemplates.submit(text: text, model: model, isWaiting: isWaiting) {
-        case .created:
-            finishCreate(String(text.dropFirst()).trimmingCharacters(in: .whitespaces)); return
-        case .fill(let completed): text = completed; return
+        case .created(let task): finishCreate(task, action: action); return
+        case .fill(let completed): entry.setText(completed, caret: completed.utf16.count); return
         case .ignore: return
         case .notATemplate: break
         }
-        guard let first = QuickAddCreate.create(from: text, model: model, isWaiting: isWaiting).first else { return }
-        finishCreate(first.title)
+        guard let first = QuickAddCreate.create(from: text, model: model, isWaiting: isWaiting, pills: entry.pills,
+                                                links: context?.links ?? []).first
+        else { return }
+        finishCreate(first, action: action)
     }
 
-    /// One consistent create path: clear the field (nothing is restored as a draft), post the
-    /// shell's undo pill (the whole entry is one undo step) and STAY OPEN with focus in the empty
-    /// field for the next thought (rapid dump). Esc closes. The legend choice is a remembered
-    /// preference and is not reset.
-    private func finishCreate(_ title: String) {
-        text = ""
+    /// After an add: the ONE acknowledgement (the shell's undo pill, QuickAddAck), then close or
+    /// get ready for the next thought. Command-Return empties the field (text, pills, context
+    /// chips, Waiting); Option-Return keeps the pills, the chips and the Waiting toggle. The
+    /// legend's remembered choice is not reset.
+    private func finishCreate(_ task: KTask, action: QuickAddPolicy.ReturnAction) {
+        let keep = action == .addAndKeepPills
+        entry.clear(keepingPills: keep)
         QuickAddDraft.text = ""
-        isWaiting = false
+        if !keep {
+            isWaiting = false
+            context?.clear()
+        }
         isDraft = false
-        let notice = String(format: String(localized: "quickadd.created"), title)
-        addedNotice = notice
-        UndoToastCenter.shared.show(notice)
-        DispatchQueue.main.async { isFocused = true }
-    }
-}
-
-private extension QuickAddParser.Parsed {
-    var isEmptyResult: Bool {
-        projectName == nil && labelName == nil && priority == .none && dueDay == nil
-            && unresolvedProjectToken == nil && effort == nil
+        let defaults = KronosEnv.defaults
+        defaults.set(defaults.integer(forKey: QuickAddController.addsCountKey) + 1, forKey: QuickAddController.addsCountKey)
+        QuickAddAck.post(task, model: model)
+        if action == .addAndClose {
+            onSubmit()
+        } else {
+            entry.requestFocus()
+        }
     }
 }

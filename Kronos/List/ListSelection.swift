@@ -11,6 +11,12 @@ struct ListSelectionState: Equatable {
     var ids: Set<UUID>
 }
 
+/// A keyboard range step: the new selection and where its moving end now is.
+struct ListRangeResult: Equatable {
+    var state: ListSelectionState
+    var cursor: UUID?
+}
+
 enum ListSelection {
     /// Collapses a 0/1-element set to "no multi-selection" and drops a set that lost its anchor.
     static func normalized(_ s: ListSelectionState) -> ListSelectionState {
@@ -51,6 +57,24 @@ enum ListSelection {
         guard !isTyping, !rows.isEmpty else { return nil }
         let anchor = s.anchor.flatMap { rows.contains($0) ? $0 : nil } ?? rows[0]
         return normalized(ListSelectionState(anchor: anchor, ids: Set(rows)))
+    }
+
+    /// ⇧↑ / ⇧↓: moves the far end of the range (`cursor`) one row by `delta` and selects
+    /// everything from the anchor to it, inclusive, so the range grows and shrinks around the
+    /// anchor and stops at the first and last row. No cursor yet: it starts at the selected row
+    /// farthest from the anchor (a ⇧-click range keeps its far end). Nothing selected: the first
+    /// row (↓) or the last row (↑) becomes the anchor.
+    static func extend(by delta: Int, from s: ListSelectionState, cursor: UUID?, rows: [UUID]) -> ListRangeResult {
+        guard let first = rows.first, let last = rows.last else { return ListRangeResult(state: s, cursor: cursor) }
+        guard let anchor = s.anchor, let ai = rows.firstIndex(of: anchor) else {
+            let id = delta < 0 ? last : first
+            return ListRangeResult(state: ListSelectionState(anchor: id, ids: []), cursor: id)
+        }
+        let farthest = s.ids.compactMap { rows.firstIndex(of: $0) }.max { abs($0 - ai) < abs($1 - ai) }
+        let ci = cursor.flatMap { rows.firstIndex(of: $0) } ?? farthest ?? ai
+        let ni = max(0, min(rows.count - 1, ci + delta))
+        let range = Set(rows[min(ai, ni)...max(ai, ni)])
+        return ListRangeResult(state: normalized(ListSelectionState(anchor: anchor, ids: range)), cursor: rows[ni])
     }
 
     /// Drops ids that are no longer visible (scope change, filter, completion, delete).

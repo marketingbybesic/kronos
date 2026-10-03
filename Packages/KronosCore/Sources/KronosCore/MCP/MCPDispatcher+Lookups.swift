@@ -1,3 +1,4 @@
+#if os(macOS)
 // L4 — MCP. Read-only lookup tools (list_projects, list_areas) and the label
 // existence check behind `strictLabels`. Reads only: no store mutation, so the
 // app's undo history and the SQLite store are untouched.
@@ -10,9 +11,8 @@ extension MCPDispatcher {
     // MARK: - list_projects
 
     func listProjects(_ arguments: Data) -> MCPToolOutcome {
-        guard let params = try? MCPJSON.decoder.decode(MCPParams.ListProjects.self, from: arguments) else {
-            return .error(.invalidParams, message: "could not decode list_projects arguments")
-        }
+        let params: MCPParams.ListProjects
+        do { params = try decodeParams(MCPParams.ListProjects.self, arguments, tool: "list_projects") } catch { return MCPToolOutcome.from(error) }
         if let aid = params.areaID, !store.allAreas().contains(where: { $0.id == aid }) {
             return .error(.notFound, message: "no area \(aid)", data: ["areaID": aid.uuidString])
         }
@@ -61,7 +61,7 @@ extension MCPDispatcher {
         if let concrete = store as? TaskStore {
             known = Set(((try? concrete.context.fetch(FetchDescriptor<KLabel>())) ?? []).map(\.mergeKey))
         } else {
-            for t in store.allTasks() { for l in t.labels ?? [] { known.insert(l.mergeKey) } }
+            for t in store.allTasksIncludingSubtasks() { for l in t.labels ?? [] { known.insert(l.mergeKey) } }
         }
         return names.filter { !known.contains(KLabel(name: $0).mergeKey) }
     }
@@ -71,3 +71,4 @@ extension MCPDispatcher {
                data: ["unknownLabels": missing.joined(separator: ",")])
     }
 }
+#endif

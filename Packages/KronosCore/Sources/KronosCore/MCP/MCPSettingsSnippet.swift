@@ -1,3 +1,4 @@
+#if os(macOS)
 // MCP. The exact copy-paste snippets Settings -> Data shows for wiring
 // an MCP client to the loopback server. The token
 // is injected by the caller (read from Keychain at render time) and is never
@@ -40,11 +41,22 @@ public enum MCPSettingsSnippet {
         "[mcp_servers.\(name)]\ncommand = \(quoted(bridge))"
     }
 
-    public static func bridgeHermesYAML(bridge: String, name: String = "kronos") -> String {
+    #if !KRONOS_PUBLIC
+    public static func bridgeRelayYAML(bridge: String, name: String = "kronos") -> String {
         "mcp_servers:\n  \(name):\n    command: \(quoted(bridge))"
     }
+
+    /// Relay on another machine (the VPS): stdio over the ssh mesh, no new port and no public
+    /// listener, the ssh key is the boundary. `host` is the ssh alias of this Mac and `--agent
+    /// relay` is the name its tasks carry. `ssh <host> <bridge> --agent relay --whoami` checks it.
+    public static func bridgeRelayRemoteYAML(host: String = "mac", bridge: String, name: String = "kronos",
+                                              agent: String = "relay") -> String {
+        "mcp_servers:\n  \(name):\n    command: ssh\n    args: [\(quoted(host)), \(quoted(bridge)), \"--agent\", \(quoted(agent))]"
+    }
+    #endif
 
     public static func bridgeDesktopJSON(bridge: String, name: String = "kronos") -> String {
         "{ \"mcpServers\": { \"\(name)\": { \"command\": \(quoted(bridge)) } } }"
     }
 }
+#endif

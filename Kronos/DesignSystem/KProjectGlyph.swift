@@ -4,7 +4,7 @@
 // is the single component in the app permitted to show project hue, and it never decides
 // that itself: the tint always comes from `Chroma.tint(color, mode:isFocus:carrier:carriers:)`,
 // so Focus mode shows hue on the focus task's glyph only, an OFF carrier forces that surface
-// neutral even in Full/Focus, and Calm shows none — from every screen, with no per-screen code.
+// neutral in Focus (all four default off) — from every screen, with no per-screen code.
 // `carrier:` names which of the four checkboxes (row glyph / Now card / sidebar project /
 // menu-bar title) this instance is; leave it `.other` for anything not one of those four
 // (chips, pickers, gallery samples) — `.other` is always allowed.
@@ -68,7 +68,7 @@ public struct KProjectGlyph: View {
         ZStack {
             if style == .plate {
                 RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                    .fill(tint.opacity(0.14))
+                    .fill(tint.opacity(Tok.tintSubtle))
             }
             if let icon {
                 Icon(icon, size: style == .plate ? size * 0.62 : size)

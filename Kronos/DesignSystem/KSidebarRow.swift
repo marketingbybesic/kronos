@@ -1,9 +1,11 @@
 // Kronos/DesignSystem/KSidebarRow.swift
 // Sidebar row: compact 28 pt rows, one small icon per row, the count on one shared trailing
 // edge in tabular numerals, areas as a quiet disclosure. Selection uses a second channel — a
-// WHITE leading bar drawn INSIDE the row (never colour, never fill alone). Project rows draw
-// their mark through KProjectGlyph, so hue obeys the colour mode; in Calm the count also hides
-// until the row is hovered.
+// leading bar in the accent (`\.kAccent`: white by default and always white in Focus mode)
+// drawn INSIDE the row, plus the neutral selected fill and hairline edge; never a fill alone.
+// Project rows draw their mark through KProjectGlyph, so hue obeys the colour mode and the
+// colour carriers. Counts are always visible. An archived row is quieter (tertiary title and
+// icon, faded project glyph) but stays readable.
 // Both sidebar display modes via @Environment(\.kSidebarMode): iconsOnly renders a centred
 // glyph with the name as tooltip + accessibility label.
 //
@@ -129,7 +131,7 @@ public struct KSidebarRow: View {
     }
 
     private var titleTone: Color {
-        if isArchived { return Tok.textDisabled }
+        if isArchived { return Tok.textTertiary }   // quieter than a live row, still readable (4.5:1)
         return isSelected || isHovering ? Tok.textPrimary : Tok.textSecondary
     }
 
@@ -195,7 +197,7 @@ public struct KSidebarRow: View {
         switch leading {
         case .icon(let name):
             Icon(name, size: size)
-                .foregroundStyle(isArchived ? Tok.textDisabled : (isSelected ? Tok.textPrimary : Tok.textTertiary))
+                .foregroundStyle(isSelected && !isArchived ? Tok.textPrimary : Tok.textTertiary)
         case .dot(let color, let dotSize):
             KProjectGlyph(icon: nil, color: color, size: size, dotSize: dotSize)
         case .glyph(let color, _, let dotSize):

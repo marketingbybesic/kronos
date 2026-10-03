@@ -75,14 +75,17 @@ public struct KEmojiPicker: View {
                 .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                        .fill(isOn ? Color.white.opacity(0.10) : .clear)
+                        .fill(isOn ? Tok.pressedFill : .clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
                         .strokeBorder(isOn ? Tok.borderActive : .clear, lineWidth: 1)
                 )
+                // The whole 28 pt cell is the target (and the accessibility frame), not the glyph.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(format: String(localized: "a11y.emojipicker.emoji"), emoji))
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }

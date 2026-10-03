@@ -33,8 +33,11 @@ struct DesignGalleryOrdoSection: View {
             }
 
             VStack(alignment: .leading, spacing: Space.x2) {
-                Text("KUndoPill — 5s draining ring").font(Typo.meta).foregroundStyle(Tok.textTertiary)
+                Text("KUndoPill — check in a 5s accent ring, optional primary action").font(Typo.meta).foregroundStyle(Tok.textTertiary)
                 KUndoPill(message: "Completed", onUndo: {}, onExpire: {})
+                KUndoPill(message: "Done. Next: open the invoice draft", primaryTitle: "Start", onPrimary: {},
+                          onUndo: {}, onExpire: {})
+                KUndoPill(message: "Nothing to undo here", showsUndo: false, onUndo: {}, onExpire: {})
             }
         }
     }
@@ -48,7 +51,7 @@ struct DesignGalleryOrdoSection: View {
             Spacer().frame(width: Space.x4)
         }
         .frame(width: 260, height: 24)
-        .background(Color.white.opacity(0.06))
+        .background(Tok.tagFill)
         .kBorder(Tok.hairline, radius: 4)
     }
 }

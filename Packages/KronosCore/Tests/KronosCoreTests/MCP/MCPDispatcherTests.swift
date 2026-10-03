@@ -66,9 +66,21 @@ struct MCPDispatcherTests {
         expectHandled(.restoreTask, ["id": task.id.uuidString])
         expectHandled(.listProjects)
         expectHandled(.listAreas)
+        expectHandled(.upnextGet)
+        expectHandled(.upnextSet, ["order": []])
+        let rule = store.addRule(text: "Never schedule on Sundays")
+        expectHandled(.rulesDelete, ["id": rule.id.uuidString])
+        expectHandled(.whoami)
+        expectHandled(.proposeTasks, ["title": "Plan", "tasks": [["title": "One"]]])
+        expectHandled(.proposeUpdate, ["id": task.id.uuidString, "patch": ["priority": "high"]])
+        expectHandled(.commentTask, ["id": task.id.uuidString, "text": "Seen"])
+        expectHandled(.eventsPoll)
+        expectHandled(.eventsAck, ["upTo": "0"])
+        expectHandled(.next)
 
-        #expect(ran == 15)
-        #expect(Set(MCPTool.allCases.map(\.name)).count == 15)
+        #expect(ran == 25)
+        #expect(ran == MCPTool.allCases.count)
+        #expect(Set(MCPTool.allCases.map(\.name)).count == 25)
     }
 
     // MARK: - Required: rejectsMissingOrWrongBearer
@@ -205,15 +217,22 @@ struct MCPDispatcherTests {
         #expect(d.handle(request) == nil)
     }
 
-    @Test func toolsListReturnsAllThirteenWithValidSchemas() throws {
+    @Test func toolsListReturnsEveryToolWithSchemaAndAnnotations() throws {
         let (_, d) = try makeDispatcher()
         let request = MCPRequest(id: .number(2), method: "tools/list", paramsData: Data("{}".utf8))
         let response = d.handle(request)!
         let obj = try JSONSerialization.jsonObject(with: response.result!) as! [String: Any]
         let tools = obj["tools"] as! [[String: Any]]
-        #expect(tools.count == 15)
+        #expect(tools.count == 25)
+        #expect(tools.count == MCPTool.allCases.count)
         for t in tools {
             #expect(t["inputSchema"] is [String: Any])
+            let a = t["annotations"] as? [String: Any]
+            #expect(a != nil, "\(t["name"] ?? "?") has no annotations")
+            for key in ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] {
+                #expect(a?[key] is Bool, "\(t["name"] ?? "?") annotation \(key)")
+            }
+            #expect((a?["title"] as? String)?.isEmpty == false)
         }
     }
 

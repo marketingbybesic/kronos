@@ -40,6 +40,10 @@ extension LiveUITest {
         // proven by the earlier "row one click selects" step; this step's job is the button,
         // and a direct select is immune to the target row being scrolled out of the current
         // sidebar scope (every earlier step may have changed scope/scroll position).
+        // A scope that does not list the task clears the selection on the next mutation: use All.
+        model.searchText = ""
+        model.scope = .all
+        try? await Task.sleep(for: .milliseconds(300))
         model.selectedTaskID = task.id
         try? await Task.sleep(for: .milliseconds(500))
         diagnostics.append("noteLinkButton: task=\(task.title) selected=\(model.selectedTaskID == task.id) notelinkAnchor=\(UITestAnchors.frames["inspector.notes.notelink.add"] != nil)")

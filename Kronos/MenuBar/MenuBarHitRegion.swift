@@ -22,10 +22,15 @@ enum MenuBarHitRegion {
     /// `imageOrigin` = (button width - image width) / 2, not at 0 — with origin 0 a click on
     /// the drawn circle landed ~8 pt into the "rest" zone and opened the popover instead
     /// (user report: the circle did not respond). `slop` widens a 14 pt glyph into a comfortable target.
-    static func region(forX x: CGFloat, circleWidth: CGFloat, imageOrigin: CGFloat, slop: CGFloat) -> Zone {
+    ///
+    /// `titleGap` is the space between the glyph and the first letter of the title. The target
+    /// never grows past the title start, so a click on the first letters of the title (its
+    /// first 4 pt included) opens the popover instead of completing the task by mistake.
+    static func region(forX x: CGFloat, circleWidth: CGFloat, imageOrigin: CGFloat, slop: CGFloat,
+                       titleGap: CGFloat = .infinity) -> Zone {
         guard circleWidth > 0 else { return .rest }
         let lower = max(0, imageOrigin - slop)
-        let upper = imageOrigin + circleWidth + slop
+        let upper = imageOrigin + circleWidth + min(slop, titleGap)
         return (x >= lower && x < upper) ? .circle : .rest
     }
 }

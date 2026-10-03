@@ -2,7 +2,7 @@
 // 7-page reading tour that ADHD users skipped. One screen: what Kronos is, how it is meant to
 // be used (four ideas, one line each), and where to learn the rest: the "Learn Kronos" card at
 // the top of the list, tried whenever the user has time. One button. Closing it counts the same.
-// The old tour stays reachable from Help as a reference.
+// Help > "Welcome to Kronos…" shows it again.
 import SwiftUI
 import AppKit
 
@@ -21,6 +21,18 @@ struct OnboardingIntroView: View {
         ("check", "welcome.intro.idea3.title", "welcome.intro.idea3.body"),
         ("map", "welcome.intro.idea4.title", "welcome.intro.idea4.body"),
     ]
+
+    private static var quickAddKeys: [String] {
+        HotkeyRegistry.current(for: "global.quickadd")?.displayKeys ?? []
+    }
+
+    /// "Version 1.2 (34)" from the app bundle, nothing when there is no bundle (tools, snapshots).
+    private static var versionText: String? {
+        let info = Bundle.main.infoDictionary
+        guard let label = OnboardingLogic.versionLabel(short: info?["CFBundleShortVersionString"] as? String,
+                                                       build: info?["CFBundleVersion"] as? String) else { return nil }
+        return String(format: String(localized: "welcome.intro.version"), label)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,6 +64,11 @@ struct OnboardingIntroView: View {
                                     .font(Typo.body)
                                     .foregroundStyle(Tok.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
+                                // The first idea names "the quick add shortcut": show the keys, read
+                                // from the registry so a remapped shortcut shows correctly.
+                                if i == 0, !Self.quickAddKeys.isEmpty {
+                                    KKeyHintItem(Self.quickAddKeys, label: String(localized: "welcome.intro.idea1.keys"))
+                                }
                             }
                         }
                         .opacity(revealed > i + 2 ? 1 : 0)
@@ -75,6 +92,12 @@ struct OnboardingIntroView: View {
                 Button(String(localized: "welcome.intro.later")) { onLater() }
                     .kButton(.ghost)
                 Spacer()
+                if let version = Self.versionText {
+                    Text(version)
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                    Spacer()
+                }
                 Button(String(localized: "welcome.intro.start")) { onStart() }
                     .kButton(.primary)
                     .keyboardShortcut(.defaultAction)
@@ -103,13 +126,23 @@ struct OnboardingIntroView: View {
     }
 }
 
-/// Single-instance host, same pattern as `WelcomeWindowController`.
+/// Single-instance NSWindow host.
 @MainActor
 enum OnboardingIntroController {
     private static var window: NSWindow?
     /// Closing the window with its red button counts as "Later": the tour still starts.
     private static var decided = false
     private static var laterAction: (() -> Void)?
+
+    /// Help > "Welcome to Kronos…": the intro screen, whose "Show me around" starts the checklist and the tour.
+    static func showFromHelp() {
+        guard let model = AppDelegate.shared?.model else { return }
+        show(onStart: {
+                OnboardingCenter.shared.start(model: model)
+                TourCenter.shared.start(model: model)
+            },
+            onLater: {})
+    }
 
     static func show(onStart: @escaping () -> Void, onLater: @escaping () -> Void) {
         if let window { window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return }

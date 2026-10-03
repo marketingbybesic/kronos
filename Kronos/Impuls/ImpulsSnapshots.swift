@@ -21,7 +21,10 @@ enum ImpulsSnapshots {
             "impuls.card.dread": AnyView(SeededImpulsScreen(model: model, seed: .dreadCandidate)),
             "impuls.card.hrtitle": AnyView(SeededImpulsScreen(model: model, seed: .croatianTitle)),
             "impuls.empty": AnyView(SeededImpulsScreen(model: model, seed: .empty)),
-            "impuls.morning": AnyView(SeededImpulsScreen(model: model, seed: .morningThree, mode: .morning)),
+            "impuls.card.generic": AnyView(SeededImpulsScreen(model: model, seed: .genericMove)),
+            "impuls.morning": AnyView(SeededMorning(model: model)),
+            "impuls.morning.sunday": AnyView(SeededMorning(model: model, sunday: true)),
+            "impuls.nowcard": AnyView(SeededNowCard(model: model)),
         ]
     }
 }
@@ -31,16 +34,15 @@ enum ImpulsSnapshots {
 /// then renders the real `ImpulsScreen` unmodified — the snapshot exercises the exact same
 /// code path the app ships, not a stand-in.
 private struct SeededImpulsScreen: View {
-    enum Seed { case midCandidate, dreadCandidate, croatianTitle, empty, morningThree }
+    enum Seed { case midCandidate, dreadCandidate, croatianTitle, genericMove, empty }
 
     let model: AppModel
     let seed: Seed
     var aiRouter: AIRouting? = nil
-    var mode: ImpulsScreen.Mode = .ask
     @State private var didSeed = false
 
     var body: some View {
-        ImpulsScreen(model: model, mode: mode, aiRouter: aiRouter)
+        ImpulsScreen(model: model, aiRouter: aiRouter)
             .onAppear {
                 guard !didSeed else { return }
                 didSeed = true
@@ -62,7 +64,7 @@ private struct SeededImpulsScreen: View {
         case .midCandidate:
             let project = model.store.createProject(name: "Acme", colorHex: KProjectPalette.swatches[6].color.hexString,
                                                      icon: "camera", area: nil)
-            let task = model.store.create(title: "Objavi rujanski karusel", notes: "", project: project,
+            let task = model.store.create(title: "Objavi rujanski karusel", notes: "Mapa je na zajedničkom disku", project: project,
                                           status: .todo, priority: .none, dueDay: nil)
             model.store.setDepth(task.id, .shallow)
             model.store.setFirstMove(task.id, "Otvori Acme rujan mapu i preimenuj datoteku.")
@@ -80,15 +82,14 @@ private struct SeededImpulsScreen: View {
                                           status: .todo, priority: .none, dueDay: nil)
             model.store.setDepth(task.id, .shallow)
             model.store.update(task.id) { $0.estimateMinutes = 10 }
+        case .genericMove:
+            // A noun-phrase title with no stored move: the generator can only offer the generic
+            // placeholder, so the title is the hero and there is no second line.
+            let task = model.store.create(title: "Tax return for Globex", notes: "Accountant sent the forms on Monday", project: nil,
+                                          status: .todo, priority: .none, dueDay: nil)
+            model.store.setDepth(task.id, .shallow)
         case .empty:
-            break   // no open tasks left -> "No tasks yet" / "Nothing open" branch
-        case .morningThree:
-            let names = ["Nazovi Alex oko termina", "Write the first line of the Globex caption", "Plati račun za struju"]
-            for (i, title) in names.enumerated() {
-                let task = model.store.create(title: title, notes: "", project: nil,
-                                              status: .todo, priority: .none, dueDay: nil)
-                model.store.setDepth(task.id, i == 1 ? .deep : .shallow)
-            }
+            break   // no open tasks left -> the one calm empty line
         }
     }
 }

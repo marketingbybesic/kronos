@@ -1,5 +1,6 @@
+#if os(macOS)
 // MCP. Dispatches JSON-RPC methods (initialize, tools/list, tools/call,
-// ping) onto the 13 alpha tools (Contracts/MCPTool.swift), against the same
+// ping) onto the tools of Contracts/MCPTool.swift, against the same
 // `TaskStoring` surface the app uses. Every mutating tool goes through the
 // `…NoUndo` store variants so an MCP batch can never bury the user's own undo
 // history (see TaskStoring.swift).
@@ -15,6 +16,18 @@ public final class MCPDispatcher {
     let store: any TaskStoring
     let ranking: any RankingProviding
     let today: () -> Int
+    /// The agent behind the request being handled, from the bridge's `X-Kronos-Client` header.
+    /// Set for the duration of one synchronous `handleBody`; nil outside a request.
+    var clientName: String?
+    /// The agent registry and activity log. Nil = no agent bookkeeping (the plain dispatcher the
+    /// self-tests and the app's own calls use); every caller is then the person and nothing is refused.
+    public var hub: AgentHub?
+    /// Who is calling, for the duration of one `handleBody`; nil = the person's own process.
+    var identity: AgentIdentity?
+    /// Skips the per-minute bucket while a held long poll re-runs its (already counted) call.
+    var skipRateLimit = false
+    /// What the app is showing, for `next`. Set by the app; nil falls back to Today.
+    public var nextProvider: (@MainActor () -> MCPNextCandidates?)?
 
     /// `ranking` is accepted for parity with the app's other Core consumers
     /// and future Alpha-2 tools (`impuls`, `dayplan_propose` — see
@@ -30,6 +43,9 @@ public final class MCPDispatcher {
     }
 
     // MARK: - JSON-RPC entry point
+
+    /// Reported in `initialize`; the `kronos-mcp` bridge reports the same number.
+    public static let serverVersion = "1.0.0"
 
     /// Newest first. `initialize` echoes the client's version when it is one of these.
     public static let supportedProtocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
@@ -62,7 +78,10 @@ public final class MCPDispatcher {
 
     /// Transport-independent: parses a body (single request or a batch array, which 2025-03-26
     /// allows and newer versions merely stop sending), dispatches, and returns the HTTP reply.
-    public func handleBody(_ body: Data) -> Reply {
+    public func handleBody(_ body: Data, client: String? = nil, agent: AgentIdentity? = nil) -> Reply {
+        clientName = Self.sanitizedClientName(client)
+        identity = agent
+        defer { clientName = nil; identity = nil }
         let obj: Any
         do { obj = try JSONSerialization.jsonObject(with: body, options: [.fragmentsAllowed]) }
         catch { return Reply(status: 200, body: MCPResponse.failure(id: nil, .parseError).encoded(), mutated: false) }
@@ -81,6 +100,12 @@ public final class MCPDispatcher {
         }
         if let batch = obj as? [Any] {
             if batch.isEmpty { return Reply(status: 200, body: MCPResponse.failure(id: nil, .invalidRequest).encoded(), mutated: false) }
+            // Rejected whole, before anything is dispatched: a partial run of an oversized batch
+            // would leave the client unsure which writes happened.
+            if batch.count > MCPLimits.maxBatchRequests {
+                let message = "batch of \(batch.count) requests exceeds the limit of \(MCPLimits.maxBatchRequests)"
+                return Reply(status: 200, body: MCPResponse.invalidParams(id: nil, message: message).encoded(), mutated: false)
+            }
             let replies = batch.compactMap(one).map { $0.encoded() }
             guard !replies.isEmpty else { return Reply(status: 202, body: nil, mutated: mutated) }
             var out = Data("[".utf8)
@@ -100,10 +125,7 @@ public final class MCPDispatcher {
         guard request.method == "tools/call",
               let call = try? JSONDecoder().decode(ToolCallEnvelope.self, from: request.paramsData),
               let tool = MCPTool(rawValue: call.name) else { return false }
-        switch tool {
-        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas: return false
-        default: return true
-        }
+        return tool.isMutating
     }
 
     private func handleToolsCall(_ request: MCPRequest) -> MCPResponse {
@@ -113,7 +135,14 @@ public final class MCPDispatcher {
         guard let tool = MCPTool(rawValue: call.name) else {
             return .invalidParams(id: request.id, message: "Unknown tool: \(call.name)")
         }
-        let outcome = dispatch(tool, arguments: call.arguments ?? Data("{}".utf8))
+        let arguments = call.arguments ?? Data("{}".utf8)
+        if let rejected = unknownKeyError(tool, arguments) {
+            return .success(id: request.id, resultJSON: encode(rejected.envelope))
+        }
+        if let refused = authorize(tool, arguments) {
+            return .success(id: request.id, resultJSON: encode(refused.envelope))
+        }
+        let outcome = dispatchRecording(tool, arguments: arguments)
         return .success(id: request.id, resultJSON: encode(outcome.envelope))
     }
 
@@ -126,7 +155,7 @@ public final class MCPDispatcher {
         return [
             "protocolVersion": AnyEncodable(version),
             "capabilities": AnyEncodable(["tools": ["listChanged": false]]),
-            "serverInfo": AnyEncodable(["name": "kronos", "title": "Kronos", "version": "0.1.0"]),
+            "serverInfo": AnyEncodable(["name": "kronos", "title": "Kronos", "version": Self.serverVersion]),
             "instructions": AnyEncodable(
                 "Kronos is the user's task manager. Use list_tasks with a view filter before " +
                 "guessing ids. Never invent UUIDs. create_task fields you pass explicitly " +
@@ -139,7 +168,8 @@ public final class MCPDispatcher {
         ["tools": MCPTool.allCases.map { tool in
             ToolListEntry(name: tool.name,
                           description: tool.toolDescription,
-                          inputSchemaRaw: tool.jsonSchema)
+                          inputSchemaRaw: tool.jsonSchema,
+                          annotations: tool.annotations)
         }]
     }
 
@@ -175,14 +205,17 @@ private struct ToolListEntry: Encodable {
     let name: String
     let description: String
     let inputSchemaRaw: String
+    let annotations: MCPTool.Annotations
 
-    enum CodingKeys: String, CodingKey { case name, description, inputSchema }
+    enum CodingKeys: String, CodingKey { case name, title, description, inputSchema, annotations }
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)
         try c.encode(description, forKey: .description)
         let obj = (try? JSONSerialization.jsonObject(with: Data(inputSchemaRaw.utf8))) ?? [String: Any]()
         try c.encode(AnyEncodable(obj), forKey: .inputSchema)
+        try c.encode(annotations.title, forKey: .title)
+        try c.encode(AnyEncodable(annotations.jsonObject), forKey: .annotations)
     }
 }
 
@@ -206,13 +239,13 @@ struct AnyEncodable: Encodable {
             else { try container.encode(n.int64Value) }
         case let v as [String: Any]:
             var keyed = encoder.container(keyedBy: DynamicKey.self)
-            for (k, v) in v { try keyed.encode(AnyEncodable(v), forKey: DynamicKey(stringValue: k)!) }
+            for (k, v) in v { try keyed.encode(AnyEncodable(v), forKey: DynamicKey(k)) }
         case let v as [Any]:
             var unkeyed = encoder.unkeyedContainer()
             for item in v { try unkeyed.encode(AnyEncodable(item)) }
         case let v as [String: AnyEncodable]:
             var keyed = encoder.container(keyedBy: DynamicKey.self)
-            for (k, v) in v { try keyed.encode(v, forKey: DynamicKey(stringValue: k)!) }
+            for (k, v) in v { try keyed.encode(v, forKey: DynamicKey(k)) }
         case is NSNull:
             try container.encodeNil()
         default:
@@ -224,7 +257,8 @@ struct AnyEncodable: Encodable {
 private struct DynamicKey: CodingKey {
     var stringValue: String
     var intValue: Int?
-    init?(stringValue: String) { self.stringValue = stringValue; self.intValue = nil }
+    init(_ s: String) { self.stringValue = s; self.intValue = nil }
+    init?(stringValue: String) { self.init(stringValue) }
     init?(intValue: Int) { self.stringValue = "\(intValue)"; self.intValue = intValue }
 }
 
@@ -243,3 +277,4 @@ private struct AnyDecodableBox: Decodable {
         value = NSNull()
     }
 }
+#endif

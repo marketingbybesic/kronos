@@ -17,8 +17,13 @@ struct SettingsAboutTab: View {
     @State private var phase: Phase
     private let isHermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
 
-    init(initial: Phase = .idle) {
+    /// Inside General only the update check shows: General already carries the version and the
+    /// build id, so the name/version/build rows would say the same thing twice.
+    private let embedded: Bool
+
+    init(initial: Phase = .idle, embedded: Bool = false) {
         self._phase = State(initialValue: initial)
+        self.embedded = embedded
     }
 
     /// The raw marketing version ("1.0.0"), which is what the tag comparison needs; Settings >
@@ -36,15 +41,17 @@ struct SettingsAboutTab: View {
     }
 
     var body: some View {
-        SettingsSection(title: String(localized: "settings.tab.about")) {
-            SettingsRow(label: String(localized: "settings.about.name.label")) {
-                Text(appName).font(Typo.row).foregroundStyle(Tok.textSecondary)
-            }
-            SettingsRow(label: String(localized: "settings.about.version.label")) {
-                Text(version).font(Typo.mono).foregroundStyle(Tok.textSecondary)
-            }
-            SettingsRow(label: String(localized: "settings.about.build.label")) {
-                Text(buildID).font(Typo.mono).foregroundStyle(Tok.textSecondary)
+        if !embedded {
+            SettingsSection(title: String(localized: "settings.tab.about")) {
+                SettingsRow(label: String(localized: "settings.about.name.label")) {
+                    Text(appName).font(Typo.row).foregroundStyle(Tok.textSecondary)
+                }
+                SettingsRow(label: String(localized: "settings.about.version.label")) {
+                    Text(version).font(Typo.mono).foregroundStyle(Tok.textSecondary)
+                }
+                SettingsRow(label: String(localized: "settings.about.build.label")) {
+                    Text(buildID).font(Typo.mono).foregroundStyle(Tok.textSecondary)
+                }
             }
         }
 

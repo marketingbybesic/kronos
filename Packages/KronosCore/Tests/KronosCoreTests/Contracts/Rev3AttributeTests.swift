@@ -61,10 +61,12 @@ struct Rev3AttributeTests {
         #expect(s.task(t.id)?.effort == .xs)
     }
 
-    @Test func effortIsInTheV1Schema() {
-        // Added straight to V1 (placeholder data only), so no migration stage.
-        #expect(KronosMigrationPlan.stages.isEmpty)
-        #expect(KronosSchemaV1.models.contains { $0 == KTask.self })
+    @Test func effortIsInBothSchemaVersions() {
+        // Effort was added straight to V1 (no stage of its own); V2 keeps it. The plan's only
+        // stage is the V1 -> V2 one.
+        #expect(KronosMigrationPlan.stages.count == 1)
+        #expect(KronosSchemaV2.models.contains { $0 == KTask.self })
+        #expect(KTask(title: "x").effortRaw == 0)
     }
 
     // MARK: - project emoji

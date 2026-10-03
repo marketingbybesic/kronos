@@ -18,9 +18,12 @@ public struct KViewOptionsPopover<Sort: View, Filter: View, Display: View>: View
     @ViewBuilder let sort: () -> Sort
     @ViewBuilder let filter: () -> Filter
     @ViewBuilder let display: () -> Display
+    /// "Clear all": nil hides the row (nothing to clear), so the control exists only while it can act.
+    let clearAll: (() -> Void)?
 
-    public init(@ViewBuilder sort: @escaping () -> Sort, @ViewBuilder filter: @escaping () -> Filter,
+    public init(clearAll: (() -> Void)? = nil, @ViewBuilder sort: @escaping () -> Sort, @ViewBuilder filter: @escaping () -> Filter,
                 @ViewBuilder display: @escaping () -> Display) {
+        self.clearAll = clearAll
         self.sort = sort
         self.filter = filter
         self.display = display
@@ -33,6 +36,23 @@ public struct KViewOptionsPopover<Sort: View, Filter: View, Display: View>: View
             section(title: String(localized: "viewoptions.section.filter"), content: filter)
             KHairline()
             section(title: String(localized: "viewoptions.section.display"), content: display)
+            if let clearAll {
+                KHairline()
+                Button(action: clearAll) {
+                    Text(String(localized: "viewoptions.clearall"))
+                        .font(Typo.row)
+                        .foregroundStyle(Tok.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: Metrics.minHit, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "viewoptions.clearall.help"))
+                .accessibilityLabel(String(localized: "viewoptions.clearall"))
+                .accessibilityHint(String(localized: "viewoptions.clearall.help"))
+                .uiTestAnchor("viewoptions.clearall")
+                .padding(.horizontal, Space.x4)
+                .padding(.vertical, Space.x1)
+            }
         }
         .frame(width: Metrics.popoverWidth)
         .background(Tok.overlay)
@@ -69,10 +89,12 @@ public struct KToggleRow: View {
 
     public var body: some View {
         Toggle(isOn: $isOn) {
-            Text(label).font(Typo.row).foregroundStyle(isEnabled && !isDisabled ? Tok.textPrimary : Tok.textDisabled)
+            Text(label).font(Typo.row).foregroundStyle(Tok.textPrimary)   // an inert option dims as a whole (opacity below)
         }
         .toggleStyle(.switch)
         .tint(accent)   // on-state colour (feature H); default white matches the prior look exactly
+        // The switch's own AX element came out unlabelled (measured with the AX dump); name it.
+        .accessibilityLabel(label)
         .frame(height: Metrics.controlRegular)
         .disabled(isDisabled)
         // Monochrome, matching KButtonStyle's own disabled recede — no colour change,

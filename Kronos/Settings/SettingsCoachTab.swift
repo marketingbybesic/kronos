@@ -13,12 +13,10 @@ struct SettingsCoachTab: View {
     @State private var morningPlanEnabled: Bool = AppearancePrefs.morningPlanEnabled
     @State private var timeBlocksEnabled: Bool = TimeBlocksPrefs.isEnabled
     @State private var menuBarFollowsBlock: Bool = TimeBlocksPrefs.menuBarFollows
-    @State private var defaultEnergy: KEnergyLevel
 
     init(model: AppModel) {
         self.model = model
         _leadMinutes = State(initialValue: Double(model.coach.settings.blockLeadMinutes))
-        _defaultEnergy = State(initialValue: model.coach.settings.presets.first { $0.id == OrdoPreset.coachID }?.energy ?? .mid)
     }
 
     var body: some View {
@@ -41,7 +39,18 @@ struct SettingsCoachTab: View {
             if model.coach.settings.autoTriage {
                 fieldToggles
             }
+            SettingsHelpRow {
+                Text(String(localized: "settings.ai.egress"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Space.x2)
+                    .uiTestAnchor("settings.coach.egress")
+                Spacer(minLength: 0)
+            }
         }
+
+        SettingsHouseRulesSection(model: model)
 
         SettingsSection(title: String(localized: "settings.coach.section.blocks")) {
             SettingsRow(label: String(localized: "settings.coach.blockcoach")) {
@@ -71,7 +80,7 @@ struct SettingsCoachTab: View {
             }
         }
 
-        SettingsSection(title: String(localized: "settings.coach.section.plan")) {
+        SettingsSection(title: String(localized: "settings.planning.section.morning")) {
             SettingsRow(label: String(localized: "settings.coach.morningplan")) {
                 Toggle(isOn: Binding(get: { morningPlanEnabled }, set: { v in
                     morningPlanEnabled = v
@@ -86,20 +95,6 @@ struct SettingsCoachTab: View {
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                 Spacer()
-            }
-            SettingsRow(label: String(localized: "settings.coach.defaultenergy")) {
-                KSegmented(selection: Binding(get: { defaultEnergy }, set: { newValue in
-                    defaultEnergy = newValue
-                    model.coach.update { settings in
-                        if let i = settings.presets.firstIndex(where: { $0.id == OrdoPreset.coachID }) {
-                            settings.presets[i].energy = newValue
-                        }
-                    }
-                }), segments: [
-                    KSegment(value: KEnergyLevel.low, text: String(localized: "energy.low")),
-                    KSegment(value: KEnergyLevel.mid, text: String(localized: "energy.mid")),
-                    KSegment(value: KEnergyLevel.high, text: String(localized: "energy.high")),
-                ])
             }
         }
 
@@ -133,6 +128,8 @@ struct SettingsCoachTab: View {
                 Spacer()
             }
         }
+
+        SettingsNotificationsSection()
     }
 
     // MARK: Triage fields
@@ -221,12 +218,15 @@ struct SettingsCoachTab: View {
     @ViewBuilder
     private var learnedLinksSection: some View {
         let learned = model.coach.settings.learnedEventTitles
-        if !learned.isEmpty {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(String(localized: "settings.coach.learned.title"))
-                    .font(Typo.metaStrong)
-                    .foregroundStyle(Tok.textSecondary)
-                    .padding(.top, Space.x2)
+        VStack(alignment: .leading, spacing: Space.x1) {
+            Text(String(localized: "settings.coach.learned.title"))
+                .font(Typo.metaStrong)
+                .foregroundStyle(Tok.textSecondary)
+                .padding(.top, Space.x2)
+            if learned.isEmpty {
+                SettingsEmptyRow(text: String(localized: "settings.planning.learned.empty"),
+                                 anchor: "settings.empty.learned")
+            } else {
                 ForEach(Array(learned.keys.sorted()), id: \.self) { title in
                     learnedLinkRow(eventTitle: title, projectID: learned[title])
                 }
@@ -262,9 +262,8 @@ struct SettingsCoachTab: View {
                     .foregroundStyle(Tok.textSecondary)
                     .padding(.top, Space.x2)
                 if model.coach.todaysBlocks.isEmpty {
-                    Text(String(localized: "settings.coach.today.empty"))
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
+                    SettingsEmptyRow(text: String(localized: "settings.planning.blocks.empty"),
+                                     anchor: "settings.empty.todayblocks")
                 } else {
                     ForEach(model.coach.todaysBlocks, id: \.event.id) { block in
                         todayBlockRow(block)

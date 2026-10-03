@@ -15,10 +15,10 @@
 Most task apps are built for people who can look at a list of forty things and simply begin. If starting is the hard part, a long list is the problem, not the solution. Kronos is designed around **low initiation energy**:
 
 - **One next thing.** The Now card shows a single task and its **first move**: the first physical action, small enough to start without deciding anything.
-- **Ordo.** A fixed order for today, so "what now?" is already answered. Skip, snooze or finish; the next one slides in.
-- **Triage in seconds.** One task at a time, number keys for priority, a letter for effort, a typed date. Suggestions are pre-filled; you accept or change them and move on.
+- **Up next.** A fixed order for today, so "what now?" is already answered. Skip, snooze or finish; the next one slides in.
+- **Sort in seconds.** One task at a time, number keys for priority, a letter for effort, a typed date. Suggestions are pre-filled; you accept or change them and move on.
 - **Undated means Someday.** A task without a deadline leaves today's view automatically. Give it a date and it comes back.
-- **Impuls.** "I have twenty minutes and low energy": Kronos picks something that fits.
+- **Pick one.** "I have twenty minutes and low energy": Kronos picks something that fits.
 
 ## Features
 
@@ -26,17 +26,17 @@ Most task apps are built for people who can look at a list of forty things and s
 |---|---|
 | **Quick add from anywhere** (⌃⌥K) | `Call Alex tomorrow !!! ** #acme` sets the date, priority, effort and project as you type. Dates in plain English and Croatian (`next month`, `by friday`, `za tjedan dana`, `do petka`), typo-tolerant, plus the date words of your macOS languages. `Task > subtask > subtask` creates the outline in one line. |
 | **Capture from notes** (⇧⌘N) | Paste meeting notes or a brain dump. Kronos splits it into tasks, subtasks and notes on the spot; with AI on, it also estimates priority and effort. A guard rejects anything the model invents that is not in your text. |
-| **Triage** (⌥⌘T) | Keyboard-first review of whatever still lacks a priority, effort, deadline or project. |
+| **Sort (formerly Triage)** (⌥⌘T) | Keyboard-first review of whatever still lacks a priority, effort, deadline or project. |
 | **Time blocks** | Follows your calendar: the block you are in decides which tasks the menu bar offers. |
 | **Menu bar** | The current task, "Not now" and "Tomorrow", without opening the window. |
 | **Apple Notes** | Link a note to a task and open it from the inspector. |
-| **Siri and Shortcuts** | Add a Task, What's Next, Complete Current Task, Capture Notes, Start Impuls, Pin Focus Task, Switch Ordo Preset. |
+| **Siri and Shortcuts** | Add a Task, What's Next, Complete Current Task, Capture Notes, Start Pick one (formerly Impuls), Pin Focus Task, Switch Up next (formerly Ordo) Preset. |
 | **Spotlight** | Your tasks are searchable system-wide. |
 | **AI agents (MCP)** | An optional local MCP server lets tools such as Claude Code read and update your tasks. Off by default, loopback only, token protected. |
 | **Look** | True-black OLED interface, three colour modes, custom accent, three text sizes. English and Croatian. |
 
 <p>
-<img src="docs/screenshots/triage.png" width="49%" alt="Triage: one task with priority, effort, deadline and project suggestions">
+<img src="docs/screenshots/triage.png" width="49%" alt="Sort: one task with priority, effort, deadline and project suggestions">
 <img src="docs/screenshots/capture.png" width="49%" alt="Capture: pasted notes turned into tasks with subtasks and notes">
 </p>
 <p>
@@ -75,7 +75,7 @@ Tests for the core library: `cd Packages/KronosCore && swift test`.
 
 ## AI setup (optional)
 
-**Settings > AI**: pick a provider (OpenRouter, GhostCLI, or any OpenAI-compatible endpoint under *Custom*), paste your key, choose a model. Free OpenRouter models are enough for triage and capture. Kronos tries a second model when the first one returns nothing usable, and always shows what happened: *Asking…*, *AI: model*, or *AI failed: reason*, with the plain, non-AI result already on screen.
+**Settings > AI**: pick a provider (OpenRouter, GhostCLI, or any OpenAI-compatible endpoint under *Custom*), paste your key, choose a model. Free OpenRouter models are enough for sort and capture. Kronos tries a second model when the first one returns nothing usable, and always shows what happened: *Asking…*, *AI: model*, or *AI failed: reason*, with the plain, non-AI result already on screen.
 
 ## AI agents (MCP)
 

@@ -77,6 +77,11 @@ public struct TriageResult: Codable, Equatable, Sendable {
     /// suggestion says why). Nil when the source has nothing to add beyond
     /// `rationale`.
     public let reason: String?
+    /// The model's judgement that the task is one the person is likely to avoid because of conflict,
+    /// money or an apology owed. Nullable and additive: nil when absent or null, so an older reply
+    /// still decodes. The code-decidable signals (carried two days, avoidance words) are set by
+    /// `DreadRules`, not by this key.
+    public let dread: Bool?
 
     /// 0 marks a deterministic result, which the queue re-triages once a
     /// provider returns. Local only — never on the wire.
@@ -85,7 +90,7 @@ public struct TriageResult: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case project, priority, due, depth, estimateMinutes
         case energyKind, firstMove, labels, rationale, proposedRule
-        case effort, reason
+        case effort, reason, dread
     }
 
     public init(project: String?,
@@ -100,6 +105,7 @@ public struct TriageResult: Codable, Equatable, Sendable {
                 proposedRule: ProposedRule? = nil,
                 effort: KEffort? = nil,
                 reason: String? = nil,
+                dread: Bool? = nil,
                 version: Int = 1) {
         self.project         = project
         self.priority        = priority
@@ -113,6 +119,7 @@ public struct TriageResult: Codable, Equatable, Sendable {
         self.proposedRule    = proposedRule
         self.effort          = effort
         self.reason          = reason.map { String($0.prefix(90)) }
+        self.dread           = dread
         self.version         = version
     }
 
@@ -138,6 +145,15 @@ public struct TriageResult: Codable, Equatable, Sendable {
         effort = effortRaw.flatMap(KEffort.init(rawValue:))
         let reasonRaw = try c.decodeIfPresent(String.self, forKey: .reason) ?? nil
         reason = reasonRaw.map { String($0.prefix(90)) }
+        // A boolean, or 0/1 from a model that writes the flag as a number. Anything else (or a
+        // missing key) is "no opinion", never a failure of the whole reply.
+        if let flag = try? c.decodeIfPresent(Bool.self, forKey: .dread) {
+            dread = flag
+        } else if let number = try? c.decodeIfPresent(Int.self, forKey: .dread), number == 0 || number == 1 {
+            dread = number == 1
+        } else {
+            dread = nil
+        }
         version      = 1
     }
 
@@ -227,7 +243,7 @@ public struct ImpulsRanking: Codable, Equatable, Sendable {
     public struct Entry: Codable, Equatable, Sendable {
         /// 1...5, an index into the candidate list. Never repeated.
         public let position: Int
-        /// ONE sentence, ≤140 chars, written to a peer. States what the task
+        /// ONE sentence, ≤90 chars, written to a peer. States what the task
         /// is, not what the person should feel. No encouragement, no
         /// exclamation marks, no em dashes, no second-person commands.
         public let mentorLine: String

@@ -21,7 +21,7 @@ public struct KTextArea: View {
             if text.isEmpty {
                 Text(placeholder)
                     .font(Typo.body)
-                    .foregroundStyle(Tok.textDisabled)
+                    .foregroundStyle(Tok.textTertiary)
                     .padding(.horizontal, Space.x4)   // matches TextEditor's own inset + its internal text container padding
                     .padding(.vertical, Space.x3)
                     .allowsHitTesting(false)

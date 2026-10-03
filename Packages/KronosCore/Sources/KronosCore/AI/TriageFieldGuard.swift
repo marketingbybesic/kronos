@@ -17,6 +17,8 @@ public enum TriageField: String, CaseIterable, Sendable {
     case project, priority, due, depth, estimateMinutes, energyKind, firstMove, labels, rationale
     /// The user's coarse sizing.
     case effort
+    /// The model's judgement that the task is one the person avoids.
+    case dread
 }
 
 /// The result of applying the lock guard: which of `TriageResult`'s fields

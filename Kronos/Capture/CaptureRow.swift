@@ -26,6 +26,10 @@ struct CaptureRow: Identifiable, Equatable {
     /// Only read while `proposal.isDuplicateOfOpenTask`. Merge is the default so a duplicate is
     /// never a dead end: Cmd-Return folds it into the existing task, "Create anyway" is one click.
     var duplicateChoice: DuplicateChoice = .merge
+    /// The Apple Reminders item this row was read from ("From Reminders"), or nil. `create()`
+    /// stamps the task made from this row with the reminder's identity, whatever the title
+    /// became in review.
+    var reminder: ReminderItem?
 
     /// True when ticking this row folds it into an existing task instead of creating a new one.
     var isMerge: Bool { isTicked && proposal.isDuplicateOfOpenTask && duplicateChoice == .merge }

@@ -23,16 +23,14 @@ public struct KNowCard<Attributes: View>: View {
     var projectIcon: String?
     var projectColorHex: String?
     var projectName: String?
-    /// When true the Complete ring breathes (opacity 0.55↔1.0, ~2.4 s easeInOut) to draw
-    /// attention to an overdue or high-priority First Move. Reduce Motion disables the
-    /// animation and keeps the ring at full emphasis. Rev18 decision 5A.
-    var attention: Bool
+    /// Optional extras under the title and under the footer (set by the extras method below).
+    var leftOff: AnyView?
+    var actions: AnyView?
     @ViewBuilder let attributes: () -> Attributes
     let onComplete: () -> Void
     @State private var isCompleting = false
     @State private var checkTrim: CGFloat = 0
     @State private var isHoveringComplete = false
-    @State private var attentionPhase: Bool = false
    @FocusState private var isCompleteFocused: Bool
    @Environment(\.kAccent) private var accent
     // Use the project's own static accessor (Tokens.swift) — there is no
@@ -41,7 +39,6 @@ public struct KNowCard<Attributes: View>: View {
 
     public init(firstMove: String?, title: String, remaining: Int = 0,
                 projectIcon: String? = nil, projectColorHex: String? = nil, projectName: String? = nil,
-                attention: Bool = false,
                 @ViewBuilder attributes: @escaping () -> Attributes,
                 onComplete: @escaping () -> Void) {
         self.firstMove = firstMove
@@ -50,7 +47,6 @@ public struct KNowCard<Attributes: View>: View {
         self.projectIcon = projectIcon
         self.projectColorHex = projectColorHex
         self.projectName = projectName
-        self.attention = attention
         self.attributes = attributes
         self.onComplete = onComplete
     }
@@ -84,7 +80,9 @@ public struct KNowCard<Attributes: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, Space.x2)
             }
+            if let leftOff { leftOff.padding(.top, Space.x2) }
             footer.padding(.top, Space.x5)
+            if let actions { actions.padding(.top, Space.x3) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Metrics.nowCardPadding)
@@ -92,6 +90,14 @@ public struct KNowCard<Attributes: View>: View {
         .kBorder(Tok.borderControl, radius: Radius.popover)
         .opacity(isCompleting ? 0.55 : 1)
         .accessibilityElement(children: .contain)
+    }
+
+    /// The two optional lines of the Now card: where you left off, and Start / Not now / Tomorrow.
+    public func extras<L: View, A: View>(@ViewBuilder leftOff: () -> L, @ViewBuilder actions: () -> A) -> KNowCard {
+        var copy = self
+        copy.leftOff = AnyView(leftOff())
+        copy.actions = AnyView(actions())
+        return copy
     }
 
     private var footer: some View {
@@ -118,7 +124,6 @@ public struct KNowCard<Attributes: View>: View {
                     Circle().fill(isCompleting ? accent : (isHoveringComplete ? Tok.hoverFill : Color.clear))
                     Circle().strokeBorder(isCompleting ? Color.clear : (isHoveringComplete ? Tok.textPrimary : Tok.textSecondary),
                                           lineWidth: Metrics.strokeQuiet)
-                        .opacity(attention && !isHoveringComplete && !isCompleting && !reduceMotion ? (attentionPhase ? 0.55 : 1.0) : 1.0)
                     CheckMark()
                         .trim(from: 0, to: isCompleting ? checkTrim : (isHoveringComplete ? 1 : 0))
                         .stroke(isCompleting ? Accent.onFill(accent) : Tok.textDisabled,
@@ -133,27 +138,12 @@ public struct KNowCard<Attributes: View>: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .kFocusRing(isCompleteFocused, radius: Radius.full)
+        .kFocusRing(isCompleteFocused, radius: Radius.full, circular: true)
         .focusable(true, interactions: .activate)
         .focused($isCompleteFocused)
         .focusEffectDisabled()
         .onHover { isHoveringComplete = $0 }
         .animation(Motion.hover, value: isHoveringComplete)
-        .onAppear {
-            guard attention, !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                attentionPhase = true
-            }
-        }
-       .onChange(of: reduceMotion) { _, newValue in
-            if newValue {
-                attentionPhase = false
-            } else if attention {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    attentionPhase = true
-                }
-            }
-        }
         .disabled(isCompleting)
     }
 

@@ -1,7 +1,7 @@
 // Kronos/List/TaskListScreen+Bulk.swift
 // Multi-selection wiring for the list (TaskListScreen.swift and ListRowView.swift sit at the
 // 500-line cap, so this lives in an extension): click modifiers, ⌘A / Esc, pruning, the
-// bulk-aware key shortcuts and the floating bar. The rules themselves are in ListSelection.swift
+// bulk-aware grammar keys and the floating bar. The rules themselves are in ListSelection.swift
 // (pure) and ListBulkActions.swift (one undo step per action).
 import SwiftUI
 import KronosCore
@@ -31,11 +31,14 @@ extension TaskListScreen {
         let rows = ctx.rows.map(\.id)
         if flags.contains(.command) {
             apply(ListSelection.toggle(id, from: selectionState(), rows: rows))
+            rangeCursor = nil
         } else if flags.contains(.shift) {
             apply(ListSelection.range(to: id, from: selectionState(), rows: rows))
+            rangeCursor = id   // ⇧↑/⇧↓ go on from the clicked end
         } else {
             model.selectedIDs = []
             model.selectedTaskID = id
+            rangeCursor = nil
         }
         listFocused = true
     }
@@ -50,8 +53,10 @@ extension TaskListScreen {
 
     /// Esc clears the multi-selection (the anchor stays selected). Passes through otherwise.
     func handleEscape() -> KeyPress.Result {
+        ListLegendState.shared.hide()
         guard !Self.isTyping, !model.selectedIDs.isEmpty else { return .ignored }
         model.selectedIDs = []
+        rangeCursor = nil
         return .handled
     }
 
@@ -61,23 +66,30 @@ extension TaskListScreen {
         apply(ListSelection.pruned(selectionState(), rows: ctx.rows.map(\.id)))
     }
 
-    /// Single-key actions on the whole set: 0-4 / o priority and the rebindable snooze key.
-    /// Returns true when it consumed the key.
-    func handleBulkCharacter(_ characters: String) -> Bool {
+    /// A grammar key on the whole set (one undo step, one pill): T ⇧T H plan, 0-4 priority, S M L
+    /// effort, W waiting, Y someday. D, P, B, F act on one task and are ignored here. Returns
+    /// true when it consumed the key.
+    func handleBulkAction(_ action: ListKeyAction) -> Bool {
         guard isMultiSelected else { return false }
-        switch characters.lowercased() {
-        case Self.listKey("list.snooze"): ListBulk.apply(.snooze, model: model)
-        case "0", "o": ListBulk.apply(.priority(.none), model: model)
-        case "1": ListBulk.apply(.priority(.low), model: model)
-        case "2": ListBulk.apply(.priority(.medium), model: model)
-        case "3": ListBulk.apply(.priority(.high), model: model)
-        case "4": ListBulk.apply(.priority(.urgent), model: model)
-        default: return false
+        let today = Day.today()
+        switch action {
+        case .planToday: ListBulk.apply(.plan(today), model: model)
+        case .planTomorrow: ListBulk.apply(.plan(today + 1), model: model)
+        case .snooze: ListBulk.apply(.snooze, model: model)
+        case .priority(let level): ListBulk.apply(.priority(KPriority(rawValue: level) ?? .none), model: model)
+        case .effort(let size): ListBulk.apply(.effort(size.effort), model: model)
+        case .waiting: ListBulk.apply(.toggleWaiting, model: model)
+        case .someday: ListBulk.apply(.toggleSomeday, model: model)
+        case .pickDue, .pickProject, .breakDown, .focusPin, .expandAll: return false
         }
         return true
     }
 
     // MARK: - Floating bar
+
+    /// Bottom inset the rows keep while the bar is up: the bar's height, its distance from the
+    /// window edge, and one gap, so no row ever sits behind it.
+    var bulkBarClearance: CGFloat { Metrics.controlRegular + Space.x2 + Space.x8 + Space.x6 + Space.x3 }
 
     /// Bottom-centre of the list, only while 2+ rows are selected. Sits above the undo pill
     /// (which owns the very bottom edge of the window) so the two never overlap.

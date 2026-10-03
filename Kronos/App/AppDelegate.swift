@@ -41,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// store behind the error window and skips every other launch step.
     let launchFailure: LaunchFailure?
     private var servicesProvider: ServicesProvider?
+    /// `.login` when the system started Kronos as a login item: no window, no welcome; the menu bar
+    /// item is the whole launch. Hermetic runs are never a login launch.
+    private(set) var launchKind: LaunchKind = .normal
 
     /// Owns the MCP listener: Settings toggles it live and reads its real port / last error.
     let mcpBackground = MCPBackgroundLaunch()
@@ -52,10 +55,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dayChangeCoordinator: DayChangeCoordinator?
     private var dayChangeObservers: DayChangeObservers?
     private var nightSweep: NightSweep?
+    private var snapshotFollower: SnapshotFollower?
+    private var taskCompletionObserver: NSObjectProtocol?
     private var externalChangeObserver: NSObjectProtocol?
     private var firstFrameObserver: NSObjectProtocol?
 
     override init() {
+        // One Kronos per store directory. A second launch on the same directory hands over to the
+        // first and exits before it can open the store. A different directory (live test, hand
+        // test) has its own lock and coexists. Snapshot runs use an in-memory store: no lock.
+        if !KronosEnv.isSnapshot, !SingleInstanceLock.acquire(at: KronosEnv.lockURL, keep: true) {
+            SingleInstanceLock.activateRunningHolder(at: KronosEnv.lockURL)
+            FileHandle.standardError.write(Data("Kronos: already open on this store; handing over to the running instance\n".utf8))
+            exit(0)
+        }
         var failure: LaunchFailure?
         let opened: TaskStore
         do {
@@ -67,7 +80,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #else
             let inMemory = false
             #endif
-            opened = try TaskStore(inMemory: inMemory)
+            // Subtasks became child tasks: copy the store files aside BEFORE opening (the open
+            // itself adds the new columns), then convert the old step rows once, before any
+            // window or controller reads the store. A failed or incomplete copy is removed and
+            // queues a notice; the conversion does not run this launch (no marker), so data is
+            // never converted without a backup. The notice is shown by the next UI launch.
+            var backup = SubtaskToTaskMigration.BackupResult.notNeeded
+            if !inMemory { backup = SubtaskToTaskMigration.backupStoreFilesIfNeeded() }
+            let candidate = try TaskStore(inMemory: inMemory)
+            if !inMemory {
+                // A store a newer build wrote stays untouched: no migration, no write; the readable
+                // window explains it. Otherwise the recorded minimum schema version is raised.
+                if case .readOnly(let requires) = StoreOpenGuard.apply(to: candidate, kvs: StoreOpenGuard.liveKVS()) {
+                    throw StoreTooNewError(build: SchemaGuard.currentBuildVersion, requires: requires)
+                }
+                SubtaskToTaskMigration.runIfNeeded(store: candidate, backup: backup)
+            }
+            opened = candidate
         } catch {
             // Copy the store aside first, then show a readable window (applicationDidFinishLaunching).
             failure = LaunchFailure.capture(error)
@@ -99,6 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // (Settings > Appearance reuses that "Relaunch to apply" caption).
         DSScale.apply(density: model.coach.settings.density, textSize: model.coach.settings.textSize)
         LaunchTrace.mark("DSScale.apply")
+        launchKind = LaunchKind.detect(launchedAsLoginItem: LaunchKind.currentEventIsLoginItem(),
+                                       isHermetic: KronosEnv.isHermetic)
+        KronosSounds.preload()
+        // Stamps new device-local links with this device (per-device id in the scratch defaults of a hermetic run).
+        DeviceOrigin.configureLive(defaults: KronosEnv.defaults)
         seedIfEmpty()
         LaunchTrace.mark("seedIfEmpty")
         // One-time catch-up for open undated `.todo` tasks created before the automatic status
@@ -122,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            DemoData.load(into: model.store)
            model.didMutate()
            AIWiring.configure(model)
+           installDataSafetyObservers()
            LiveUITest.run(model: model)
            return
        }
@@ -137,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
        applyLaunchScope()
        menuBarOrdo.install()
         LaunchTrace.mark("menuBarOrdo.install")
-        offerWelcomeOnce()
+        if launchKind == .normal { offerWelcomeOnce() }
         LaunchTrace.mark("offerWelcomeOnce")
         quickAdd.start()
         LaunchTrace.mark("quickAdd.start")
@@ -158,13 +193,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LaunchTrace.mark("mcpLive.applyStoredEnabledState")
         MCPEndpointFile.removeLegacy()   // ~/.kronos-mcp.json held the bearer token world-readable
         mcpBackground.begin()
+        showSubtaskBackupNoticeIfQueued()
         startDayChangeTracking()
         LaunchTrace.mark("startDayChangeTracking")
-        BackupScheduler(store: store).runIfNeeded()
+        installDataSafetyObservers()
+        let scheduler = BackupScheduler(store: store)
+        scheduler.runIfNeeded()
+        scheduler.runRolling(force: false)
         LaunchTrace.mark("BackupScheduler.runIfNeeded")
         observeExternalChanges()
         observeCompletions()
         startBlockCoach()
+        // The Snapshot writer: one write now, then after every model change (follows version and list head).
+        let follower = SnapshotFollower(model: model)
+        follower.start()
+        snapshotFollower = follower
+        // Opt-in block start notifications (off until the person turns them on in Settings).
+        BlockStartNotifications.shared.start(model: model)
         LaunchTrace.mark("observers+blockCoach")
         // First frame: `didUpdateNotification` fires once the window finishes its initial
         // layout and draw, whether or not the app is the active/frontmost app — unlike
@@ -185,6 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.firstFrameObserver = nil
                 LaunchTrace.mark("firstFrame")
                 LaunchTrace.flush()
+                if self.launchKind == .login { self.hideWindowsForLoginLaunch() }
                 // Siri / Shortcuts / Spotlight (hermetic under snapshots; this path never runs
                 // for them). Neither result is visible in the first frame, so both run after it.
                 KronosIntents.bootstrap(model: self.model)
@@ -202,6 +248,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// One-time notice when the pre-migration safety copy failed (nothing was converted, the next
+    /// launch retries). A hidden --mcp-background launch has no UI: the notice stays queued on
+    /// disk for the next normal launch.
+    private func showSubtaskBackupNoticeIfQueued() {
+        guard !MCPBackgroundLaunch.requested,
+              let notice = SubtaskToTaskMigration.takePendingNotice() else { return }
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = String(localized: "app.migration.backup_failed.title")
+            alert.informativeText = String(format: String(localized: "app.migration.backup_failed.body"),
+                                           notice.reason, notice.folder)
+            alert.runModal()   // AppKit supplies the localised default "OK" button
+        }
+    }
+
     /// First-run tour, shown once, before Permissions. An existing user who already saw
     /// Permissions (its own `kronos.permissions.shownOnce` flag already true) still sees the
     /// tour once — it is new to them — but does not see Permissions a second time.
@@ -210,16 +272,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let welcomeKey = "kronos.welcome.shownOnce"
         let permissionsKey = "kronos.permissions.shownOnce"
         let decision = WelcomeGate.decide(env: env,
-                                           welcomeShown: UserDefaults.standard.bool(forKey: welcomeKey),
-                                           permissionsShown: UserDefaults.standard.bool(forKey: permissionsKey))
+                                           welcomeShown: KronosEnv.defaults.bool(forKey: welcomeKey),
+                                           permissionsShown: KronosEnv.defaults.bool(forKey: permissionsKey))
         // Permissions wait until the tour's basics are done (OnboardingLogic): asking on top of
         // the very first step is the worst moment. The closure also serves a tour started earlier.
         OnboardingCenter.shared.offerPermissions = { [model, mcpLive] in
-            UserDefaults.standard.set(true, forKey: permissionsKey)
+            KronosEnv.defaults.set(true, forKey: permissionsKey)
             PermissionsWindowController.show(model: model, mcpStatus: mcpLive)
         }
         guard decision.showWelcome else { return }
-        UserDefaults.standard.set(true, forKey: welcomeKey)
+        KronosEnv.defaults.set(true, forKey: welcomeKey)
         // One intro screen (what Kronos is), then the Learn Kronos card on the list, tried at the
         // user's own pace (Kronos/Welcome/Onboarding*.swift). Closing the intro counts the same.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [model] in
@@ -234,11 +296,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// First launch: import the Linear seed if present and the store is empty.
+    /// Not part of the public flavour: that build has no Linear import path at all.
     private func seedIfEmpty() {
-        guard store.allTasks().isEmpty else { return }
+        #if !KRONOS_PUBLIC
+        guard LaunchSeeding.shouldSeed(storeIsEmpty: store.allTasks().isEmpty) else { return }
         guard let data = try? Data(contentsOf: KronosStore.seedURL()) else { return }
         _ = try? JSONImporter(store: store).importJSON(data)
         model.didMutate()
+        #endif
     }
 
     // MARK: MCP (INTEGRATION.md "App target wiring")
@@ -251,9 +316,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startDayChangeTracking() {
         let coordinator = DayChangeCoordinator(clock: SystemClock(),
                                                 scheduler: TimerDayChangeScheduler(),
-                                                defaults: UserDefaults.standard)
+                                                defaults: KronosEnv.defaults)
         let observers = DayChangeObservers(coordinator: coordinator)
-        let sweep = NightSweep(store: store, clock: SystemClock(), defaults: UserDefaults.standard)
+        let sweep = NightSweep(store: store, clock: SystemClock(), defaults: KronosEnv.defaults)
         dayChangeCoordinator = coordinator
         dayChangeObservers = observers
         nightSweep = sweep
@@ -290,12 +355,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// One place plays the completion cues; Core announces only completions made by a person.
     private func observeCompletions() {
         let nc = NotificationCenter.default
-        nc.addObserver(forName: .kronosTaskDidComplete, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { KronosSounds.play(.task) }
+        taskCompletionObserver = CompletionSound.observe(store: store)
+        nc.addObserver(forName: .kronosSubtaskDidComplete, object: nil, queue: .main) { [weak self] note in
+            MainActor.assumeIsolated {
+                let id = note.userInfo?["subtaskID"] as? UUID
+                KronosSounds.play(Self.completionCue(forSubtask: id, store: self?.store))
+            }
         }
-        nc.addObserver(forName: .kronosSubtaskDidComplete, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { KronosSounds.play(.subtask) }
-        }
+    }
+
+    /// The step cue, or the parent cue when this step was the last open one of a parent: finishing a
+    /// parent is a bigger moment than finishing one step. Unknown ids fall back to the step cue.
+    static func completionCue(forSubtask id: UUID?, store: TaskStore?) -> KronosSounds.Cue {
+        guard let id, let parent = store?.taskIncludingDeleted(id)?.parent else { return .subtask }
+        let children = parent.orderedChildren
+        return !children.isEmpty && children.allSatisfy({ $0.status == .done }) ? .parent : .subtask
     }
 
     /// MCP writes land on a background connection; refresh every list once one completes.
@@ -311,11 +385,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// shows the first move at once. Hermetic runs keep `.inbox` with nothing selected.
     private func applyLaunchScope() {
         guard !LaunchScope.isHermetic(ProcessInfo.processInfo.environment) else { return }
-        let today = Day.today()
-        func open(_ scope: ListScope) -> Int {
-            model.store.allTasks().filter { KStatus.open.contains($0.status) && ScopeFilter.matches($0, scope: scope, today: today) }.count
-        }
-        switch LaunchScope.pick(hermetic: false, inboxOpen: open(.inbox), todayOpen: open(.today)) {
+        switch AppModel.launchScopeChoice(store: model.store, hermetic: false, today: Day.today()) {
         case .inbox: model.scope = .inbox
         case .today: model.scope = .today
         case .all: model.scope = .all
@@ -326,10 +396,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A Spotlight result was clicked: open that task.
     func application(_ application: NSApplication, continue userActivity: NSUserActivity,
                      restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
-        guard let id = SpotlightIndexer.taskID(from: userActivity) else { return false }
-        model.scope = .all
-        model.selectedTaskID = id
-        NSApp.activate(ignoringOtherApps: true)
+        switch SpotlightIndexer.target(from: userActivity) {
+        case .task(let id):
+            model.openTaskByID(id)
+        case .project(let id):
+            guard model.store.allProjects(includeArchived: true).contains(where: { $0.id == id }) else { return false }
+            model.scope = .project(id)
+        case nil:
+            return false
+        }
+        bringForward()
         return true
     }
 
@@ -340,12 +416,159 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Dock click while the window is hidden (--mcp-background) brings it back.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        mcpBackground.restore() ? false : true
+        if !flag, launchKind == .login { bringForward(); return false }
+        return mcpBackground.restore() ? false : true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         guard launchFailure == nil else { return }
+        // Order matters: drafts first (the inspector commits typed fields), then the save, then the
+        // rolling backup, which copies what is on disk.
+        NotificationCenter.default.post(name: .kronosFlushDrafts, object: nil)
+        saveStoreNow()
         mcpLive.stop()
         model.persist()
+        BackupScheduler(store: store).runRolling(force: true)
+    }
+
+    // MARK: Data safety (drafts, save, rolling backup, save-failure notice)
+
+    private var resignObserver: NSObjectProtocol?
+    private var saveFailedObserver: NSObjectProtocol?
+    /// Shown at most once while a notice is up; Core posts once per burst of failures.
+    let saveFailureNotice = SaveFailureNotice()
+
+    /// Resign-active: flush typed drafts, save, retake the rolling backup. Also the one place that
+    /// shows the calm notice when a save fails. Observers are synchronous (no queue), so the order
+    /// flush -> save -> backup holds.
+    func installDataSafetyObservers() {
+        guard resignObserver == nil else { return }
+        let nc = NotificationCenter.default
+        resignObserver = nc.addObserver(forName: NSApplication.willResignActiveNotification,
+                                        object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.flushSaveAndBackUp() }
+        }
+        saveFailedObserver = nc.addObserver(forName: .kronosSaveFailed, object: nil, queue: nil) { [weak self] _ in
+            // A save can fail on a background connection: hop to the main actor either way.
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.saveFailureNotice.report() }
+            } else {
+                Task { @MainActor in self?.saveFailureNotice.report() }
+            }
+        }
+    }
+
+    func flushSaveAndBackUp() {
+        guard launchFailure == nil else { return }
+        NotificationCenter.default.post(name: .kronosFlushDrafts, object: nil)
+        saveStoreNow()
+        BackupScheduler(store: store).runRolling(force: false)
+    }
+
+    /// Saves pending changes. A failure keeps the changes in memory, writes a readable copy next to
+    /// the backups and raises `.kronosSaveFailed` (one notice, see `SaveFailureNotice`).
+    @discardableResult
+    func saveStoreNow() -> Bool {
+        let context = store.context
+        context.processPendingChanges()
+        guard context.hasChanges else { return true }
+        do {
+            try context.save()
+            return true
+        } catch {
+            let dir = BackupScheduler.defaultDirectory
+            let url = dir.appendingPathComponent("emergency-\(BackupFileStamp.utc()).json")
+            try? BackupFile.write(JSONExporter(store: store).makeEnvelope(), to: url)
+            NotificationCenter.default.post(name: .kronosSaveFailed, object: nil,
+                                            userInfo: ["error": String(describing: error)])
+            return false
+        }
+    }
+}
+
+// MARK: - Single instance
+
+/// One Kronos per store directory: an exclusive, non-blocking `flock` on `store.lock` next to the
+/// store, held for the life of the process (the kernel drops it on exit or crash, so there is
+/// never a stale lock to clean up). The holder's pid is written into the file so a second launch
+/// can bring the first one forward.
+enum SingleInstanceLock {
+    private static var held: Int32 = -1
+
+    /// true = this process may go on. `keep` holds the lock until exit; without it the lock is
+    /// taken and released at once (a probe: "would a second instance be refused?").
+    /// A location that cannot be opened never blocks the app.
+    static func acquire(at url: URL, keep: Bool) -> Bool {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fd = open(url.path, O_CREAT | O_RDWR, 0o600)
+        guard fd >= 0 else { return true }
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { close(fd); return false }
+        guard keep else { flock(fd, LOCK_UN); close(fd); return true }
+        held = fd
+        ftruncate(fd, 0)
+        let pid = Array("\(getpid())\n".utf8)
+        _ = pid.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+        return true
+    }
+
+    /// Brings the instance that holds the lock forward (best effort; a hidden background launch has
+    /// no window to show, a Dock click restores it).
+    static func activateRunningHolder(at url: URL) {
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let app = NSRunningApplication(processIdentifier: pid) else { return }
+        app.activate()
+    }
+}
+
+// MARK: - Save failure notice
+
+/// The calm notice for a failed save: one sheet on the front window, not a stack of them. While
+/// it is up, further `.kronosSaveFailed` posts are ignored; once dismissed the next one shows
+/// again. `presenter` is replaceable so a test can count notices without opening a dialog.
+@MainActor
+final class SaveFailureNotice {
+    private(set) var isShowing = false
+    private(set) var shownCount = 0
+    var presenter: (_ done: @escaping @MainActor () -> Void) -> Void = SaveFailureNotice.presentAlert
+
+    func report() {
+        guard !isShowing else { return }
+        isShowing = true
+        shownCount += 1
+        presenter { [weak self] in self?.isShowing = false }
+    }
+
+    /// A hidden background launch and hermetic runs have nobody to read it: nothing is shown.
+    static func presentAlert(done: @escaping @MainActor () -> Void) {
+        guard !MCPBackgroundLaunch.requested, !KronosEnv.isHermetic else { done(); return }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = String(localized: "app.save_failed.title")
+        alert.informativeText = String(localized: "app.save_failed.body")
+        alert.addButton(withTitle: String(localized: "common.close"))
+        alert.addButton(withTitle: String(localized: "app.save_failed.folder"))
+        let finish: @MainActor (NSApplication.ModalResponse) -> Void = { response in
+            if response == .alertSecondButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([BackupScheduler.defaultDirectory])
+            }
+            done()
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: window) { response in MainActor.assumeIsolated { finish(response) } }
+        } else {
+            DispatchQueue.main.async { finish(alert.runModal()) }
+        }
+    }
+}
+
+enum BackupFileStamp {
+    /// `20261002T091530Z`, for file names that must sort and never collide across time zones.
+    static func utc(_ date: Date = Date()) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        return f.string(from: date)
     }
 }

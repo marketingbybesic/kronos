@@ -22,11 +22,20 @@ public struct AIRouter: AIRouting {
     public let mode: AIMode
     public let candidates: [AIRoutedCandidate]
     public let houseRules: [HouseRule]
+    /// Wall-clock cap for one whole triage or re-triage call, across every candidate.
+    public let chainBudgetSeconds: Double
 
-    public init(mode: AIMode, candidates: [AIRoutedCandidate], houseRules: [HouseRule] = []) {
+    public init(mode: AIMode, candidates: [AIRoutedCandidate], houseRules: [HouseRule] = [],
+                chainBudgetSeconds: Double = AIBudget.triageChainSeconds) {
         self.mode = mode
         self.candidates = candidates
         self.houseRules = houseRules
+        self.chainBudgetSeconds = chainBudgetSeconds
+    }
+
+    /// The same router with another rule set (the rules changed, the models did not).
+    public func withHouseRules(_ rules: [HouseRule]) -> AIRouter {
+        AIRouter(mode: mode, candidates: candidates, houseRules: rules, chainBudgetSeconds: chainBudgetSeconds)
     }
 
     // MARK: - Triage
@@ -40,9 +49,11 @@ public struct AIRouter: AIRouting {
                        context: TriageContext = .empty) async throws -> TriageResult {
         let language = detectLanguage(title)
         do {
-            return try await triageOnce(title: title, notes: notes, projectNames: projectNames,
-                                        labelNames: labelNames, today: today, language: language,
-                                        context: context)
+            return try await Self.raced(seconds: chainBudgetSeconds) {
+                try await triageOnce(title: title, notes: notes, projectNames: projectNames,
+                                     labelNames: labelNames, today: today, language: language,
+                                     context: context)
+            }
         } catch {
             // The neighbour vote replaces a context-blind deterministic fallback: the
             // last resort now reasons from the same examples the prompt would have
@@ -64,7 +75,7 @@ public struct AIRouter: AIRouting {
             "PROJECT_NAMES": projectNames.joined(separator: ", "),
             "LABEL_NAMES": labelNames.joined(separator: ", "),
             "EXAMPLES": PromptTemplates.examplesBlock(context.promptLines),
-            "TITLE": title,
+            "TITLE": PrivacyRedactor.redact(title),
             "NOTES_300": PrivacyRedactor.sanitizeNotes(notes)
         ])
         let request = AIRequest(model: candidates.first?.client.modelID ?? "",
@@ -153,7 +164,7 @@ public struct AIRouter: AIRouting {
                             estimateMinutes: estimate, energyKind: decoded.energyKind,
                             firstMove: decoded.firstMove, labels: labels, rationale: decoded.rationale,
                             proposedRule: decoded.proposedRule, effort: decoded.effort, reason: reason,
-                            version: 1)
+                            dread: decoded.dread, version: 1)
     }
 
 
@@ -170,7 +181,7 @@ public struct AIRouter: AIRouting {
             "TODAY_ISO": Day.iso(today), "WEEKDAY": weekdayName(today),
             "PROJECT_NAMES": projectNames.joined(separator: ", "),
             "LABEL_NAMES": labelNames.joined(separator: ", "),
-            "TITLE": title, "NOTES_300": PrivacyRedactor.sanitizeNotes(notes)
+            "TITLE": PrivacyRedactor.redact(title), "NOTES_300": PrivacyRedactor.sanitizeNotes(notes)
         ])
         let previousJSON = (try? String(decoding: JSONEncoder().encode(previous), as: UTF8.self)) ?? "{}"
         let addendum = TemplateFill.fill(PromptTemplates.retriageUserAddendumTemplate, [
@@ -180,9 +191,11 @@ public struct AIRouter: AIRouting {
         let request = AIRequest(model: candidates.first?.client.modelID ?? "",
                                 messages: [.system(system), .user(user)], kind: .retriage)
         do {
-            return try await hopAcrossModels(request, projectNames: projectNames, labelNames: labelNames,
-                                             language: language) { data in
-                try Self.validateTriage(data, projectNames: projectNames, labelNames: labelNames, today: today)
+            return try await Self.raced(seconds: chainBudgetSeconds) {
+                try await hopAcrossModels(request, projectNames: projectNames, labelNames: labelNames,
+                                          language: language) { data in
+                    try Self.validateTriage(data, projectNames: projectNames, labelNames: labelNames, today: today)
+                }
             }
         } catch {
             return previous   // deterministic fallback: unchanged, no rule (spec §5)
@@ -195,6 +208,10 @@ public struct AIRouter: AIRouting {
                            language: String) async throws -> ImpulsRanking {
         let lang: Lang = language == "hr" ? .hr : .en
         guard !impulsCandidates.isEmpty else { return ImpulsRanking(ranked: []) }
+        // The mentor line has a 4 s window. A model that never answers inside it is not asked:
+        // the call would cost tokens and send data for a line that is always dropped.
+        let fast = eligibleCandidates.filter { FastModel.isFast(modelID: $0.client.modelID) }
+        guard !fast.isEmpty else { throw AIError.noUsableProvider }
         let system = TemplateFill.fill(PromptTemplates.impulsPickSystem, [
             "HOUSE_RULES": HouseRulesRenderer.render(rules: houseRules, scope: .impuls, limit: 15),
             "LANG_NAME": lang.name, "LANG": lang.rawValue
@@ -206,7 +223,9 @@ public struct AIRouter: AIRouting {
         ])
         let request = AIRequest(model: candidates.first?.client.modelID ?? "",
                                 messages: [.system(system), .user(user)], kind: .impulsPick)
-        return try await hopAcrossModels(request, projectNames: [], labelNames: [], language: lang) { data in
+        let fastRouter = AIRouter(mode: mode, candidates: fast, houseRules: houseRules,
+                                  chainBudgetSeconds: chainBudgetSeconds)
+        return try await fastRouter.hopAcrossModels(request, projectNames: [], labelNames: [], language: lang) { data in
             let decoded: ImpulsRanking
             do { decoded = try JSONDecoder().decode(ImpulsRanking.self, from: data) }
             catch { throw AIError.badJSON(prefix: String(decoding: data.prefix(200), as: UTF8.self)) }
@@ -217,7 +236,12 @@ public struct AIRouter: AIRouting {
         }
     }
 
-    // MARK: - Ordo resort (RESERVED, no alpha caller — see AIDTOs.swift)
+    /// True when at least one eligible model answers inside the Impuls window.
+    public var supportsImpulsLine: Bool {
+        eligibleCandidates.contains { FastModel.isFast(modelID: $0.client.modelID) }
+    }
+
+    // MARK: - Ordo resort
 
     public func ordoResort(queueTitles: [String], message: String, history: [String],
                            language: String) async throws -> OrdoResort {

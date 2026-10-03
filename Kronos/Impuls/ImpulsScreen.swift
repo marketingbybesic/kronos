@@ -1,36 +1,37 @@
 // Kronos/Impuls/ImpulsScreen.swift
 //
-// ONE calm question — how much energy right now — answered with ONE task's first move.
-// Rendered synchronously from RankingEngine (<=100ms); the AI, if wired, may only crossfade
-// the mentor line within a 4s budget and can never change the task on screen
-// (ImpulsMentor.swift owns that seam). No red, no timers, no streaks, no "!" anywhere.
+// ONE task, ranked for the energy you have today. The card shows at once from the energy chosen
+// today (else a time-of-day default); energy is a small chip under the card, not a question before it.
+// Rendered synchronously from RankingEngine (<=100ms); the AI, if wired, may only crossfade the
+// mentor line within a 4s budget and can never change the task on screen (ImpulsMentor.swift owns
+// that seam). No red, no timers, no streaks, no "!" anywhere.
 
 import SwiftUI
 import KronosCore
 
 struct ImpulsScreen: View {
-    enum Mode { case ask, morning }
-
     let model: AppModel
-    var mode: Mode = .ask
     /// Injected once a real router exists; nil (the default everywhere in this file) means
     /// Impuls runs fully offline — every line the user sees is generic.
     var aiRouter: AIRouting? = nil
     var engine: RankingProviding = RankingEngine()
 
-    init(model: AppModel, mode: Mode = .ask, aiRouter: AIRouting? = nil, engine: RankingProviding = RankingEngine()) {
+    init(model: AppModel, aiRouter: AIRouting? = nil, engine: RankingProviding = RankingEngine()) {
         self.model = model
-        self.mode = mode
         self.aiRouter = aiRouter
         self.engine = engine
     }
 
-    @State private var energy: KEnergyLevel = .mid
+    @State private var energy: KEnergyLevel = ImpulsEnergyMemory.current()
+    @State private var energyOpen = false
     @State private var excludedIDs: Set<UUID> = []
     @State private var anotherCount = 0
     @State private var current: ImpulsCard?
     @State private var mentor: ImpulsMentor?
-    @State private var morningSlots: [UUID] = []
+    /// The dread memory as it was BEFORE the card on screen was picked. A re-rank caused by a store
+    /// change reuses it, so the same card comes back; only a new pick (open, Another, energy change)
+    /// reads the memory afresh.
+    @State private var servingBase = ImpulsDreadMemory.load()
     @FocusState private var isFocused: Bool
 
     private var language: Lang { Lang(rawValue: KronosLocale.languageCode) ?? .en }
@@ -41,13 +42,13 @@ struct ImpulsScreen: View {
             Tok.bg
             VStack(spacing: Space.x4) {
                 content
-                if mode == .morning || current != nil { energyRow }
+                if current != nil { energyBlock }
             }
             .padding(Space.x6)
-            .frame(maxWidth: 520)
+            .frame(maxWidth: Metrics.impulsCardWidth)
         }
         // Hugs its content: a full-height black column with empty bands above and below the
-        // card read as a broken screen (user report); the shell centres it.
+        // card read as a broken screen; the shell centres it.
         .frame(maxWidth: .infinity)
         .fixedSize(horizontal: false, vertical: true)
         .focusable(true)
@@ -55,17 +56,19 @@ struct ImpulsScreen: View {
         .focused($isFocused)
         .onAppear {
             isFocused = true
-            // No question before the task: the card shows at once from the last energy chosen
-            // today, else a time-of-day default. Energy is a small "change" row under the card.
-            energy = Self.defaultEnergy()
-            reload()
+            energy = ImpulsEnergyMemory.current()
+            ImpulsDayMemory.prune(today: today, liveTaskIDs: Set(model.store.allTasks().map(\.id)))
+            newPick()
         }
-        // Re-evaluate on every store mutation (project convention: SwiftData models are
-        // read via manual fetches, never @Query). This also fixes a real ordering bug: a
-        // parent view that seeds sample data in ITS OWN `.onAppear` runs that seed AFTER
-        // this screen's `.onAppear` (SwiftUI fires a child's `.onAppear` before its
-        // parent's), so without this the very first render would be built from whatever
-        // was in the store before the seed landed.
+        .task {
+            // The list and inspector also ask for focus as they mount; take it back once they have,
+            // so Return and the digit keys reach this card.
+            try? await Task.sleep(for: .milliseconds(150))
+            isFocused = true
+        }
+        // Re-evaluate on every store mutation (SwiftData models are read via manual fetches, never
+        // @Query). A parent that seeds sample data in ITS OWN `.onAppear` runs after this one, so
+        // without this the very first render would be built from whatever was there before the seed.
         .onChange(of: model.version) { _, _ in reload() }
         .onKeyPress("1") { setEnergy(.low); return .handled }
         .onKeyPress("2") { setEnergy(.mid); return .handled }
@@ -76,116 +79,109 @@ struct ImpulsScreen: View {
         .onKeyPress(.escape) { close(); return .handled }
     }
 
-    // MARK: Energy question
+    // MARK: Energy
 
-    /// Hour 12 under the snapshot harness so shots do not depend on the clock.
-    static func defaultEnergy() -> KEnergyLevel {
-        let hermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
-        let hour = hermetic ? 12 : KronosLocale.calendar.component(.hour, from: Date())
-        let remembered = ImpulsEnergyMemory.todayEnergy().flatMap { ImpulsDefaults.Energy(rawValue: $0.rawValue) }
-        return KEnergyLevel(rawValue: ImpulsDefaults.energy(remembered: remembered, hour: hour).rawValue) ?? .mid
-    }
-
-    /// Remembered on every change (not only on Start) so a change survives the next open.
+    /// Remembered on every change (not only on Start) so a change survives the next open. The same
+    /// value feeds the morning plan: there is one energy for the day.
     private func setEnergy(_ level: KEnergyLevel) {
         guard energy != level else { return }
         energy = level
         ImpulsEnergyMemory.rememberToday(level)
-        reload()
+        newPick()
     }
 
-    private var energyRow: some View {
-        HStack(spacing: Space.x2) {
-            Text(String(localized: "impuls.energy.prompt"))
-                .font(Typo.meta)
-                .foregroundStyle(Tok.textTertiary)
-            Spacer()
-            energyButton(.low, title: String(localized: "energy.low"))
-            energyButton(.mid, title: String(localized: "energy.mid"))
-            energyButton(.high, title: String(localized: "energy.high"))
+    private func energyName(_ level: KEnergyLevel) -> String {
+        switch level {
+        case .low: String(localized: "energy.low")
+        case .mid: String(localized: "energy.mid")
+        case .high: String(localized: "energy.high")
         }
     }
 
-    private func energyButton(_ level: KEnergyLevel, title: String) -> some View {
-        let selected = energy == level
-        return Button(title) {
-            setEnergy(level)
+    private var energyBlock: some View {
+        VStack(spacing: Space.x2) {
+            HStack(spacing: Space.x2) {
+                Text(String(localized: "impuls.energy.prompt"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                Spacer()
+                KChip(energyName(energy), trailing: .chevron, onTap: {
+                    withAnimation(Motion.select) { energyOpen.toggle() }
+                })
+                .uiTestAnchor("impuls.energy.chip")
+            }
+            if energyOpen {
+                KSegmented(selection: Binding(get: { energy }, set: { setEnergy($0) }), segments: [
+                    KSegment(value: KEnergyLevel.low, text: String(localized: "energy.low")),
+                    KSegment(value: KEnergyLevel.mid, text: String(localized: "energy.mid")),
+                    KSegment(value: KEnergyLevel.high, text: String(localized: "energy.high")),
+                ], style: .fill)
+            }
         }
-        .kButton(selected ? .secondary : .ghost, size: .compact)
-        .kBorder(selected ? Tok.borderActive : .clear, radius: Radius.control)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    // MARK: Content — the card, the dread card, empty, or the morning three
+    // MARK: Content — the card or the empty line
 
     @ViewBuilder
     private var content: some View {
-        switch mode {
-        case .morning:
-            MorningCardView(candidates: morningEntries, language: language, energy: energy,
-                            onAccept: acceptMorning, onDismiss: close, onSwap: swapMorning)
-        case .ask:
-            if let current, let mentor {
-                ImpulsCardView(card: current, mentor: mentor,
-                               canAskAnother: canAskAnother,
-                               onStart: start, onAnother: another, onSkip: close)
-            } else {
-                emptyView
-            }
+        if let current, let mentor {
+            let hero = ImpulsQuery.hero(for: current.task, language: language)
+            ImpulsCardView(card: current, mentor: mentor, hero: hero,
+                           leftOff: LeftOffLine.text(for: current.task, hero: hero.hero),
+                           showsAnother: showsAnother,
+                           onStart: start, onAnother: another, onNotNow: notNow)
+        } else {
+            KEmptyState(icon: "check-square", title: String(localized: "impuls.empty.line"))
+                .frame(maxWidth: .infinity)
+                .uiTestAnchor("impuls.empty")
         }
-    }
-
-    // "impuls.empty.nothingopen" / "impuls.empty.donecount" are missing from the string
-    // catalog, so this reuses the closest existing calm line, "empty.today.body", for both
-    // empty branches rather than hard-coding new prose, and renders the done-today count as
-    // a plain KBadge number rather than an invented sentence.
-    private var emptyView: some View {
-        let tasks = model.store.allTasks()
-        return Group {
-            switch ImpulsQuery.emptyReason(tasks: tasks, today: today) {
-            case .noTasksYet:
-                KEmptyState(icon: "sparkles", title: String(localized: "empty.today.body"))
-            case .nothingOpen(let doneToday):
-                VStack(spacing: Space.x2) {
-                    KEmptyState(icon: "check-square", title: String(localized: "empty.today.body"))
-                    if doneToday > 0 { KBadge("\(doneToday)") }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: Ranking + mentor lifecycle
 
-    private var canAskAnother: Bool {
-        anotherCount < 3 && !nextCandidatesWouldBeEmpty
+    private var showsAnother: Bool {
+        ImpulsDefaults.showsAnother(used: anotherCount, hasNext: !nextCandidatesWouldBeEmpty)
     }
 
     private var nextCandidatesWouldBeEmpty: Bool {
         guard let current else { return true }
-        var excl = excludedIDs
+        var excl = excludedIDs.union(setAsideToday)
         excl.insert(current.task.id)
         return ImpulsQuery.candidates(engine: engine, energy: energy, excluding: excl,
-                                       tasks: model.store.allTasks(), today: today, count: 1).isEmpty
+                                      tasks: model.store.allTasks(), today: today, count: 1).isEmpty
     }
 
+    private var setAsideToday: Set<UUID> {
+        ImpulsDayMemory.setAsideToday(among: model.store.allTasks().map(\.id), today: today)
+    }
+
+    /// A new pick (open, Another, energy change): read the dread memory afresh, then rank.
+    private func newPick() {
+        mentor?.lock()
+        servingBase = ImpulsDreadMemory.load()
+        loadCurrent()
+    }
+
+    /// A store change: same memory, same pool, so the same card comes back.
     private func reload() {
         mentor?.lock()
-        excludedIDs = []
-        anotherCount = 0
-        morningSlots = []
         loadCurrent()
     }
 
     private func loadCurrent() {
         let tasks = model.store.allTasks()
-        let picks = ImpulsQuery.candidates(engine: engine, energy: energy, excluding: excludedIDs,
-                                           tasks: tasks, today: today, count: 5)
+        let aside = ImpulsDayMemory.setAsideToday(among: tasks.map(\.id), today: today)
+        let picks = ImpulsQuery.candidates(engine: engine, energy: energy, excluding: excludedIDs.union(aside),
+                                           tasks: tasks, today: today, count: 5, dreadServing: servingBase)
         guard let top = picks.first, let task = tasks.first(where: { $0.id == top.taskID }) else {
             current = nil
             mentor = nil
             return
         }
+        // A Large task with no steps gets its steps now, silently, so step 1 is the first move.
+        if ImpulsAutoBreakdown.runIfNeeded(task, store: model.store) { model.didMutate() }
+        // The pick is remembered the moment it is shown: once a day, never twice in a row.
+        ImpulsDreadMemory.save(servingBase.recording(top, today: today))
         let generic = ImpulsQuery.genericMentorLine(for: task, candidateReason: top.reason, energy: energy)
         current = ImpulsCard(task: task, mentorLine: generic)
         let m = ImpulsMentor(generic: generic)
@@ -194,93 +190,32 @@ struct ImpulsScreen: View {
                             energy: energy, language: language.rawValue)
     }
 
-    /// The full ordered pool the morning plan draws from, respecting the "max 1 deep"
-    /// diversity rule with the relax-if-short fallback (spec §7.3).
-    private func morningPool() -> [KTask] {
-        let tasks = model.store.allTasks()
-        let picks = ImpulsQuery.candidates(engine: engine, energy: energy, excluding: [],
-                                           tasks: tasks, today: today, count: 12, forceDeep: true)
-        let resolved = picks.compactMap { c in tasks.first(where: { $0.id == c.taskID }) }
-        var diversified: [KTask] = []
-        var deepUsed = false
-        for t in resolved {
-            if t.depth == .deep {
-                if deepUsed { continue }
-                deepUsed = true
-            }
-            diversified.append(t)
-        }
-        return diversified.count >= 3 ? diversified : resolved
-    }
-
-    /// Materializes `morningSlots` into (task, firstMove) pairs, seeding the slots from the
-    /// pool on first read so `.onAppear` and swaps share one source of truth.
-    private var morningEntries: [(task: KTask, firstMove: String)] {
-        let pool = morningPool()
-        let ids = morningSlots.isEmpty ? Array(pool.prefix(3)).map(\.id) : morningSlots
-        return ids.compactMap { id in
-            pool.first(where: { $0.id == id }).map { ($0, ImpulsQuery.firstMove(for: $0, language: language)) }
-        }
-    }
-
-    private func swapMorning(_ index: Int) {
-        let pool = morningPool()
-        var ids = morningSlots.isEmpty ? Array(pool.prefix(3)).map(\.id) : morningSlots
-        guard index < ids.count else { return }
-        if let next = pool.first(where: { !ids.contains($0.id) }) { ids[index] = next.id }
-        morningSlots = ids
-    }
-
-    // MARK: Actions (spec §4.5)
+    // MARK: Actions
 
     private func start() {
         guard let current else { return }
-        KronosSounds.play(.impuls)   // the one "go" cue; honours Settings > General > Sounds
         mentor?.lock()
-        model.store.setStatus(current.task.id, .inProgress)
-        model.selectedTaskID = current.task.id
-        // Ledger G8: Start pins the task as focus, so the list's Now card, the sidebar tint
-        // and the menu bar all follow it (they all read `model.focusTaskID`, which prefers
-        // `pinnedFocusTaskID` over the automatic Ordo pick).
-        model.pinnedFocusTaskID = current.task.id
-        switch ImpulsDefaults.startScope(projectID: current.task.projectID) {
-        case .project(let id): model.scope = .project(id)
-        case .all: model.scope = .all
-        }
-        model.didMutate()
+        FocusStart.begin(current.task, model: model, followFirstMove: true)
         ImpulsEnergyMemory.rememberToday(energy)
         close()
     }
 
     private func another() {
-        guard let current, canAskAnother else { return }
+        guard let current, showsAnother else { return }
         excludedIDs.insert(current.task.id)
         anotherCount += 1
-        mentor?.lock()
-        loadCurrent()
+        newPick()
     }
 
-    private func acceptMorning() {
-        model.store.groupedUndo(String(localized: "morning.title")) {
-            for entry in morningEntries {
-                model.store.setDue(entry.task.id, day: today)
-            }
-        }
-        model.didMutate()
+    /// Leaves this task out of Pick one and the morning plan for the rest of today, then closes.
+    private func notNow() {
+        guard let current else { return }
+        ImpulsDayMemory.setAside(current.task.id, today: today)
         close()
     }
 
     private func close() {
         mentor?.lock()
         model.isImpulsOpen = false
-    }
-
-    /// Whether the morning card should be offered on this open of the app (spec §7.1 rules 2
-    /// and 3 — rule 1's "3 eligible candidates" and rule 4's "Today/Inbox is active" are for
-    /// the caller to check, since they need window state and the live pool count this screen
-    /// does not otherwise compute up front).
-    static func shouldOfferMorning(now: Date, lastShownDay: Int?) -> Bool {
-        let today = Day.from(now, calendar: KronosLocale.calendar)
-        return lastShownDay != today
     }
 }

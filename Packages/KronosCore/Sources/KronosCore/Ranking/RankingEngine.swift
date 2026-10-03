@@ -7,11 +7,38 @@ public struct Candidate: Equatable, Sendable {
     public let taskID: UUID
     public let reason: String
     public let isDeterministic: Bool
+    /// The task carries the dread flag. Never rendered; callers use it to record a dread pick
+    /// in their `DreadServing`.
+    public let isDread: Bool
 
-    public init(taskID: UUID, reason: String, isDeterministic: Bool = true) {
+    public init(taskID: UUID, reason: String, isDeterministic: Bool = true, isDread: Bool = false) {
         self.taskID = taskID
         self.reason = reason
         self.isDeterministic = isDeterministic
+        self.isDread = isDread
+    }
+}
+
+/// What the caller remembers about dread picks so the engine can serve at most one a day and
+/// never two in a row. Pure value: the engine never stores it, the caller persists it.
+public struct DreadServing: Equatable, Sendable {
+    /// Day number of the last dread pick shown, nil when none yet.
+    public var servedDay: Int?
+    /// The most recent pick shown was a dread task.
+    public var lastPickWasDread: Bool
+
+    public init(servedDay: Int? = nil, lastPickWasDread: Bool = false) {
+        self.servedDay = servedDay
+        self.lastPickWasDread = lastPickWasDread
+    }
+
+    /// A dread task may be served now: none yet today and the previous pick was not one.
+    public func canServe(today: Int) -> Bool { servedDay != today && !lastPickWasDread }
+
+    /// The state after `pick` was shown on `today`.
+    public func recording(_ pick: Candidate?, today: Int) -> DreadServing {
+        guard let pick else { return self }
+        return DreadServing(servedDay: pick.isDread ? today : servedDay, lastPickWasDread: pick.isDread)
     }
 }
 
@@ -27,14 +54,28 @@ public struct RankingEngine: Sendable {
     ///   - today: injectable day number.
     ///   - tasks: the caller's already-fetched pool. The engine does not
     ///     fetch, so it stays pure and testable.
+    ///   - dreadServing: the caller's dread memory. nil leaves the order untouched; otherwise,
+    ///     at Mid/High energy one dread task is served first when allowed (once a day, never
+    ///     twice in a row), and when it is not allowed the first candidate is never a dread task.
     public func candidates(energy: KEnergyLevel,
                            count: Int = 5,
                            maxDeep: Bool,
                            today: Int,
                            tasks: [KTask]) -> [Candidate] {
-        // Base pool: active status, not archived.
+        candidates(energy: energy, count: count, maxDeep: maxDeep, today: today, tasks: tasks, dreadServing: nil)
+    }
+
+    /// Same as above with the caller's dread memory (see `DreadServing`).
+    public func candidates(energy: KEnergyLevel,
+                           count: Int = 5,
+                           maxDeep: Bool,
+                           today: Int,
+                           tasks: [KTask],
+                           dreadServing: DreadServing?) -> [Candidate] {
+        // Base pool: active status, not archived, not an agent proposal still waiting for review
+        // (a pending proposal is invisible everywhere until the person decides on it).
         var pool = tasks.filter { t in
-            KStatus.active.contains(t.status) && !t.isProjectArchived
+            KStatus.active.contains(t.status) && !t.isProjectArchived && !Self.isPendingProposal(t)
         }
         // w22e: a task waiting on an open task is not a next action. `tasks` is the caller's
         // full live pool, so it also answers "is the blocker still open".
@@ -46,9 +87,11 @@ public struct RankingEngine: Sendable {
         }
 
         // Branch rules (adhd-4):
-        //  Low:  shallow AND <= 15 min, dread==false first.
-        //  Mid:  priority-first, dread as tiebreak only.
-        //  High: everything allowed, dread ignored.
+        //  Low:  shallow AND <= 15 min, in manual order.
+        //  Mid:  priority-first.
+        //  High: everything allowed, priority and due date.
+        // Dread never changes a score or a reason: the only dread rule is the once-a-day
+        // serving applied after the sort.
         var ranked: [(t: KTask, score: Int, reason: String)]
         switch energy {
         case .low:
@@ -56,25 +99,19 @@ public struct RankingEngine: Sendable {
                 $0.depth == .shallow && ($0.estimateMinutes ?? 999) <= 15
             }
             let rest = pool.filter { !shallow.contains($0) }
-            let shallowSorted = shallow.sorted {
-                if $0.dread != $1.dread { return !$0.dread } // non-dread first
-                return Ordering.manual($0, $1)
-            }
+            let shallowSorted = shallow.sorted(by: Ordering.manual)
             if shallowSorted.isEmpty {
                 ranked = rest.map { ($0, 0, "Nothing shallow left") }
             } else {
-                ranked = shallowSorted.map {
-                    ($0, 0, $0.dread ? "Shallow, but you have been avoiding it" : "Shallow and quick")
-                }
+                ranked = shallowSorted.map { ($0, 0, "Shallow and quick") }
             }
         case .mid:
             ranked = pool.map { t in
-                let s = t.priorityRaw * 10 + (t.dread ? 0 : 1)
-                return (t, s, "Next by priority")
+                return (t, t.priorityRaw * 10, "Next by priority")
             }
         case .high:
             ranked = pool.map { t in
-                let s = t.priorityRaw * 10 + (t.dueDay.map { 100 - ($0 - today) } ?? 0)
+                let s = t.priorityRaw * 10 + (t.effectiveDue.map { 100 - ($0 - today) } ?? 0)
                 return (t, s, "Good energy match")
             }
         }
@@ -83,11 +120,35 @@ public struct RankingEngine: Sendable {
         // manual order chain (§5.3) so equal scores never shuffle.
         let ordered = ranked.sorted { a, b in
             if a.score != b.score { return a.score > b.score }
-            let ad = a.t.dueDay ?? Int.max
-            let bd = b.t.dueDay ?? Int.max
+            let ad = a.t.effectiveDue ?? Int.max
+            let bd = b.t.effectiveDue ?? Int.max
             if ad != bd { return ad < bd }
             return Ordering.manual(a.t, b.t)
         }
-        return ordered.prefix(count).map { Candidate(taskID: $0.t.id, reason: $0.reason) }
+        var result = ordered.map { Candidate(taskID: $0.t.id, reason: $0.reason, isDread: $0.t.dread) }
+        if let serving = dreadServing {
+            result = Self.applyDreadServing(result, energy: energy, today: today, serving: serving)
+        }
+        return Array(result.prefix(count))
+    }
+
+    /// Once a day at Mid/High the best-ranked dread task goes first; when serving is not allowed
+    /// (already served today, or the last pick was one) a dread task never leads. Everything
+    /// else keeps its order.
+    /// An agent proposal the person has not decided on yet (the same value Up next skips).
+    static func isPendingProposal(_ task: KTask) -> Bool {
+        task.reviewRaw == NextEligibility.reviewPending
+    }
+
+    private static func applyDreadServing(_ list: [Candidate], energy: KEnergyLevel, today: Int,
+                                          serving: DreadServing) -> [Candidate] {
+        var out = list
+        if serving.canServe(today: today) {
+            guard energy != .low, let i = out.firstIndex(where: { $0.isDread }), i > 0 else { return out }
+            out.insert(out.remove(at: i), at: 0)
+        } else if out.first?.isDread == true, let i = out.firstIndex(where: { !$0.isDread }) {
+            out.insert(out.remove(at: i), at: 0)
+        }
+        return out
     }
 }

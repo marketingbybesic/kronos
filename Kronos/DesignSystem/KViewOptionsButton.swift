@@ -30,7 +30,7 @@ public struct KViewOptionsButton: View {
             .frame(height: Metrics.controlCompact)
             .background(
                 RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
-                    .fill(isHovering ? Tok.hoverFill : (summary == nil ? .clear : Color.white.opacity(0.05)))
+                    .fill(isHovering ? Tok.hoverFill : (summary == nil ? .clear : Tok.controlFill))
             )
             .kBorder(summary == nil ? Tok.borderControl : Tok.borderStrong, radius: Radius.control)
         }

@@ -20,6 +20,28 @@ import Foundation
 /// one enum's cases can never silently change the other's meaning.
 public enum TriageFieldKind: String, CaseIterable, Sendable {
     case project, priority, due, depth, estimateMinutes, energyKind, firstMove, labels, effort
+
+    /// Decodes a stored comma-joined list (`KTask.lockedFieldsRaw`, `triageFilledFieldsRaw`):
+    /// unknown or empty pieces are dropped, duplicates removed, the canonical order kept.
+    public static func parse(_ raw: String) -> [TriageFieldKind] {
+        let names = Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+        return allCases.filter { names.contains($0.rawValue) }
+    }
+
+    /// The stored form: canonical order, comma-joined, no duplicates. Empty set -> "".
+    public static func encode<S: Sequence>(_ fields: S) -> String where S.Element == TriageFieldKind {
+        let set = Set(fields)
+        return allCases.filter(set.contains).map(\.rawValue).joined(separator: ",")
+    }
+}
+
+extension KTask {
+    /// Fields a person or an agent set explicitly. Triage never writes them, even when empty
+    /// (an explicit "no priority" stays no priority).
+    public var lockedFields: Set<TriageFieldKind> { Set(TriageFieldKind.parse(lockedFieldsRaw)) }
+
+    /// The fields the last triage filled and still owns: what Discard reverts.
+    public var triageFilledFields: [TriageFieldKind] { TriageFieldKind.parse(triageFilledFieldsRaw) }
 }
 
 /// A first move that only repeats the task title ("Review: <title>", or the title itself) adds no
@@ -59,6 +81,8 @@ extension TaskStoring {
     /// Marks `needsTriage = false` inside the SAME step whenever the task
     /// existed, even if every field was already filled (a re-triage that
     /// changes nothing still means "triage has now looked at this row").
+    /// `result.dread == true` sets the dread flag in the same step (set only,
+    /// never cleared); it is not one of the returned fields.
     @discardableResult
     public func applyTriage(_ result: TriageResult, to id: UUID, fillOnly: Bool = true,
                             only allowed: Set<TriageFieldKind>? = nil) -> [TriageFieldKind] {
@@ -79,11 +103,21 @@ extension TaskStoring {
             }
         }
         // `allowed` = the fields the user lets the coach touch (Settings > Coach); nil = all.
+        let locked = current.lockedFields
         func mayWrite(_ field: TriageFieldKind) -> Bool {
-            (allowed?.contains(field) ?? true) && (!fillOnly || isEmpty(field))
+            // A subtask takes its project from its parent; triage never files it elsewhere.
+            if field == .project && current.isSubtask { return false }
+            // Set explicitly by a person or an agent: never overwritten, not even when empty.
+            if locked.contains(field) { return false }
+            return (allowed?.contains(field) ?? true) && (!fillOnly || isEmpty(field))
         }
 
-        groupedUndo("Triage") {
+        // A task whose every field was set explicitly (an agent that decided everything) keeps its
+        // dread flag as written too, and so does one the person switched off by hand.
+        let setsDread = result.dread == true && !current.dread
+            && !locked.isSuperset(of: TriageFieldKind.allCases) && !current.dreadLocked
+
+        groupedUndo("Sort") {
             if mayWrite(.project), let name = result.project {
                 if let match = allProjects().first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
                     update(id) { $0.project = match; $0.projectID = match.id
@@ -133,11 +167,87 @@ extension TaskStoring {
                 filled.append(.effort)
             }
             update(id) { t in
+                // The model judged the task one the person is likely to avoid. Set only, never
+                // cleared: a model that says nothing (or "no") leaves the flag as it is, and an
+                // explicit fill-everything pass may set it too.
+                if setsDread { t.dread = true }
                 t.needsTriage = false
                 t.triageRationale = result.rationale.isEmpty ? t.triageRationale : result.rationale
                 t.triagedAt = Date()
             }
         }
         return filled
+    }
+
+    // MARK: - Locks and provenance
+
+    /// The fields of task `id` that triage must never write. Empty for an unknown id.
+    public func lockedFields(of id: UUID) -> Set<TriageFieldKind> {
+        taskIncludingDeleted(id)?.lockedFields ?? []
+    }
+
+    /// Marks `field` of task `id` as set explicitly (by the user in the UI, or by an agent that
+    /// passed the field, including an explicit "none"). From then on triage never writes it, and
+    /// a later Discard of the last fill no longer reverts it: the value is the person's now.
+    /// Bookkeeping, not an edit: pushes no undo step, and does nothing when already locked.
+    public func lockField(_ field: TriageFieldKind, on id: UUID) {
+        guard let t = taskIncludingDeleted(id) else { return }
+        let filled = t.triageFilledFields
+        guard !t.lockedFields.contains(field) || filled.contains(field) else { return }
+        updateNoUndo(id) { t in
+            t.lockedFieldsRaw = TriageFieldKind.keepingDreadToken(from: t.lockedFieldsRaw,
+                                                                  in: TriageFieldKind.encode(t.lockedFields.union([field])))
+            t.triageFilledFieldsRaw = TriageFieldKind.encode(filled.filter { $0 != field })
+        }
+    }
+
+    /// Records what the last triage filled on task `id` (the list `applyTriage` returned) and
+    /// which model filled it. Replaces the previous record. Locked fields are never recorded.
+    /// Provenance, not an edit: pushes no undo step.
+    public func recordTriageFill(task id: UUID, fields: [TriageFieldKind], model: String?) {
+        guard let t = taskIncludingDeleted(id) else { return }
+        let raw = TriageFieldKind.encode(fields.filter { !t.lockedFields.contains($0) })
+        guard t.triageFilledFieldsRaw != raw || t.triageModel != model else { return }
+        updateNoUndo(id) { t in
+            t.triageFilledFieldsRaw = raw
+            t.triageModel = model
+        }
+    }
+
+    /// Discard: clears exactly the fields the last triage filled and still owns (anything typed
+    /// since, a title for instance, stays), then forgets the record. One undo step. Returns the
+    /// fields it cleared; empty when there was no record.
+    @discardableResult
+    public func revertTriageFill(task id: UUID) -> [TriageFieldKind] {
+        guard let current = taskIncludingDeleted(id) else { return [] }
+        let fields = current.triageFilledFields.filter { !current.lockedFields.contains($0) }
+        guard !fields.isEmpty || !current.triageFilledFieldsRaw.isEmpty else { return [] }
+        groupedUndo("Sort") {
+            if fields.contains(.labels) {
+                for label in current.labels ?? [] { removeLabel(label, from: id) }
+            }
+            updateIncludingDeleted(id) { t in
+                for field in fields {
+                    switch field {
+                    case .project:
+                        t.project = nil; t.projectID = nil; t.areaID = nil; t.isProjectArchived = false
+                    case .priority:        t.priorityRaw = KPriority.none.rawValue
+                    case .due:
+                        // Triage set the original deadline only when there was none.
+                        if t.originalDueDay == t.dueDay { t.originalDueDay = nil }
+                        t.dueDay = nil
+                    case .depth:           t.depthRaw = KDepth.unknown.rawValue
+                    case .estimateMinutes: t.estimateMinutes = nil
+                    case .energyKind:      t.energyKindRaw = nil
+                    case .firstMove:       t.firstMove = nil
+                    case .labels:          break
+                    case .effort:          t.effortRaw = KEffort.none.rawValue
+                    }
+                }
+                t.triageFilledFieldsRaw = ""
+                t.triageModel = nil
+            }
+        }
+        return fields
     }
 }

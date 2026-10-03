@@ -56,9 +56,7 @@ extension AppDelegate {
     @objc private func dockImpuls() { model.isImpulsOpen = true; bringForward() }
     @objc private func dockCapture() { model.openCapture(); bringForward() }
     @objc private func dockOpenTask(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? UUID, store.task(id) != nil else { return }
-        model.scope = .all
-        model.selectedTaskID = id
+        guard let id = sender.representedObject as? UUID, model.openTaskByID(id) else { return }
         bringForward()
     }
 
@@ -72,6 +70,12 @@ extension AppDelegate {
             if win.isMiniaturized { win.deminiaturize(nil) }
             win.makeKeyAndOrderFront(nil)
         }
+    }
+
+    /// A login launch is menu bar only: the main window is ordered out (not closed), so a Dock click
+    /// or the menu bar item brings it back through `bringForward()`.
+    func hideWindowsForLoginLaunch() {
+        for win in NSApp.windows where win.canBecomeMain && !(win is NSPanel) { win.orderOut(nil) }
     }
 
     // MARK: URL scheme and documents
@@ -94,5 +98,38 @@ extension AppDelegate {
         for url in urls {
             if url.isFileURL { BackupOpen.present(url, model: model) } else { URLSchemeRouter.handle(url, model: model) }
         }
+    }
+}
+
+
+// MARK: - Menu bar flash
+
+/// Capturing from another app (Services) gives no other sign that it worked: the menu bar item
+/// lights for a moment, as a pressed status item does. A highlight, not an animation, so Reduce
+/// Motion needs no special case.
+@MainActor
+enum MenuBarFlash {
+    /// Only when Kronos is in the background; with the app in front its own toast says it.
+    static func shouldFlash(appIsActive: Bool, hermetic: Bool) -> Bool { !appIsActive && !hermetic }
+
+    static func flashIfBackground() {
+        guard shouldFlash(appIsActive: NSApp.isActive, hermetic: KronosEnv.isHermetic),
+              let button = statusButton() else { return }
+        button.highlight(true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { button.highlight(false) }
+    }
+
+    /// The status bar button of this app, found through its status bar window.
+    private static func statusButton() -> NSStatusBarButton? {
+        func find(_ view: NSView?) -> NSStatusBarButton? {
+            guard let view else { return nil }
+            if let button = view as? NSStatusBarButton { return button }
+            for sub in view.subviews { if let hit = find(sub) { return hit } }
+            return nil
+        }
+        for win in NSApp.windows where String(describing: type(of: win)).contains("StatusBar") {
+            if let button = find(win.contentView) { return button }
+        }
+        return nil
     }
 }

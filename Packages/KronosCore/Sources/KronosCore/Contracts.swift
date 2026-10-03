@@ -5,9 +5,14 @@
 // The surface is split across this file and Contracts/ so no file exceeds 500
 // lines. Every consumer leaf compiles against these and nothing else:
 //
-//   Contracts.swift            enums, Day, and the @Model classes (this file)
-//   Runtime.swift              Ordering, schema version, KronosStore,
-//                              KronosTiming, OrdoFocus, notification names
+//   Contracts.swift            enums, Day, and the core @Model classes (this file)
+//   Runtime.swift              Ordering, schema versions V2 + local and the
+//                              migration plans, the models new in V2
+//                              (KStoreMeta, KSession, KAttachment),
+//                              KronosStore, KronosTiming, OrdoFocus,
+//                              notification names
+//   Store/SchemaV1Frozen.swift the frozen V1 copy (never edited)
+//   Store/KronosLocalStore.swift  KAgent, KActivity (device-local store)
 //   Filtering.swift            KFilter (+ matches) and KSavedView
 //   Contracts/TaskStoring.swift  the complete mutation surface, incl. the
 //                              …NoUndo variants reserved for MCP and triage
@@ -99,8 +104,10 @@ public enum KRuleScope: Int, Codable, CaseIterable, Sendable {
     case all = 0, triage = 1, impuls = 2, ordo = 3
 }
 
+/// Where a house rule came from. `agent`: proposed by an agent over MCP; it waits inactive until
+/// the person turns it on.
 public enum KRuleSource: Int, Codable, CaseIterable, Sendable {
-    case feedback = 0, manual = 1, ordoProposal = 2
+    case feedback = 0, manual = 1, ordoProposal = 2, agent = 3
 }
 
 public enum KSortMode: Int, Codable, CaseIterable, Sendable {
@@ -302,12 +309,34 @@ public final class KTask {
     public var calendarEventID: String? = nil
 
     // dependencies (w22e): comma-joined UUID strings of tasks this one waits on. ONE defaulted
-    // attribute, same lightweight-migration shape as KSubtask.notes; "" = waits on nothing.
+    // attribute, a lightweight-migration shape; "" = waits on nothing.
     public var waitsOnIDs: String = ""
 
-    // external origin (L1b import; no @Attribute(.unique) under CloudKit)
+    // external origin (import, MCP, agents; no @Attribute(.unique) under CloudKit)
     public var externalID: String? = nil
     public var source: String? = nil
+
+    // planning (schema V2): the day the user means to do it, separate from the deadline
+    // (`dueDay`), and how many times an unfinished planned day rolled forward.
+    public var plannedDay: Int? = nil
+    public var carryCount: Int = 0
+
+    // triage provenance and locks (schema V2), comma-joined `TriageFieldKind` raw values:
+    // the fields the last triage filled (what Discard reverts) and the fields a person or agent
+    // set explicitly (triage never overwrites those). See TaskStore+Triage.swift.
+    public var triageFilledFieldsRaw: String = ""
+    public var lockedFieldsRaw: String = ""
+
+    // agents (schema V2). reviewRaw: 0 none, 1 pending, 2 approved, 3 rejected,
+    // 4 done by the agent and awaiting a check. assigneeRaw: 0 the user, 1 an agent.
+    public var reviewRaw: Int = 0
+    public var contextJSON: String? = nil
+    public var resultJSON: String? = nil
+    public var agentID: UUID? = nil
+    public var assigneeRaw: Int = 0
+    /// Which device or process is triaging this task right now, and until when.
+    public var triageLeaseOwner: String? = nil
+    public var triageLeaseUntil: Date? = nil
 
     // scalar mirrors — #Predicate cannot traverse optional to-one/to-many
     public var projectID: UUID? = nil
@@ -320,8 +349,23 @@ public final class KTask {
     @Relationship(deleteRule: .nullify, inverse: \KLabel.tasks)
     public var labels: [KLabel]? = []
 
-    @Relationship(deleteRule: .cascade, inverse: \KSubtask.task)
-    public var subtasks: [KSubtask]? = []
+    // Steps used to be separate step rows; schema V2 has none. The V1 -> V2 migration stage
+    // turns any left in an older store into child tasks (`children`, same ids).
+
+    // hierarchy (one level): a subtask is a KTask whose `parent` is set. `parentID` is the
+    // scalar mirror `#Predicate` filters on (it cannot traverse an optional to-one), kept in
+    // step with `parent` by every store writer.
+    public var parentID: UUID? = nil
+    public var parent: KTask?
+
+    /// The task's subtasks. Deleting the parent row deletes them (cascade); deleting a child
+    /// only removes it from this array (nullify, the default for `parent`).
+    @Relationship(deleteRule: .cascade, inverse: \KTask.parent)
+    public var children: [KTask]? = []
+
+    /// Links, files and images (schema V2; unused until attachments ship). Deleted with the task.
+    @Relationship(deleteRule: .cascade, inverse: \KAttachment.task)
+    public var attachments: [KAttachment]? = []
 
     public init(title: String, notes: String = "", project: KProject? = nil) {
         self.title             = title
@@ -361,18 +405,35 @@ extension KTask {
         return max(0, today - d)
     }
 
-    /// data-14: to-many relationships carry no order.
-    public var orderedSubtasks: [KSubtask] {
-        (subtasks ?? []).sorted {
-            if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
-            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
-            return $0.id.uuidString < $1.id.uuidString
+    /// True for a subtask (a task with a parent). One level only: a subtask never has children.
+    public var isSubtask: Bool { parentID != nil || parent != nil }
+
+    /// A step is done when its status is `.done`, the same test the old step rows made.
+    /// Setting it is a raw field write (no undo, no recurrence): fixtures and importers only.
+    public var isDone: Bool {
+        get { status == .done }
+        set {
+            status = newValue ? .done : .todo
+            completedAt = newValue ? (completedAt ?? Date()) : nil
         }
     }
-    public var nextOpenSubtask: KSubtask? { orderedSubtasks.first { !$0.isDone } }
+
+    /// Live (not soft-deleted) children in manual order — data-14: to-many relationships
+    /// carry no order.
+    public var orderedChildren: [KTask] {
+        (children ?? []).filter { $0.deletedAt == nil }.sorted(by: Ordering.manual)
+    }
+
+    /// The old name of `orderedChildren`, kept so every step list keeps compiling.
+    public var orderedSubtasks: [KTask] { orderedChildren }
+
+    /// The first open (not done, not canceled) child in manual order.
+    public var nextOpenSubtask: KTask? { orderedChildren.first { KStatus.open.contains($0.status) } }
+
+    /// Closed (done or canceled) live children over all live children.
     public var subtaskProgress: (done: Int, total: Int) {
-        let all = subtasks ?? []
-        return (all.filter(\.isDone).count, all.count)
+        let all = orderedChildren
+        return (all.filter { KStatus.closed.contains($0.status) }.count, all.count)
     }
 
     /// Decoded `waitsOnIDs` (malformed pieces dropped, order kept, no duplicates).
@@ -386,26 +447,19 @@ extension KTask {
 
     public var isInOrdo: Bool { ordoIndex != nil }
     public var isTriagedUnreviewed: Bool { triagedAt != nil && triageReviewedAt == nil }
-}
 
-// MARK: - KSubtask
-
-@Model
-public final class KSubtask {
-    public var id: UUID = UUID()
-    public var title: String = ""
-    public var isDone: Bool = false
-    /// Notes text for the subtask, used to store context links (files, emails) just like KTask.notes.
-    public var notes: String = ""
-    public var sortIndex: Double = 0
-    public var createdAt: Date = Date()
-    public var updatedAt: Date = Date()
-
-    public var task: KTask?
-
-    public init(title: String, sortIndex: Double = 0) {
-        self.title = title
-        self.sortIndex = sortIndex
+    /// O16: Effective due = min(own due, open children's due).
+    /// Used by Today/overdue/menu-bar "next" to determine urgency.
+    public var effectiveDue: Int? {
+        let childDues = orderedChildren
+            .filter { KStatus.open.contains($0.status) }
+            .compactMap(\.dueDay)
+        switch (dueDay, childDues.min()) {
+        case let (own?, sub?): return min(own, sub)
+        case let (own?, nil): return own
+        case let (nil, sub?): return sub
+        case (nil, nil): return nil
+        }
     }
 }
 

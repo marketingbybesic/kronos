@@ -25,7 +25,7 @@ struct InspectorDeadlineControl: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .contentShape(Rectangle())
+            .kHitTarget()
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isPresented) {

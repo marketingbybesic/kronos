@@ -4,7 +4,7 @@
 // app's binary at launch — there is no explicit registration call for the intents
 // themselves. This bootstrap exists for the ONE thing that does need an explicit call:
 // telling the system the shortcut phrases changed, which `AppShortcutsProvider` recommends
-// doing once per meaningful update (e.g. if a user renames Ordo presets in Settings, or on
+// doing once per meaningful update (e.g. if a user renames Up next presets in Settings, or on
 // first launch after an app update that touches this file's phrase list).
 //
 // `AppDelegate.applicationDidFinishLaunching` calls `KronosIntents.bootstrap(model:)` after

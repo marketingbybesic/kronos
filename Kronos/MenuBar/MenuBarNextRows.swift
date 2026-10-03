@@ -77,8 +77,6 @@ struct MenuBarNextSection: View {
                     .tracking(Tracking.caption)
                     .textCase(.uppercase)
                     .foregroundStyle(Tok.textTertiary)
-                    .padding(.horizontal, Space.x2)
-                    .padding(.top, Space.x1)
                     .fixedSize()
                 ForEach(rows) { task in
                     MenuBarNextRow(task: task, onSelect: { onSelect(task) })

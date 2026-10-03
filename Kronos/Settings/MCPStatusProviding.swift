@@ -75,7 +75,9 @@ enum MCPSettingsKeys {
     /// OFF until the user turns it on in Settings > AI access (MCP). A distributed app must not
     /// open a listener, even a loopback one guarded by a token, that nobody asked for.
     static var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: enabledKey) }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+        // KronosEnv.defaults is the standard domain in the real app and a scratch suite in a live test or snapshot run,
+        // so such a run neither inherits the switch nor changes it.
+        get { KronosEnv.defaults.bool(forKey: enabledKey) }
+        set { KronosEnv.defaults.set(newValue, forKey: enabledKey) }
     }
 }

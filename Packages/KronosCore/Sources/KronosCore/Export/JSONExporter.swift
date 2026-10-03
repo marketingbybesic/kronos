@@ -82,16 +82,12 @@ public final class JSONExporter {
                           showDone: v.showDone, createdAt: v.createdAt, updatedAt: v.updatedAt)
     }
 
-    private func exportSubtask(_ s: KSubtask) -> ExportedSubtask {
-        ExportedSubtask(id: s.id, title: s.title, isDone: s.isDone, sortIndex: s.sortIndex,
-                        createdAt: s.createdAt, updatedAt: s.updatedAt,
-                        notes: s.notes.isEmpty ? nil : s.notes)
-    }
-
+    /// Steps are child tasks (exported as tasks with a `parentID`), so the legacy `subtasks`
+    /// array is always empty. It stays in the format so older readers still decode the file;
+    /// the importer still turns a non-empty one from an older file into child tasks.
     private func exportTask(_ t: KTask) -> ExportedTask {
-        let sortedSubtasks = (t.subtasks ?? []).sorted(byTotalOrder: \.sortIndex, \.createdAt, \.id)
         let sortedLabelIDs = (t.labels ?? []).map(\.id).sorted { $0.uuidString < $1.uuidString }
-        return ExportedTask(
+        var e = ExportedTask(
             id: t.id, title: t.title, notes: t.notes, firstMove: t.firstMove,
             status: t.statusRaw, priority: t.priorityRaw, depth: t.depthRaw,
             effort: t.effortRaw, dread: t.dread, energyKind: t.energyKindRaw,
@@ -104,9 +100,25 @@ public final class JSONExporter {
             recurrenceRule: t.recurrenceRule, seriesID: t.seriesID,
             calendarEventID: t.calendarEventID, externalID: t.externalID, source: t.source,
             projectID: t.projectID, labelIDs: sortedLabelIDs,
-            subtasks: sortedSubtasks.map(exportSubtask),
+            subtasks: [],
             createdAt: t.createdAt, updatedAt: t.updatedAt,
-            waitsOn: t.waitsOnIDs.isEmpty ? nil : t.waitsOn)
+            waitsOn: t.waitsOnIDs.isEmpty ? nil : t.waitsOn,
+            parentID: t.parentID,
+            plannedDay: t.plannedDay.map(Day.iso),
+            carryCount: t.carryCount == 0 ? nil : t.carryCount)
+        e.triageFilledFields = t.triageFilledFieldsRaw.isEmpty ? nil : t.triageFilledFieldsRaw
+        e.lockedFields = t.lockedFieldsRaw.isEmpty ? nil : t.lockedFieldsRaw
+        e.review = t.reviewRaw == 0 ? nil : t.reviewRaw
+        e.contextJSON = t.contextJSON
+        e.resultJSON = t.resultJSON
+        e.agentID = t.agentID
+        e.assignee = t.assigneeRaw == 0 ? nil : t.assigneeRaw
+        let files = (t.attachments ?? []).sorted(byTotalOrder: \.createdAt, \.id).map {
+            ExportedAttachment(id: $0.id, kind: $0.kindRaw, title: $0.title, url: $0.url,
+                               data: $0.data, byteCount: $0.byteCount, createdAt: $0.createdAt)
+        }
+        e.attachments = files.isEmpty ? nil : files
+        return e
     }
 
     private func fetchAll<T: PersistentModel>(_ type: T.Type) -> [T] {

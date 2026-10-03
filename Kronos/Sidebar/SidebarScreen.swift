@@ -26,9 +26,9 @@ struct SidebarScreen: View {
     @State var editorTarget: EditorTarget?
     @State private var areaEditorTarget: AreaEditorTarget?
     @State private var isArchivedExpanded = false
-    /// Feature M: which project row (if any) a Finder-folder drag is currently over, for the
-    /// hairline `isDropTarget` highlight. At most one row at a time.
-    @State private var folderDropTargetProjectID: UUID?
+    /// Which project row (if any) a drag it accepts (a task row, a Finder folder) is currently
+    /// over, for the hairline highlight. At most one row at a time.
+    @State private var dropTargetProjectID: UUID?
     /// Which Area row (if any) the mouse is over, for the hover-revealed "+" (see
     /// SidebarScreen+AreaAdd.swift — moved there to keep this file under the line gate).
     @State var hoveredAreaID: UUID?
@@ -134,9 +134,23 @@ struct SidebarScreen: View {
         let key = scope.titleKey ?? "sidebar.inbox"
         return KSidebarRow(title: String(localized: String.LocalizationValue(key)),
                             leadingIcon: icon(for: scope),
-                            count: nilIfZero(count(for: scope)),
+                            count: Self.showsCount(for: scope) ? nilIfZero(count(for: scope)) : nil,
                             isSelected: model.scope == scope) {
             select(scope)
+        }
+        .kTooltip(rowTooltip(scopeHelp(scope)))
+    }
+
+    /// One short gloss per fixed list (shown as the row's tooltip).
+    private func scopeHelp(_ scope: ListScope) -> String {
+        switch scope {
+        case .inbox: String(localized: "sidebar.help.inbox")
+        case .today: String(localized: "sidebar.help.today")
+        case .next7: String(localized: "sidebar.help.next7")
+        case .waiting: String(localized: "sidebar.help.waiting")
+        case .someday: String(localized: "sidebar.help.someday")
+        case .all: String(localized: "sidebar.help.all")
+        case .project, .area, .savedView: ""
         }
     }
 
@@ -146,17 +160,7 @@ struct SidebarScreen: View {
     private func nilIfZero(_ n: Int) -> Int? { n == 0 ? nil : n }
 
     private func icon(for scope: ListScope) -> String {
-        switch scope {
-        case .inbox: return "inbox"
-        case .today: return "sun"
-        case .next7: return "calendar-days"
-        case .waiting: return "hourglass"
-        case .someday: return "sparkles"   // "archive" maps to an SF Symbol name that
-                                            // doesn't exist on this OS and renders blank;
-                                            // "sparkles" is what the design gallery uses.
-        case .all: return "list-ordered"
-        case .project, .area, .savedView: return "folder"
-        }
+        scope.leadingIcon   // one table, shared with the list header (SelectionHue+Color.swift)
     }
 
     // MARK: Areas + projects
@@ -209,7 +213,6 @@ struct SidebarScreen: View {
     /// area's own weight comes from the projects nested under it, not a number of its own).
     private func areaRow(_ area: KArea, index: Int) -> some View {
         let isExpanded = expanded(area.id)
-        let count = areaTaskCount(area)
         return KSidebarRow(title: area.name, isExpanded: isExpanded,
                             isSelected: model.scope == .area(area.id)) {
             // One click, one handler: a tap gesture stacked on the row's Button raced it.
@@ -228,7 +231,7 @@ struct SidebarScreen: View {
             }
         }
         .onHover { hovering in hoveredAreaID = hovering ? area.id : (hoveredAreaID == area.id ? nil : hoveredAreaID) }
-        .accessibilityLabel(Text(verbatim: count == 0 ? area.name : "\(area.name), \(count)"))
+        .accessibilityLabel(Text(verbatim: area.name))
         .help(model.sidebarIconsOnly ? area.name : "")
         .contextMenu {
             Button(String(localized: "ctx.area.newproject")) {
@@ -237,6 +240,8 @@ struct SidebarScreen: View {
             Button(String(localized: "ctx.area.rename")) {
                 areaEditorTarget = AreaEditorTarget(mode: .edit(area))
             }
+            Divider()
+            Button(String(localized: "sidebar.area.delete")) { deleteArea(area) }
         }
     }
 
@@ -247,12 +252,11 @@ struct SidebarScreen: View {
     private func projectRow(_ project: KProject, indent: Int) -> some View {
         let _ = model.version
         let isFocus = model.focusTaskID.flatMap(model.store.task)?.projectID == project.id
-        let isFolderDropTarget = folderDropTargetProjectID == project.id
+        let isDropTarget = dropTargetProjectID == project.id
         return KSidebarRow(title: project.name,
                     projectIcon: project.icon,
                     colorHex: project.colorHex,
                     isFocus: isFocus,
-                    count: nilIfZero(projectTaskCount(project)),
                     indent: indent,
                     isSelected: model.scope == .project(project.id)) {
             select(.project(project.id))
@@ -274,23 +278,17 @@ struct SidebarScreen: View {
         // Drawn as a plain stroked overlay instead, so the row's own fill/selection state is
         // untouched by a drag passing over it.
         .overlay {
-            if isFolderDropTarget {
+            if isDropTarget {
                 RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                     .strokeBorder(Tok.textPrimary, lineWidth: Metrics.strokeHair)
             }
         }
-        // Project drop of a FOLDER (feature M): a Finder directory links as a context
-        // folder; a plain file, a Notes drag, or anything else is ignored with no error —
-        // Notes-folder drags are undocumented (brief) and are linked via the editor's picker
-        // instead.
-        .dropDestination(for: URL.self) { urls, _ in
-            guard let folder = SidebarFolderDropClassifier.classify(urls),
-                  let link = SidebarFolderDropClassifier.link(for: folder) else { return false }
-            model.coach.update { $0.projectFolders[project.id, default: []].append(link) }
-            return true
-        } isTargeted: { isTargeted in
-            folderDropTargetProjectID = isTargeted ? project.id : (folderDropTargetProjectID == project.id ? nil : folderDropTargetProjectID)
-        }
+        // Drops on a project: a task row dragged out of the list files the task here (one undo
+        // step, the usual pill); a Finder directory links as a context folder; a plain file, a
+        // Notes drag or anything else is refused, so the row never lights up for it. Notes-folder
+        // drags are undocumented and are linked via the editor's picker instead.
+        .onDrop(of: SidebarProjectDropDelegate.types,
+                delegate: SidebarProjectDropDelegate(projectID: project.id, model: model, targetID: $dropTargetProjectID))
         .contextMenu {
             Button(String(localized: "ctx.area.rename")) {
                 editorTarget = EditorTarget(mode: .rename(project))
@@ -309,10 +307,7 @@ struct SidebarScreen: View {
             }
             Divider()
             projectFolderMenuItems(project)
-            Button(String(localized: "ctx.area.archive")) {
-                model.store.archiveProject(project.id)
-                model.didMutate()
-            }
+            Button(String(localized: "ctx.area.archive")) { archiveProject(project) }
         }
     }
 
@@ -336,7 +331,7 @@ struct SidebarScreen: View {
         }
         .kButton(.icon)
         .accessibilityLabel(String(localized: "sidebar.shortcuts"))
-        .help(String(localized: "sidebar.shortcuts"))
+        .help(String(localized: "sidebar.help.shortcuts"))
     }
 
     private var settingsButton: some View {
@@ -347,7 +342,7 @@ struct SidebarScreen: View {
         }
         .kButton(.icon)
         .accessibilityLabel(String(localized: "sidebar.settings"))
-        .help(String(localized: "sidebar.settings"))
+        .help(String(localized: "sidebar.help.settings"))
     }
 
     private var footer: some View {
@@ -359,14 +354,29 @@ struct SidebarScreen: View {
                 KSidebarRow(title: String(localized: "timeblocks.title"), leadingIcon: "calendar") {
                     model.isTimeBlocksOpen = true
                 }
+                .kTooltip(rowTooltip(String(localized: "sidebar.help.timeblocks")))
             }
-            KSidebarRow(title: String(localized: "menu.task.triage"), leadingIcon: "check-square",
-                        count: nilIfZero(TriageQueue.count(in: cachedTasks))) {
+            // Only while agents have something waiting: a standing "Review" row would be a second
+            // inbox to keep at zero.
+            if reviewCount > 0 {
+                KSidebarRow(title: String(localized: "review.sidebar.title"), leadingIcon: "eye", count: reviewCount) {
+                    TriageLaunch.shared.request(.review)
+                    model.isTriageOpen = true
+                }
+                .kTooltip(rowTooltip(String(localized: "sidebar.help.review")))
+                .uiTestAnchor("sidebar.review")
+            }
+            // The two session rows carry their shortcut as quiet text at the right edge.
+            KSidebarRow(title: String(localized: "menu.task.triage"), leadingIcon: "check-square") {
                 model.isTriageOpen = true
             }
+            .overlay(alignment: .trailing) { shortcutHint(forEntry: "window.triage") }
+            .kTooltip(rowTooltip(String(localized: "sidebar.help.sort")))
             KSidebarRow(title: String(localized: "sidebar.impuls"), leadingIcon: "zap") {
                 model.isImpulsOpen = true
             }
+            .overlay(alignment: .trailing) { shortcutHint(forEntry: "window.impuls") }
+            .kTooltip(rowTooltip(String(localized: "sidebar.help.pickone")))
             if model.sidebarIconsOnly {
                 // The colour mode is a setting (Settings > Appearance), not a footer action.
                 settingsButton
@@ -378,7 +388,7 @@ struct SidebarScreen: View {
                 }
                 .kButton(.icon)
                 .accessibilityLabel(String(localized: "sidebar.mode.full"))
-                .help(String(localized: "sidebar.mode.full"))
+                .help(String(localized: "sidebar.help.mode.full"))
             } else {
                 // One aligned row instead of two stacked ones, which used to read as
                 // leftovers: keyboard, settings, then collapse LAST — the
@@ -395,7 +405,7 @@ struct SidebarScreen: View {
                     }
                     .kButton(.icon)
                     .accessibilityLabel(String(localized: "sidebar.mode.icons"))
-                    .help(String(localized: "sidebar.mode.icons"))
+                    .help(String(localized: "sidebar.help.mode.icons"))
                 }
             }
         }
@@ -430,6 +440,11 @@ struct SidebarScreen: View {
         return countCache.tasks
     }
 
+    /// Proposals and agent results waiting for a decision (not the ones put off until tomorrow).
+    private var reviewCount: Int {
+        ReviewQueue.count(in: cachedTasks, snoozed: ReviewSnooze.table, today: Day.today(calendar: KronosLocale.calendar))
+    }
+
     private func count(for scope: ListScope) -> Int {
         let tasks = cachedTasks
         if let hit = countCache.scopes[scope] { return hit }
@@ -439,12 +454,11 @@ struct SidebarScreen: View {
         return n
     }
 
-    private func projectTaskCount(_ project: KProject) -> Int {
-        cachedTasks.filter { $0.projectID == project.id && KStatus.open.contains($0.status) }.count
-    }
-
-    private func areaTaskCount(_ area: KArea) -> Int {
-        cachedTasks.filter { $0.areaID == area.id && KStatus.open.contains($0.status) }.count
+    /// A calm sidebar: only Inbox and Today carry a number (what is waiting to be sorted and what is
+    /// due now). Every other scope, project and the Sort row stay silent, so no list reads as a
+    /// backlog to clear.
+    static func showsCount(for scope: ListScope) -> Bool {
+        scope == .inbox || scope == .today
     }
 
     private func moveSelection(_ direction: MoveCommandDirection) {

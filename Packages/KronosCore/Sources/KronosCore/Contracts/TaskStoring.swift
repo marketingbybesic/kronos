@@ -35,8 +35,11 @@ public protocol TaskStoring: AnyObject {
 
     // MARK: Reads (needed by every consumer that then mutates by id)
 
-    /// Live tasks only: soft-deleted rows are excluded from every fetch.
+    /// Live TOP-LEVEL tasks: soft-deleted rows and subtasks are excluded. Every list, count and
+    /// scope reads this; subtasks appear only under their parent.
     func allTasks() -> [KTask]
+    /// Live tasks including subtasks. Search, dependency edges and sweeps only, never a list.
+    func allTasksIncludingSubtasks() -> [KTask]
     /// Includes soft-deleted rows. Import, export, restore and purge paths.
     func allTasksIncludingDeleted() -> [KTask]
     /// One live task by id, or nil.
@@ -224,39 +227,74 @@ public protocol TaskStoring: AnyObject {
     /// action the user took.
     func purgeDeletedOlderThan(days: Int, now: Date)
 
-    // MARK: Subtasks
+    // MARK: Subtasks (child tasks, one level)
+    //
+    // A subtask is a `KTask` whose `parent` is set; every task API works on it by id. The
+    // step-named methods below are thin wrappers kept for their callers.
+
+    /// Create a subtask at the end of `parentID`'s subtasks, inheriting its project/area.
+    /// Nil when the parent is gone or is itself a subtask. REGISTERS UNDO.
+    @discardableResult
+    func addChild(to parentID: UUID, title: String, dueDay: Int?, priority: KPriority) -> KTask?
+
+    /// The one move between levels: nest (`parentID` set), promote (nil), reparent, or reorder
+    /// among siblings, per `placement`. Nesting a task with subtasks flattens them under the
+    /// new parent; a nested row takes the parent's project/area. Throws `TaskNestError`
+    /// (nothing changed, nothing pushed). REGISTERS UNDO (one step; none for a no-op).
+    func setParent(_ id: UUID, to parentID: UUID?, at placement: KNestPlacement) throws
+    /// As `setParent`, with no undo step. NO UNDO — MCP.
+    func setParentNoUndo(_ id: UUID, to parentID: UUID?, at placement: KNestPlacement) throws
+
+    /// Move a subtask before sibling `before`, or to the end when nil. REGISTERS UNDO.
+    func reorderChild(_ id: UUID, before: UUID?)
+
+    /// Live subtasks of `id` in manual order.
+    func children(of id: UUID) -> [KTask]
 
     /// Append a step. REGISTERS UNDO. Returns nil when the task is gone.
     @discardableResult
-    func addSubtask(_ taskID: UUID, title: String) -> KSubtask?
+    func addSubtask(_ taskID: UUID, title: String) -> KTask?
     /// As `addSubtask`, with no undo step. NO UNDO — MCP `add_subtask` and
     /// the `create_task` subtask array.
     @discardableResult
-    func addSubtaskNoUndo(_ taskID: UUID, title: String) -> KSubtask?
+    func addSubtaskNoUndo(_ taskID: UUID, title: String) -> KTask?
+    /// As above, with the step's optional due day and priority. NO UNDO.
+    @discardableResult
+    func addSubtaskNoUndo(_ taskID: UUID, title: String, dueDay: Int?, priority: KPriority) -> KTask?
 
     /// Append breakdown steps after a task's existing subtasks.
     /// Never edits or reorders what is already there.
     /// REGISTERS UNDO (one step for the whole batch).
     func addSubtasks(_ titles: [String], to id: UUID)
 
-    /// Flip one step. REGISTERS UNDO.
+    /// Complete an open step / reopen a closed one. REGISTERS UNDO.
     func toggleSubtask(_ id: UUID)
-    /// Set one step to an explicit value, or flip it when `isDone` is nil.
+    /// Set one step to an explicit done/open value, or flip it when `isDone` is nil.
     /// NO UNDO — MCP `toggle_subtask`, which is idempotent on retry.
     func toggleSubtaskNoUndo(_ id: UUID, isDone: Bool?)
 
-    /// Retitle one step. REGISTERS UNDO (rev 4).
+    /// Retitle one step. REGISTERS UNDO.
     func renameSubtask(_ id: UUID, title: String)
-    /// Move a step directly before `before`, or to the end when nil.
-    /// REGISTERS UNDO (rev 4).
+    /// Move a step directly before `before`, or to the end when nil. REGISTERS UNDO.
     func reorderSubtask(_ id: UUID, before: UUID?)
-    /// Remove a step. REGISTERS UNDO — undo re-attaches the row rather than
-    /// re-inserting a deleted model, which SwiftData does not guarantee
-    /// (rev 4).
+    /// Remove a step (soft delete). REGISTERS UNDO.
     func deleteSubtask(_ id: UUID)
 
-    /// Update a subtask notes text (used for attachments). REGISTERS UNDO.
+    /// Replace a step's notes text (description and links). REGISTERS UNDO.
     func updateSubtaskNotes(_ id: UUID, notes: String)
+
+    /// Promote a subtask to a top-level task (same row, same id, every field kept).
+    /// Nil when it is gone or not a subtask. REGISTERS UNDO (one step).
+    @discardableResult
+    func promoteSubtaskToTask(_ subtaskID: UUID) -> KTask?
+
+    /// Move a subtask under another task (end of its steps). A no-op (nothing pushed) when the
+    /// target is the current parent, a subtask, or either row is gone. REGISTERS UNDO.
+    func reparentSubtask(_ subtaskID: UUID, under newParentID: UUID)
+
+    /// Make a task a subtask of another task (Cmd-]). Its own subtasks follow it, in order, as
+    /// siblings under the new parent. Throws `TaskNestError`. REGISTERS UNDO (one step).
+    func makeTaskSubtaskOf(_ taskID: UUID, parentID: UUID) throws
 
     // MARK: Projects, labels, areas
 
@@ -323,6 +361,8 @@ public protocol TaskStoring: AnyObject {
     /// REGISTERS UNDO on creation only; an existing label is a pure read.
     @discardableResult
     func label(named name: String) -> KLabel
+    /// Every label, ordered by name. A pure read.
+    func labels() -> [KLabel]
 
     /// Delete an area. REGISTERS UNDO.
     /// - Throws: `StoreError.areaHasProjects` when the area still has

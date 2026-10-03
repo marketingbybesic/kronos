@@ -28,7 +28,7 @@ struct CapturePasteView: View {
             // the lower `minHeight` (still comfortably more than one line) keeps it from
             // collapsing to nothing.
             KTextArea(String(localized: "capture.paste.placeholder.examples"), text: $capture.noteText, minHeight: 120)
-                .addFieldBehaviour(marker: true, onCommandReturn: { capture.findTasks() })
+                .addFieldBehaviour(onCommandReturn: { capture.findTasks() })
                 .frame(maxHeight: .infinity)
                 .focused($isFieldFocused)
                 .uiTestAnchor("capture.paste")
@@ -132,7 +132,7 @@ struct CapturePasteView: View {
     /// size L, with longer labels.
     private var footer: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            // One Notes entry point (W20): the one-tap inbox pull stays reachable through the
+            // One Notes entry point (item): the one-tap inbox pull stays reachable through the
             // palette's "Pull from Notes" command (kronosPullFromNotesRequested, handled in
             // CaptureScreen), so the window carries a single, unambiguous Notes button.
             // A flow layout, not an HStack: three fixed-size source buttons (longer in Croatian

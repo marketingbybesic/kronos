@@ -66,7 +66,7 @@ struct InspectorCalendarBlockRow: View {
                 Text(String(format: String(localized: "detail.calendar.linked"), blockLabel(link)))
                     .font(Typo.row).foregroundStyle(Tok.textPrimary).lineLimit(1).layoutPriority(1)
                 Spacer(minLength: Space.x2)
-                Button(String(localized: "detail.calendar.unlink"), action: unlink)
+                Button(action: unlink) { Text(String(localized: "detail.calendar.unlink")).kHitTarget() }
                     .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textTertiary).fixedSize()
             }
             .frame(height: Metrics.controlRegular)

@@ -1,7 +1,7 @@
 // The on-device Apple Intelligence client: the LAST candidate in the
 // fallback chain, usable even in `AIMode.privateOnly` because nothing it
 // sends leaves the Mac. Everything that touches `FoundationModels` sits
-// behind `#if canImport(FoundationModels)` + `@available(macOS 26.0, *)` so
+// behind `#if canImport(FoundationModels) (not watchOS)` + `@available(macOS 26.0, iOS 26.0, visionOS 26.0, *)` so
 // the package keeps compiling — and this file keeps compiling — on macOS 14,
 // which is the deployment target.
 //
@@ -54,8 +54,8 @@ public enum AppleIntelligence {
     public static var isAvailable: Bool { availability == .available }
 
     public static var availability: AppleIntelligenceAvailability {
-        #if canImport(FoundationModels)
-        if #available(macOS 26.0, *) {
+        #if canImport(FoundationModels) && !os(watchOS)
+        if #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
             case .available: return .available
             case .unavailable(.deviceNotEligible): return .notEligible
@@ -71,7 +71,7 @@ public enum AppleIntelligence {
     }
 }
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && !os(watchOS)
 import FoundationModels
 
 /// Wraps `SystemLanguageModel`/`LanguageModelSession` behind the exact same
@@ -82,7 +82,7 @@ import FoundationModels
 /// `SystemLanguageModel` — so every test in this package runs without the
 /// real framework and without needing Apple Intelligence turned on on the
 /// build machine (spec requirement: `appleClientSkippedWhenUnavailable`).
-@available(macOS 26.0, *)
+@available(macOS 26.0, iOS 26.0, visionOS 26.0, *)
 public struct AppleIntelligenceClient: AIClient {
     public let modelID = "apple-on-device"
     /// Nothing sent to this client ever leaves the Mac, so it stays usable
@@ -150,7 +150,7 @@ public enum AppleIntelligenceClientFactory {
     /// `AppleIntelligenceClient.send` re-checks every call.
     @MainActor
     public static func make() -> (any AIClient)? {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, visionOS 26.0, *) {
             return AppleIntelligenceClient()
         }
         return nil

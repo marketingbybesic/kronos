@@ -1,4 +1,4 @@
-// Status, Project and Labels — the second tier of task metadata, on the borderless
+// Status, Labels and Waits on — the second tier of task metadata, on the borderless
 // KPropertyRow property list (style G): one shared label column, quiet values, a
 // full-row hover fill instead of a boxed control per field.
 import SwiftUI
@@ -21,43 +21,26 @@ struct InspectorStatusSection: View {
                     if model.store.isBlocked(task.id) { blockedChip }
                 }
             }
-            KPropertyRow(String(localized: "detail.section.project")) { projectMenu }
+            .kInspectorFieldMenu(.status, task: task, model: model)
             labelsRow
             InspectorWaitsOnRow(model: model, task: task)
         }
     }
 
-    /// One chip, not a "To do | Waiting" switch whose on side was ambiguous: filled with a
-    /// check when the task IS waiting, an empty outline when it is not. On = `.waiting`; off =
+    /// One chip, not a "To do | Waiting" switch whose on side was ambiguous: a leading check and a
+    /// quiet fill when the task IS waiting, a plain outline when it is not. On = `.waiting`; off =
     /// whatever the automatic rule says the due day implies (`.todo` with a due day,
     /// `.someday` without) — `TaskStore.setWaiting` computes that, so this never needs the rule.
     /// Other statuses (in progress, done) are reached through the checkbox and the palette.
     private var statusMenu: some View {
         let isWaiting = task.status == .waiting
-        return HStack(spacing: Space.x1) {
-            if isWaiting { Icon("check", size: Metrics.iconXS) }
-            Text(String(localized: isWaiting ? "status.waiting" : "detail.status.markwaiting")).font(Typo.meta)
-        }
-        // On = solid light capsule, dark ink, check; off = bare outline, quiet ink. Two states that
-        // differ in fill AND glyph, so nobody has to guess which side "Waiting" is on (audit).
-        .foregroundStyle(isWaiting ? Tok.bg : Tok.textSecondary)
-        .padding(.horizontal, Space.x2)
-        .frame(height: 24)
-        .background(Capsule().fill(isWaiting ? Tok.textPrimary : Color.clear))
-        .overlay(Capsule().strokeBorder(isWaiting ? Color.clear : Tok.borderControl, lineWidth: Metrics.strokeQuiet))
-        .frame(height: Metrics.controlRegular)
-        .contentShape(Rectangle())
-        // A tap target, not a Button: the plain-style Button drew a focus ring wider than the
-        // row's clip (side brackets around the chip on the snapshot read). Fill, not outline:
-        // on = solid fill + check, off = outline only.
-        .onTapGesture {
+        return InspectorToggleChip(title: String(localized: isWaiting ? "status.waiting" : "detail.status.markwaiting"),
+                                   isOn: isWaiting, leadingIcon: "hourglass") {
             model.store.setWaiting(task.id, !isWaiting)
             model.didMutate()
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(isWaiting ? [.isButton, .isSelected] : .isButton)
-        .accessibilityLabel(String(localized: "detail.status.markwaiting"))
-        .accessibilityAction { model.store.setWaiting(task.id, !isWaiting); model.didMutate() }
+        .kTooltip(String(localized: "detail.help.waiting"))
+        .uiTestAnchor("inspector.status.waiting")
     }
 
     /// The actual status in three plain words: Open (to do, in progress, someday), Done, Waiting.
@@ -70,58 +53,12 @@ struct InspectorStatusSection: View {
         }
     }
 
-    /// Derived by Core (a task it waits on is still open); not a status and not tappable, so it
-    /// is a quiet DASHED outline beside the Waiting chip (a solid one reads as another toggle), monochrome like everything else.
+    /// Derived by Core (a task it waits on is still open); not a status and not tappable, so it is
+    /// a passive tag beside the Waiting chip, monochrome like everything else.
     private var blockedChip: some View {
-        Text(String(localized: "detail.blocked"))
-            .font(Typo.meta)
-            .foregroundStyle(Tok.textSecondary)
-            .padding(.horizontal, Space.x2)
-            .frame(height: 24)
-            .overlay(Capsule().strokeBorder(Tok.borderControl, style: StrokeStyle(lineWidth: Metrics.strokeQuiet, dash: [3, 3])))
+        KTag(String(localized: "detail.blocked"), tone: Tok.textSecondary, font: Typo.meta)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "detail.blocked"))
-    }
-
-    // MARK: Project
-
-    private var projectMenu: some View {
-        // The glyph is the row's leading content (its own column, like every other
-        // icon+text row in the app) and its own ink starts on the shared value x; the
-        // project NAME follows after it, not aligned to that x itself.
-        InspectorValueMenu(text: task.project?.name ?? String(localized: "detail.noproject")) {
-            if let project = task.project {
-                // Same carrier as the list row (gate G3): this glyph shows the SAME task
-                // identity as the row it was opened from, so "focus row glyph" off must also
-                // mean off here — otherwise closing the row's colour just relocates it to the
-                // inspector the moment that row is selected.
-                KProjectGlyph(icon: project.icon, colorHex: project.colorHex,
-                              isFocus: task.id == model.focusTaskID, size: Metrics.iconM, carrier: .rowGlyph)
-            }
-        } items: {
-            Button(String(localized: "detail.noproject")) {
-                model.store.move(task.id, toProject: nil)
-                model.didMutate()
-            }
-            ForEach(projectsByArea, id: \.area) { group in
-                Section(group.area) {
-                    ForEach(group.projects, id: \.id) { project in
-                        Button {
-                            model.store.move(task.id, toProject: project)
-                            model.didMutate()
-                        } label: {
-                            Text(project.name)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var projectsByArea: [(area: String, projects: [KProject])] {
-        let all = model.store.allProjects()
-        let grouped = Dictionary(grouping: all) { $0.area?.name ?? String(localized: "detail.noproject") }
-        return grouped.keys.sorted().map { key in (area: key, projects: grouped[key] ?? []) }
     }
 
     // MARK: Labels
@@ -145,7 +82,10 @@ private struct InspectorLabelsRow: View {
                 if !labels.isEmpty {
                     InspectorFlowLayout(spacing: Space.x1) {
                         ForEach(labels, id: \.id) { label in
-                            KChip(label.name, trailing: .clear, onTap: { remove(label) })
+                            KChip(label.name, trailing: .clear, onTap: { remove(label) }) {
+                                Circle().fill(Color(hexString: label.colorHex)).frame(width: Metrics.projectDot, height: Metrics.projectDot)
+                            }
+                            .kLabelContextMenu(label, task: task, model: model)
                         }
                     }
                 }
@@ -245,9 +185,13 @@ struct InspectorDepthEstimateSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             KPropertyRow(String(localized: "detail.depth")) { depthMenu }
+                .kInspectorFieldMenu(.depth, task: task, model: model)
+                .kTooltip(String(localized: "detail.help.depth"))
             KPropertyRow(String(localized: "detail.estimate.short")) {
                 EstimateField(model: model, task: task)
             }
+            .kInspectorFieldMenu(.estimate, task: task, model: model)
+            .kTooltip(String(localized: "detail.help.estimate"))
         }
     }
 
@@ -283,9 +227,10 @@ struct EstimateField: View {
         HStack(spacing: Space.x1) {
             // The plain TextField ignores a prompt colour on macOS, so the dim placeholder is a
             // Text underneath that also gives the field its width.
-            Text(draft.isEmpty ? String(localized: "detail.estimate.placeholder") : draft)
+            // Empty reads "Not set" like the Depth row above it, never a bare unit ("min").
+            Text(draft.isEmpty ? String(localized: "detail.estimate.notset") : draft)
                 .font(Typo.row)
-                .foregroundStyle(draft.isEmpty ? Tok.textTertiary : Color.clear)
+                .foregroundStyle(draft.isEmpty ? Tok.textSecondary : Color.clear)
                 .overlay(alignment: .leading) {
                     TextField("", text: $draft)
                         .textFieldStyle(.plain)
@@ -301,9 +246,7 @@ struct EstimateField: View {
                     if old, !new { commit() }
                 }
                 .onSubmit { commit() }
-            // The unit suffix only shows once a value is entered: the placeholder
-            // itself already reads "min" when empty, and pairing it with a trailing
-            // "min" label doubled the word (caught on the screenshot read).
+            // The unit suffix only shows once a value is entered ("Not set min" reads wrong).
             if !draft.isEmpty {
                 Text(String(localized: "detail.estimate.unit"))
                     .font(Typo.meta)

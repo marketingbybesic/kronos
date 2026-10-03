@@ -9,7 +9,7 @@ public struct KHairline: View {
     public var body: some View {
         Rectangle()
             .fill(Tok.hairline)
-            .frame(width: vertical ? 1 : nil, height: vertical ? nil : 1)
+            .frame(width: vertical ? Metrics.hairline : nil, height: vertical ? nil : Metrics.hairline)
             .accessibilityHidden(true)
     }
 }

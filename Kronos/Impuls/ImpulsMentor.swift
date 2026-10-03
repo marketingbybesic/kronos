@@ -22,6 +22,8 @@ final class ImpulsMentor {
     private(set) var isAIRefined = false
     private var locked = false
     private var task: Task<Void, Never>?
+    /// One ask per card, however often the store ticks while the card is on screen.
+    private var gate = RefinementGate()
 
     init(generic: String) { self.line = generic }
 
@@ -33,9 +35,15 @@ final class ImpulsMentor {
                            shownTaskID: UUID,
                            energy: KEnergyLevel,
                            language: String) {
-        guard let router, !locked else { return }
+        // Skipped outright (no call, nothing sent) unless a configured model can answer inside the
+        // window, and only once per displayed task.
+        guard let router, !locked, router.supportsImpulsLine, gate.shouldRequest(for: shownTaskID) else { return }
         let generic = line
+        task?.cancel()
         task = Task {
+            // Debounce: a card that is replaced within a moment never reaches the model.
+            try? await Task.sleep(for: .milliseconds(ImpulsConfig.debounceMilliseconds))
+            guard !Task.isCancelled, !self.locked else { return }
             let start = ContinuousClock.now
             do {
                 let result = try await router.impulsPick(candidates: candidates, energy: energy, language: language)
@@ -75,28 +83,7 @@ enum ImpulsConfig {
     /// Measured `auto/cheap` median is 3.98 s: a 2.5–3 s budget would discard the median
     /// successful response. Re-measure if the provider changes.
     static let aiBudgetSeconds: Double = 4
+    /// Wait before the model is asked, so a card that changes at once costs nothing.
+    static let debounceMilliseconds: Int = 250
 }
 
-/// UI-side mirror of Core's `MentorLineLint` rule. Core does not ship this type (only
-/// `ImpulsRanking.Entry`'s doc comment states the shape), so this checks the rules it can
-/// verify cheaply before ever letting a line replace the generic one. A line that fails is
-/// dropped exactly like a timeout — no retry, no error.
-enum MentorLineCheck {
-    private static let bannedSubstrings: [String] = [
-        "you've got this", "you can do it", "come on", "let's go", "crush it", "smash it",
-        "just do it", "you did", "you should", "as promised", "one more push", "let's finally",
-        "before it's too late", "while you still can", "quick!", "now or never",
-        "still not done", "don't forget", "you've been avoiding",
-    ]
-
-    static func pass(_ line: String, unlessIdenticalTo generic: String) -> Bool {
-        guard line != generic else { return false }
-        guard line.count <= 90 else { return false }
-        guard !line.contains("!"), !line.contains("?") else { return false }
-        let dotCount = line.filter { $0 == "." }.count
-        guard dotCount <= 1 else { return false }
-        guard !line.unicodeScalars.contains(where: { $0.properties.isEmoji && $0.properties.isEmojiPresentation }) else { return false }
-        let lower = line.lowercased()
-        return !bannedSubstrings.contains { lower.contains($0) }
-    }
-}

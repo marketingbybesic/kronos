@@ -33,6 +33,24 @@ enum ContextLinkActions {
         isUnopenable(link) ? String(format: String(localized: "detail.links.missing"), link.displayName) : link.displayName
     }
 
+    /// What "Copy link" puts on the clipboard: the address of a web/mail link, the current path
+    /// of a file or folder, the note's id for an Apple note.
+    static func copyText(_ link: ContextLink) -> String {
+        switch link.kind {
+        case .file, .folder: resolveFileURL(link)?.url.path ?? link.reference
+        case .web, .email, .appleNote: link.reference
+        }
+    }
+
+    static func isFileLike(_ link: ContextLink) -> Bool { link.kind == .file || link.kind == .folder }
+
+    /// Show in Finder for a file or folder: selects it in its parent folder.
+    @MainActor
+    static func reveal(_ link: ContextLink) {
+        guard let resolved = resolveFileURL(link) else { return }
+        withSecurityScope(resolved) { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
+    }
+
     /// File -> revealed and selected in Finder; folder -> opened in Finder; email -> Mail shows
     /// exactly that message; note -> Notes shows that note (or just comes forward).
     @MainActor
@@ -77,7 +95,7 @@ enum ContextLinkActions {
 
     /// A security-scoped URL handed to NSWorkspace without start/stopAccessing gets
     /// LaunchServices' paramErr (-50).
-    private static func withSecurityScope(_ resolved: (url: URL, isSecurityScoped: Bool), _ action: (URL) -> Void) {
+    static func withSecurityScope(_ resolved: (url: URL, isSecurityScoped: Bool), _ action: (URL) -> Void) {
         guard resolved.isSecurityScoped else { action(resolved.url); return }
         let started = resolved.url.startAccessingSecurityScopedResource()
         action(resolved.url)
@@ -86,7 +104,7 @@ enum ContextLinkActions {
 
     /// Bookmark first (survives moves/renames), else a raw path from an older link; nil when
     /// neither points at something that exists right now.
-    private static func resolveFileURL(_ link: ContextLink) -> (url: URL, isSecurityScoped: Bool)? {
+    static func resolveFileURL(_ link: ContextLink) -> (url: URL, isSecurityScoped: Bool)? {
         if let data = Data(base64Encoded: link.reference), !data.isEmpty {
             var stale = false
             if let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope,
@@ -112,59 +130,73 @@ struct ContextLinkChip: View {
     let target: AttachmentTarget
     let model: AppModel
     var compact = false
+    @State private var isRenaming = false
+    @State private var nameDraft = ""
 
     var body: some View {
-        HStack(spacing: 0) {
-            KChip(ContextLinkActions.label(link), onTap: { ContextLinkActions.open(link, model: model) }) {
-                Icon(ContextLinkActions.iconName(link.kind), size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
+        // The remove ✕ lives inside the chip's own border (one pill, two sibling buttons), so the
+        // chip's frame is the whole target and nothing hangs outside it.
+        KChip(ContextLinkActions.label(link), trailing: .clear,
+              onTap: { ContextLinkActions.open(link, model: model) },
+              onTrailingTap: { ContextLinkActions.remove(link, from: target, model: model) },
+              trailingAnchorID: "inspector.contextlink.remove") {
+            Icon(ContextLinkActions.iconName(link.kind), size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
+        }
+        .frame(maxWidth: compact ? 140 : nil, alignment: .leading)
+        .help(link.displayName)
+        .uiTestAnchor("inspector.contextlink.chip")
+        .contextMenu {
+            Button(String(localized: "detail.links.chip.open")) { ContextLinkActions.open(link, model: model) }
+            if ContextLinkActions.isFileLike(link) {
+                Button(String(localized: "detail.links.chip.reveal")) { ContextLinkActions.reveal(link) }
             }
-            .frame(maxWidth: compact ? 140 : nil, alignment: .leading)
-            .help(link.displayName)
-            .uiTestAnchor("inspector.contextlink.chip")
-            // Tap target is the full minHit box: frame + contentShape INSIDE the label
-            // (a plain-style button is otherwise pressable only on its glyph pixels).
-            Button { ContextLinkActions.remove(link, from: target, model: model) } label: {
-                Icon("x", size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
-                    .frame(width: compact ? Metrics.iconL : Metrics.minHit, height: Metrics.minHit)
-                    .contentShape(Rectangle())
+            Button(String(localized: "detail.links.chip.copy")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(ContextLinkActions.copyText(link), forType: .string)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "common.delete"))
-            .uiTestAnchor("inspector.contextlink.remove")
+            Button(String(localized: "detail.links.chip.rename")) {
+                nameDraft = link.displayName
+                isRenaming = true
+            }
+            Divider()
+            Button(String(localized: "detail.links.chip.remove")) { ContextLinkActions.remove(link, from: target, model: model) }
+        }
+        .popover(isPresented: $isRenaming, arrowEdge: .bottom) {
+            ChipRenameField(name: $nameDraft) {
+                LinkEditing.rename(link, to: nameDraft, on: target, model: model)
+                isRenaming = false
+            }
         }
     }
 }
 
-/// The inspector's LINKS row: every attachment of the task, one chip each.
-struct InspectorContextLinksRow: View {
-    let model: AppModel
-    let task: KTask
+/// The rename popover: one field, Return saves, Escape closes (an unchanged or blank name
+/// writes nothing — `LinkEditing.rename` ignores it).
+private struct ChipRenameField: View {
+    @Binding var name: String
+    let onSave: () -> Void
 
     var body: some View {
-        let links = ContextLink.findAll(in: task.notes)
-        if !links.isEmpty {
-            KPropertyRow(String(localized: "detail.section.links")) {
-                VStack(alignment: .leading, spacing: Space.x1) {
-                    ForEach(links, id: \.encodedLine) { link in
-                        ContextLinkChip(link: link, target: .task(task.id), model: model)
-                    }
-                }
-            }
-        }
+        KTextField(String(localized: "detail.links.chip.rename.placeholder"), text: $name, autofocus: true)
+            .onSubmit(onSave)
+            .frame(width: 240)
+            .padding(Space.x3)
+            .background(Tok.overlay)
     }
 }
 
 /// The small chips to the right of a subtask's title.
 struct SubtaskAttachmentChips: View {
     let model: AppModel
-    let subtask: KSubtask
+    let subtask: KTask
 
     var body: some View {
         let links = ContextLink.findAll(in: subtask.notes)
         if !links.isEmpty {
             HStack(spacing: Space.x1) {
                 ForEach(links, id: \.encodedLine) { link in
-                    ContextLinkChip(link: link, target: .subtask(subtask), model: model, compact: true)
+                    // A file or folder attached on another Mac is dimmed and names that Mac.
+                    ForeignAwareChip(link: link, target: .subtask(subtask), model: model, compact: true)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)

@@ -22,7 +22,8 @@ struct AppShellView: View {
     /// `AppShellView`'s own body re-evaluations without re-registering its notification
     /// observers on every redraw.
     @State private var windowWidthObserver = WindowWidthObserver()
-    @State private var impulsMode: ImpulsScreen.Mode = .ask
+    /// The morning plan, inline above the list (Kronos/Impuls/MorningInlineView.swift).
+    @State private var morningOpen = false
     // Shell-level undo pill (KUndoPill.swift): completing/deleting from ANY screen — list,
     // Now card, inspector, triage, Impuls, menu bar — posts to `UndoToastCenter.shared`, and
     // this one overlay shows it regardless of which screen posted. `@Bindable` so `current`'s
@@ -54,7 +55,9 @@ struct AppShellView: View {
 
                     KHairline(vertical: true)
 
-                    TaskListScreen(model: model)
+                    ListWithMorningPlan(model: model, showsMorning: Binding(
+                        get: { morningOpen && (model.scope == .today || model.scope == .inbox) },
+                        set: { morningOpen = $0 }))
                         .frame(minWidth: Metrics.listMin, maxWidth: .infinity, maxHeight: .infinity)
 
                     if !inspectorCollapsed {
@@ -86,7 +89,7 @@ struct AppShellView: View {
 
                 if model.isImpulsOpen {
                     overlayScrim { model.isImpulsOpen = false }
-                    ImpulsScreen(model: model, mode: impulsMode, aiRouter: model.ai)
+                    ImpulsScreen(model: model, aiRouter: model.ai)
                         .frame(width: Metrics.inspectorDefault)
                         .kBorder(Tok.hairline, radius: Radius.card)
                         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
@@ -129,7 +132,7 @@ struct AppShellView: View {
                 }
 
                 if let toast = undoCenter.current {
-                    KUndoPill(message: toast.message, onUndo: {
+                    KUndoPill(state: toast, onUndo: {
                         model.store.undo(); model.didMutate(); undoCenter.dismiss()
                     }, onExpire: {
                         undoCenter.expire(toast.id)
@@ -146,7 +149,7 @@ struct AppShellView: View {
             .onAppear { offerMorningPlanIfDue() }
             .onChange(of: model.scope) { _, _ in offerMorningPlanIfDue() }
             .onChange(of: model.isImpulsOpen) { _, open in
-                if !open { impulsMode = .ask } else { OnboardingCenter.shared.noteOpened(.impuls, model: model) }
+                if open { OnboardingCenter.shared.noteOpened(.impuls, model: model) }
             }
             // "Start here" power quests tick when their surface is opened once, by any route.
             .onChange(of: model.isTriageOpen) { _, open in if open { OnboardingCenter.shared.noteOpened(.triage, model: model) } }
@@ -167,7 +170,8 @@ struct AppShellView: View {
             }
         }
         .sheet(isPresented: Binding(get: { model.noteLinkPickerOpen }, set: { model.noteLinkPickerOpen = $0 })) {
-            if let id = model.selectedTaskID, let t = model.store.task(id) {
+            // The shown task (the child in child mode), never the selected parent.
+            if let t = model.inspectedTask {
                 NotesPickerSheet(model: model, mode: .single { n, _ in
                     InspectorNoteLinkRow.link(model: model, task: t, noteID: n.id, title: n.title)
                     model.noteLinkPickerOpen = false
@@ -201,29 +205,52 @@ struct AppShellView: View {
             NSApp.activate(ignoringOtherApps: true)
             openSettings()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .kronosMorningPlanRequested)) { _ in
+            morningOpen = true
+        }
         .onReceive(NotificationCenter.default.publisher(for: .kronosKeymapRequested)) { _ in
             model.isKeymapOpen = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .kronosToggleInspectorRequested)) { _ in
             toggleInspector()
         }
+        // The sort card's B posts a bare notification; the Steps section reads BreakdownRequests.
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosBreakdownRequested"))) { note in
+            guard let id = note.userInfo?["taskID"] as? UUID else { return }
+            BreakdownRequests.shared.request(taskID: id)
+        }
+        // A request to put the cursor in the title or notes needs the inspector on screen: one the
+        // person collapsed opens first, then the request is posted again for the pane it creates.
+        .onReceive(NotificationCenter.default.publisher(for: UIRequests.focusInspectorTitle)) { note in
+            revealInspector(for: note)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .kronosFocusNotesRequested)) { note in
+            revealInspector(for: note)
+        }
         // Selection hygiene: the task list validates selection against its own visible rows
         // and re-selects there when appropriate — this only clears a selection that is now
-        // certainly stale because the whole scope changed under it.
+        // certainly stale because the new scope does not list it. A route that switches the
+        // scope AND opens a task (open by id, palette) keeps its selection: this runs after it.
         .onChange(of: model.scope) { _, _ in
-            model.selectedTaskID = nil
+            guard let id = model.selectedTaskID,
+                  ListContext(model: model).rows.contains(where: { $0.id == id }) else {
+                model.selectedTaskID = nil
+                return
+            }
         }
         .onExitCommand {
             // Esc cascade: an overlay or popover consumes this via its own .onExitCommand
             // deeper in the view tree (SwiftUI runs the most specific handler) — Impuls/palette
             // close on their own, so reaching here means one of those was open, or nothing
             // was: close whichever overlay is open, else clear selection.
-            if model.isKeymapOpen { model.isKeymapOpen = false }
+            if TourCenter.shared.isRunning { TourCenter.shared.end() }
+            else if model.isKeymapOpen { model.isKeymapOpen = false }
             else if model.isPaletteOpen { model.isPaletteOpen = false }
             else if model.isCaptureOpen { model.isCaptureOpen = false }
             else if model.isTriageOpen { model.isTriageOpen = false }
             else if model.isTimeBlocksOpen { model.isTimeBlocksOpen = false }
             else if model.isImpulsOpen { model.isImpulsOpen = false }
+            else if model.inspectedSubtaskID != nil { model.closeChildDetails() }   // child mode: back to the parent first
             else { model.selectedTaskID = nil }
         }
     }
@@ -231,7 +258,7 @@ struct AppShellView: View {
     /// Dimmed backdrop behind Impuls / the command palette (black 60%, ledger). Tapping it
     /// dismisses, matching Esc.
     private func overlayScrim(dismiss: @escaping () -> Void) -> some View {
-        Tok.bg.opacity(0.6)
+        Tok.scrim
             .ignoresSafeArea()
             .contentShape(Rectangle())
             .onTapGesture(perform: dismiss)
@@ -267,6 +294,17 @@ struct AppShellView: View {
             )
     }
 
+    /// Opens an inspector the person collapsed, then repeats `note` once the pane exists. A window
+    /// too narrow for the inspector stays as it is (nothing could show it).
+    private func revealInspector(for note: Notification) {
+        guard userCollapsedInspector, !inspectorAutoCollapsed else { return }
+        withAnimation(Motion.curve(Motion.medium)) { userCollapsedInspector = false }
+        let again = Notification(name: note.name, object: note.object, userInfo: note.userInfo)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NotificationCenter.default.post(again)
+        }
+    }
+
     private func toggleInspector() {
         withAnimation(Motion.curve(Motion.medium)) { userCollapsedInspector.toggle() }
     }
@@ -298,9 +336,9 @@ extension AppShellView {
     // are at least three open tasks. Settings > Coach switches it off. Never in snapshot runs.
     private func offerMorningPlanIfDue() {
         guard ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] == nil else { return }
-        let d = UserDefaults.standard
+        let d = KronosEnv.defaults
         let enabled = AppearancePrefs.morningPlanEnabled
-        guard enabled, model.scope == .today || model.scope == .inbox, !model.isImpulsOpen else { return }
+        guard enabled, model.scope == .today || model.scope == .inbox, !model.isImpulsOpen, !morningOpen else { return }
         // Never on top of the welcome/Learn Kronos card or the guided tour, and never on the very
         // first launch day: the first thing a new user sees must not be a plan they did not ask for.
         guard !OnboardingCenter.shared.isVisible, !TourCenter.shared.isRunning else { return }
@@ -308,12 +346,10 @@ extension AppShellView {
         guard d.bool(forKey: "kronos.welcome.shownOnce") else { return }  // welcome window still pending
         if let started = OnboardingCenter.shared.state.startedAt, Day.from(started) >= Day.today() { return }
         let last = d.object(forKey: "kronos.coach.morningLastShownDay") as? Int
-        guard ImpulsScreen.shouldOfferMorning(now: Date(), lastShownDay: last) else { return }
+        guard last != Day.today() else { return }
         let open = model.store.allTasks().filter { $0.deletedAt == nil && KStatus.open.contains($0.status) }
         guard open.count >= 3 else { return }
         d.set(Day.today(), forKey: "kronos.coach.morningLastShownDay")
-        impulsMode = .morning
-        OnboardingCenter.shared.markProgrammaticOpen(.impuls)  // the card opened it, not the user: no quest tick
-        model.isImpulsOpen = true
+        morningOpen = true
     }
 }

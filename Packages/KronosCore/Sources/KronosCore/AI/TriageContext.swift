@@ -54,7 +54,7 @@ public struct TriageContext: Sendable, Equatable {
         examples.map { e in
             let project = e.projectName.map { " (\($0))" } ?? ""
             let status = e.open ? "open" : "done"
-            return "- \(e.title)\(project): priority=\(Self.word(e.priority)), "
+            return "- \(PrivacyRedactor.redact(e.title))\(project): priority=\(Self.word(e.priority)), "
                 + "effort=\(Self.word(e.effort)), depth=\(Self.word(e.depth)), \(status)"
         }
     }

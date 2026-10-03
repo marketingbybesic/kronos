@@ -35,11 +35,13 @@ public struct KActiveRulesBar: View {
                 ForEach(chips) { chip in
                     KChip(chip.text, trailing: .clear, onTap: chip.onTap, onTrailingTap: chip.onRemove)
                 }
-                Button(String(localized: "viewoptions.reset"), action: onReset)
+                Button(String(localized: "viewoptions.clearall"), action: onReset)
                     .buttonStyle(.plain)
+                    .help(String(localized: "viewoptions.clearall.help"))
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                     .frame(minHeight: Metrics.minHit)
+                    .uiTestAnchor("rules.clearall")
             }
         }
         .frame(height: Metrics.controlCompact)

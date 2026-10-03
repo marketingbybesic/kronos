@@ -1,3 +1,4 @@
+#if os(macOS)
 // MCP. The `tools/call` result envelope: every tool
 // returns `{"content":[{"type":"text","text":"<json>"}],"structuredContent":
 // <object>,"isError":bool}`. `structuredContent` is authoritative; `text`
@@ -28,6 +29,30 @@ struct MCPToolOutcome {
         return MCPToolOutcome(body: body, isError: true)
     }
 
+    /// A thrown outcome (see `decodeParams`) back as the result; anything else is INTERNAL.
+    static func from(_ error: Error) -> MCPToolOutcome {
+        (error as? MCPToolOutcome) ?? .error(.internalError, message: "\(error)")
+    }
+
+    /// INVALID_PARAMS naming the field a decode failed at, from the error's coding path.
+    static func decodeFailure(_ e: DecodingError, tool: String) -> MCPToolOutcome {
+        let context: DecodingError.Context
+        var missing = false
+        switch e {
+        case .typeMismatch(_, let c), .dataCorrupted(let c), .valueNotFound(_, let c): context = c
+        case .keyNotFound(let key, let c):
+            context = DecodingError.Context(codingPath: c.codingPath + [key], debugDescription: c.debugDescription)
+            missing = true
+        @unknown default:
+            return .error(.invalidParams, message: "could not decode \(tool) arguments")
+        }
+        let path = context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }
+            .joined(separator: ".").replacingOccurrences(of: ".[", with: "[")
+        let what = missing ? "required parameter `\(path)` is missing"
+                           : "invalid value for `\(path.isEmpty ? "arguments" : path)`: \(context.debugDescription)"
+        return .error(.invalidParams, message: "\(tool): \(what)", data: ["field": path])
+    }
+
     /// The full `tools/call` envelope for this outcome.
     var envelope: MCPToolCallEnvelope {
         let text = String(data: body, encoding: .utf8) ?? "{}"
@@ -38,8 +63,11 @@ struct MCPToolOutcome {
     }
 }
 
+extension MCPToolOutcome: Error {}
+
 struct MCPToolCallEnvelope: Encodable {
     let content: [MCPContentBlock]
     let structuredContent: AnyEncodable
     let isError: Bool
 }
+#endif

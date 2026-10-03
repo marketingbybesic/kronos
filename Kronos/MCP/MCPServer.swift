@@ -22,6 +22,8 @@ public final class MCPServer {
     private let dispatcher: MCPDispatcher
     private var listener: NWListener?
     private var connections: [ObjectIdentifier: NWConnection] = [:]
+    /// Per-connection wall-clock read deadline; fires `drop` if the request never completes.
+    private var deadlines: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Fetches the bearer token. Not called until the first request actually needs to check
     /// one (`token`, below) — binding the socket must never wait on a Keychain read, and the
     /// read must never happen at all if nobody ever calls the server: the server starts
@@ -64,6 +66,8 @@ public final class MCPServer {
         listener = nil
         for (_, c) in connections { c.cancel() }
         connections.removeAll()
+        for (_, t) in deadlines { t.cancel() }
+        deadlines.removeAll()
         isRunning = false
         boundPort = nil
     }
@@ -76,7 +80,7 @@ public final class MCPServer {
             return
         }
         let params = NWParameters.tcp
-        params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: nwPort)
+        params.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host(MCPHTTP.bindHost), port: nwPort)
         params.allowLocalEndpointReuse = false
 
         let candidate: NWListener
@@ -140,8 +144,18 @@ public final class MCPServer {
             connection.cancel()
             return
         }
+        // A client that opens sockets and goes quiet must not be able to hold unbounded ones.
+        guard connections.count < MCPHTTP.maxConnections else {
+            connection.cancel()
+            return
+        }
         let key = ObjectIdentifier(connection)
         connections[key] = connection
+        deadlines[key] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(MCPHTTP.readTimeoutSeconds))
+            guard !Task.isCancelled else { return }
+            self?.drop(key)
+        }
         connection.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
             switch state {
@@ -156,6 +170,7 @@ public final class MCPServer {
     }
 
     private func drop(_ key: ObjectIdentifier) {
+        deadlines.removeValue(forKey: key)?.cancel()
         connections[key]?.cancel()
         connections.removeValue(forKey: key)
     }
@@ -171,9 +186,7 @@ public final class MCPServer {
         return false
     }
 
-    // MARK: - HTTP/1.1 framing (hand-parsed: one POST /mcp endpoint)
-
-    private static let maxBodyBytes = 1 * 1024 * 1024   // 1 MB cap
+    // MARK: - HTTP/1.1 framing (parsing lives in KronosCore `MCPHTTPParser`)
 
     private func readRequest(_ connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
@@ -185,81 +198,77 @@ public final class MCPServer {
                     connection.cancel()
                     return
                 }
-                self.processIfComplete(connection, buffer: acc)
+                if !self.processIfComplete(connection, buffer: acc) {
+                    // Still incomplete: a peer that already closed its side will never finish it.
+                    if isComplete { connection.cancel() } else { self.readRequest(connection, buffer: acc) }
+                }
             }
         }
     }
 
-    private func processIfComplete(_ connection: NWConnection, buffer: Data) {
-        guard let headerEnd = Self.range(of: "\r\n\r\n", in: buffer) else {
-            // Headers not fully received yet; keep reading.
-            if buffer.count > Self.maxBodyBytes { respond(connection, status: 413, body: nil) }
-            else { readRequest(connection, buffer: buffer) }
-            return
-        }
-        let headerData = buffer[..<headerEnd.lowerBound]
-        guard let headerText = String(data: headerData, encoding: .utf8) else {
-            respond(connection, status: 400, body: nil); return
-        }
-        let lines = headerText.components(separatedBy: "\r\n")
-        guard let requestLine = lines.first else { respond(connection, status: 400, body: nil); return }
-        let parts = requestLine.split(separator: " ")
-        guard parts.count >= 2 else { respond(connection, status: 400, body: nil); return }
-        let method = String(parts[0])
-        let path = String(parts[1])
-
-        var headerFields: [String: String] = [:]
-        for line in lines.dropFirst() {
-            guard let colon = line.firstIndex(of: ":") else { continue }
-            let key = line[line.startIndex..<colon].trimmingCharacters(in: .whitespaces).lowercased()
-            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
-            headerFields[key] = value
+    /// Returns false when more bytes are needed; true once the connection has been answered.
+    private func processIfComplete(_ connection: NWConnection, buffer: Data) -> Bool {
+        let head: MCPHTTPHead
+        switch MCPHTTPParser.parseHead(buffer) {
+        case .needMoreHeader:
+            return false
+        case .reject(let status):
+            respond(connection, status: status, body: nil)
+            return true
+        case .head(let parsed):
+            head = parsed
         }
 
-        if let transferEncoding = headerFields["transfer-encoding"], transferEncoding.lowercased().contains("chunked") {
-            respond(connection, status: 411, body: nil)
-            return
-        }
-
-        let bodyStart = headerEnd.upperBound
-        let contentLength = Int(headerFields["content-length"] ?? "0") ?? 0
-        guard contentLength <= Self.maxBodyBytes else {
-            respond(connection, status: 413, body: nil); return
-        }
-        let bodyAvailable = buffer.count - buffer.distance(from: buffer.startIndex, to: bodyStart)
-        guard bodyAvailable >= contentLength else {
-            readRequest(connection, buffer: buffer)   // wait for the rest of the body
-            return
-        }
-        let body = buffer[bodyStart..<buffer.index(bodyStart, offsetBy: contentLength)]
-
-        guard method == "POST", path == "/mcp" else {
-            respond(connection, status: path == "/mcp" ? 405 : 404, body: nil)
-            return
+        guard head.method == "POST", head.path == "/mcp" else {
+            respond(connection, status: head.path == "/mcp" ? 405 : 404, body: nil)
+            return true
         }
         // Browser pages can reach loopback (DNS rebinding); curl / SDK clients send no Origin.
-        guard MCPEndpointFile.isOriginAllowed(headerFields["origin"]) else {
-            respond(connection, status: 403, body: nil); return
+        guard MCPEndpointFile.isOriginAllowed(head.headers["origin"]) else {
+            respond(connection, status: 403, body: nil)
+            return true
         }
+        // Authenticate from the header block alone, before one body byte is read or decoded.
         // A nil token (the RNG or the Keychain write failed when this was first generated)
         // must reject every request, the same as a wrong one — never treat "no token
         // available" as "no auth required".
-        guard let expectedToken = token,
-              BearerAuth.isAuthorized(header: headerFields["authorization"], expectedToken: expectedToken) else {
-            respond(connection, status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8),
-                    extraHeaders: #"WWW-Authenticate: Bearer realm="Kronos""#)
-            return
+        var identity: AgentIdentity?
+        if let hub = dispatcher.hub {
+            // Per-agent tokens first, then the shared token as the unnamed read + propose agent.
+            let header = head.headers["authorization"]
+            let presented = header.flatMap { $0.hasPrefix("Bearer ") ? String($0.dropFirst(7)) : nil }
+            switch hub.authenticate(bearer: presented, legacyToken: token, client: head.headers["x-kronos-client"]) {
+            case .agent(let found): identity = found
+            case .denied:
+                respond(connection, status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8),
+                        extraHeaders: #"WWW-Authenticate: Bearer realm="Kronos""#)
+                return true
+            }
+        } else {
+            guard let expectedToken = token,
+                  BearerAuth.isAuthorized(header: head.headers["authorization"], expectedToken: expectedToken) else {
+                respond(connection, status: 401, body: Data(#"{"error":"unauthorized"}"#.utf8),
+                        extraHeaders: #"WWW-Authenticate: Bearer realm="Kronos""#)
+                return true
+            }
         }
-
-        handleJSONRPC(connection, body: Data(body))
+        guard let body = MCPHTTPParser.body(in: buffer, head: head) else { return false }
+        // The request is complete: from here the read deadline must not cut a held long poll short.
+        deadlines.removeValue(forKey: ObjectIdentifier(connection))?.cancel()
+        handleJSONRPC(connection, body: body, client: head.headers["x-kronos-client"], agent: identity)
+        return true
     }
 
-    private func handleJSONRPC(_ connection: NWConnection, body: Data) {
+    private func handleJSONRPC(_ connection: NWConnection, body: Data, client: String?, agent: AgentIdentity?) {
         // Framing, batches, 202 for notifications / client responses: all in Core (testable).
-        let reply = dispatcher.handleBody(body)
-        respond(connection, status: reply.status, body: reply.body)
-        if reply.mutated {
-            NotificationCenter.default.post(name: .kronosStoreDidChangeExternally, object: nil)
+        // An events_poll that asks to wait is held by suspension, never by blocking the main thread.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let reply = await self.dispatcher.handleBodyHolding(body, client: client, agent: agent)
+            self.respond(connection, status: reply.status, body: reply.body)
+            if reply.mutated {
+                NotificationCenter.default.post(name: .kronosStoreDidChangeExternally, object: nil)
+            }
         }
     }
 
@@ -291,9 +300,5 @@ public final class MCPServer {
         case 413: return "Payload Too Large"
         default:  return "Error"
         }
-    }
-
-    private static func range(of needle: String, in haystack: Data) -> Range<Data.Index>? {
-        haystack.range(of: Data(needle.utf8))
     }
 }

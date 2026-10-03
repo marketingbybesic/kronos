@@ -20,12 +20,13 @@ public struct KViewOptionsIconButton: View {
             Icon("sliders", size: Metrics.iconM)
         }
         .kButton(.icon)
+        .uiTestAnchor("viewoptions.button")
         .overlay(alignment: .topTrailing) {
             if activeCount > 0 {
                 Text("\(activeCount)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Color.black)
-                    .frame(minWidth: 14, minHeight: 14)
+                    .font(Typo.badge)
+                    .foregroundStyle(Tok.textOnAccent)
+                    .frame(minWidth: Metrics.countBadge, minHeight: Metrics.countBadge)
                     .background(Circle().fill(Tok.textPrimary))
                     .offset(x: 5, y: -5)
             }

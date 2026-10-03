@@ -1,5 +1,6 @@
 // Kronos/DesignSystem/KPanel.swift
-// Bordered container — the OLED substitute for a grey card. Usage:
+// Bordered container — the OLED substitute for a grey card: pure black (inline and floating
+// alike), elevation carried by the `Tok.borderControl` edge only. Usage:
 //   KPanel { VStack { ... } }
 import SwiftUI
 
@@ -10,8 +11,8 @@ public struct KPanel<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     /// - Parameter floating: true for overlays/popovers that lift off the window (uses
-    ///   `Tok.overlay`, dark grey on non-OLED). Inline panels inside the main window stay
-    ///   pure black (`Tok.bg`). Default false preserves every existing call site.
+    ///   `Tok.overlay`). Both `Tok.overlay` and `Tok.bg` are pure black (OLED, no grey
+    ///   panels); the separate token keeps the floating role named in one place.
     public init(padding: CGFloat = Metrics.panelPadding, radius: CGFloat = Radius.card,
                 floating: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.padding = padding

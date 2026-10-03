@@ -1,10 +1,19 @@
-// Builds `AppModel.ai` from the Settings > AI preferences. nil = AI off: every AI feature then
-// takes its deterministic path and nothing touches the network.
+// Builds `AppModel.ai` from the Settings > AI preferences and the active house rules. nil = AI off:
+// every AI feature then takes its deterministic path and nothing touches the network.
+//
+// Preferences are read from `KronosEnv.defaults` (through `AppSettingsStore`), so a live test or a
+// snapshot run never reads or writes the person's own defaults domain.
 import Foundation
+import Observation
 import KronosCore
 
 @MainActor
 enum AIWiring {
+    /// How many times a router was built. A change to an unrelated preference must not move it.
+    private(set) static var rebuildCount = 0
+    private static var lastSignature: RouterConfigSignature?
+    private static var defaultsObserver: NSObjectProtocol?
+
     /// The model tried after the chosen one, WITHIN THE SAME PROVIDER (INTEGRATION.md:
     /// sonnet -> astra -> deterministic). The fallback id is provider-specific because a
     /// candidate must hit the same gateway with the same key service as the one it backs up;
@@ -12,10 +21,25 @@ enum AIWiring {
     /// already tried as distinct candidates by the caller below via `provider.models`, so it
     /// needs no separate fallback id.
     private static func fallbackModel(for provider: AIProvider) -> String? {
-        provider == .ghostCLI ? "gpt-6-astra" : nil
+        #if KRONOS_PUBLIC
+        return nil
+        #else
+        return provider == .ghostCLI ? "gpt-6-astra" : nil
+        #endif
     }
 
+    /// Everything a built router depends on. Equal signatures mean the router in place is right.
+    static func signature(for model: AppModel) -> RouterConfigSignature {
+        RouterConfigSignature(mode: AppSettingsStore.aiMode,
+                              provider: AppSettingsStore.aiProvider.rawValue,
+                              baseURL: AppSettingsStore.aiBaseURL,
+                              modelID: AppSettingsStore.aiModel,
+                              rules: model.store.activeHouseRules())
+    }
+
+    /// Builds the router unconditionally (launch). Later changes go through `refresh`.
     static func configure(_ model: AppModel) {
+        rebuildCount += 1
         // Self-test: only the on-device model (no API key, no Keychain, no network).
         if LiveSelfTest.reportPath != nil {
             model.ai = AppleIntelligenceClientFactory.make().map {
@@ -23,34 +47,67 @@ enum AIWiring {
             }
             return
         }
-        let mode = AppSettingsStore.aiMode
-        guard mode != .off, let base = URL(string: AppSettingsStore.aiBaseURL) else {
+        let signature = signature(for: model)
+        lastSignature = signature
+        guard signature.mode != .off, let base = URL(string: signature.baseURL) else {
             model.ai = nil
             return
         }
         let provider = AppSettingsStore.aiProvider
-        var ids = [AppSettingsStore.aiModel]
+        var ids = [signature.modelID]
         if let fallback = fallbackModel(for: provider), !ids.contains(fallback) {
             ids.append(fallback)
         }
         var candidates = ids.map {
-            AIRoutedCandidate(client: GhostCLIClient(modelID: $0, baseURL: base,
-                                                      keyService: provider.keychainService,
-                                                      extraHeaders: provider.extraHeaders))
+            AIRoutedCandidate(client: OpenAICompatibleClient(modelID: $0, baseURL: base,
+                                                             keyService: provider.keychainService,
+                                                             extraHeaders: provider.extraHeaders))
         }
         // Insurance: the on-device Apple model is the last hop before the deterministic path. Nothing
         // leaves the Mac, so the router also keeps it in private-only mode (it filters by data policy).
         if let apple = AppleIntelligenceClientFactory.make() {
             candidates.append(AIRoutedCandidate(client: apple))
         }
-        model.ai = AIRouter(mode: mode, candidates: candidates)
+        model.ai = AIRouter(mode: signature.mode, candidates: candidates, houseRules: signature.rules)
     }
 
-    /// Settings writes plain UserDefaults; rebuild the router whenever they change.
+    /// Rebuilds the router only when the mode, provider, URL, model or an active rule changed.
+    static func refresh(_ model: AppModel) {
+        guard signature(for: model) != lastSignature else { return }
+        configure(model)
+    }
+
+    /// Settings write plain defaults and rules change with store edits (this app or an agent):
+    /// both are watched, and both only rebuild the router when the signature moved.
     static func observe(_ model: AppModel) {
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
-                                               object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { configure(model) }
+        stopObserving()
+        observing = true
+        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                                                  object: KronosEnv.defaults, queue: .main) { _ in
+            MainActor.assumeIsolated { refresh(model) }
+        }
+        trackStore(model)
+    }
+
+    /// Ends both watches (the live test starts its own and takes it down again).
+    static func stopObserving() {
+        observing = false
+        if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
+        defaultsObserver = nil
+    }
+
+    private static var observing = false
+
+    private static func trackStore(_ model: AppModel) {
+        guard observing else { return }
+        withObservationTracking {
+            _ = model.version
+        } onChange: {
+            Task { @MainActor in
+                guard observing else { return }
+                refresh(model)
+                trackStore(model)
+            }
         }
     }
 }

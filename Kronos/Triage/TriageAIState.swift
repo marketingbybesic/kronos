@@ -36,6 +36,12 @@ enum AIFailureReason: Equatable {
 
 extension TriageFlowView {
 
+    /// The one question every ask (first load, R, Retry) goes through: the card's AI switch is on,
+    /// a router exists, and its privacy mode is not Off. With any of these false nothing is sent.
+    var aiMayAsk: Bool {
+        AICallPolicy.mayAsk(switchOn: aiEnabled, hasRouter: model.ai != nil, mode: (model.ai as? AIRouter)?.mode)
+    }
+
     /// The always-visible AI state (brief line 22): asking with elapsed seconds, answered,
     /// failed with a calm reason + Retry, or nothing (AI off / never asked) — plus Refresh
     /// (key R), which re-asks at any time and never blocks the card's own keys (the ask runs
@@ -52,6 +58,20 @@ extension TriageFlowView {
                         .foregroundStyle(Tok.textTertiary)
                         .lineLimit(1)
                         .uiTestAnchor("triage.card.asking")
+                } else if aiFailure == .noKey {
+                    // "AI is not set up" is the one failure the person can fix: it opens Settings > AI.
+                    Button { TriageSettingsLink.openAI() } label: {
+                        HStack(spacing: Space.x1) {
+                            Text(AIFailureReason.noKey.localizedText)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            Icon("chevron-right", size: Metrics.iconXS).accessibilityHidden(true)
+                        }
+                    }
+                    .kButton(.ghost)
+                    .accessibilityLabel(AIFailureReason.noKey.localizedText)
+                    .accessibilityHint(String(localized: "triage.flow.ai.setup.hint"))
+                    .uiTestAnchor("triage.card.ai.setup")
                 } else if let aiFailure {
                     Text(aiFailure.localizedText)
                         .font(Typo.meta)
@@ -61,7 +81,7 @@ extension TriageFlowView {
                         .uiTestAnchor("triage.card.ai.failed")
                     // Retry is the same re-ask as Refresh (key R), so a failure shows it once, and
                     // not at all without a key: asking again cannot help until Settings has one.
-                    if aiFailure != .noKey { aiButton("triage.flow.ai.retry", anchor: "triage.card.ai.retry") }
+                    aiButton("triage.flow.ai.retry", anchor: "triage.card.ai.retry")
                 } else {
                     aiButton("triage.flow.ai.refresh", anchor: "triage.card.ai.refresh")
                 }
@@ -85,8 +105,9 @@ extension TriageFlowView {
     /// G5 "AI prijedlozi" switch: off means neighbours only, so the AI call is skipped outright
     /// rather than fetched and discarded.
     func loadSuggestion() {
-        guard let task = current else {
-            suggestion = nil; suggestionSource = nil; isAskingAI = false; aiFailure = nil; askingElapsed = 0
+        // Sweep has no suggestion: the card is a decision about an old task, not missing data.
+        guard let task = current, !isSweep, !isReview else {
+            suggestion = nil; suggestionSource = nil; fillable = nil; isAskingAI = false; aiFailure = nil; askingElapsed = 0
             return
         }
         aiFailure = nil
@@ -98,7 +119,10 @@ extension TriageFlowView {
         let voted = NeighbourTriage.infer(title: task.title, notes: task.notes, context: context, today: today)
         suggestion = TriageSuggestionMerge.apply(voted, over: suggestion, respecting: lockedFields)
         suggestionSource = .neighbours
-        guard aiEnabled, let router = model.ai else { isAskingAI = false; return }
+        // Only fields the vote really decided may be written; depth, estimate and energy stay
+        // empty instead of taking the neutral placeholders a deterministic result carries.
+        fillable = NeighbourTriage.fillableFields(title: task.title, notes: task.notes, context: context, today: today)
+        guard aiMayAsk, let router = model.ai else { isAskingAI = false; return }
         askAI(for: task, today: today, context: context, router: router)
     }
 
@@ -106,7 +130,8 @@ extension TriageFlowView {
     /// after a failure. Never blocked by a stale in-flight call — `askID` below makes any
     /// earlier response for this task a no-op once a newer one has been requested.
     func retryAI() {
-        guard let task = current, let router = model.ai else { return }
+        // Refresh honours the Settings > AI switch: nothing leaves the Mac while it is off.
+        guard aiMayAsk, !isSweep, !isReview, let task = current, let router = model.ai else { return }
         let today = Day.today(calendar: KronosLocale.calendar)
         let context = TriageContextBuilder.build(for: task.title, notes: task.notes, from: neighbours(excluding: task.id))
         askAI(for: task, today: today, context: context, router: router)
@@ -115,6 +140,7 @@ extension TriageFlowView {
     private func askAI(for task: KTask, today: Int, context: TriageContext, router: any AIRouting) {
         let taskID = task.id
         let projectNames = model.store.allProjects().map(\.name)
+        let labelNames = model.store.labels().map(\.name)
         aiFailure = nil
         isAskingAI = true
         askingElapsed = 0
@@ -133,7 +159,7 @@ extension TriageFlowView {
             var reply: TriageResult?
             do {
                 reply = try await router.triage(title: task.title, notes: task.notes,
-                                                 projectNames: projectNames, labelNames: [],
+                                                 projectNames: projectNames, labelNames: labelNames,
                                                  today: today, lockedFields: Set(lockedFields.map(\.rawValue)),
                                                  context: context)
             } catch {

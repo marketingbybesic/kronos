@@ -1,6 +1,6 @@
 // Opt-in live tests against the real GhostCLI gateway, mirroring
 // LiveProbeTests.swift's pattern: skipped unless KRONOS_LIVE_AI=1, calling
-// GhostCLIClient DIRECTLY (no router, no fallback) so a down gateway or
+// OpenAICompatibleClient DIRECTLY (no router, no fallback) so a down gateway or
 // expired key fails the test instead of silently passing through the
 // router's deterministic fallback. Prints only non-secret diagnostics.
 //
@@ -48,7 +48,7 @@ struct CaptureLiveTests {
         let request = AIRequest(model: "claude-sonnet-5",
                                 messages: [.system(system), .user(user)], kind: .extract)
 
-        let client = GhostCLIClient(modelID: "claude-sonnet-5")
+        let client = OpenAICompatibleClient(modelID: "claude-sonnet-5")
         let response = try await client.send(request)   // THROWS on failure — no try?
         try response.validated()
 
@@ -80,7 +80,7 @@ struct CaptureLiveTests {
         let request = AIRequest(model: "claude-sonnet-5",
                                 messages: [.system(system), .user(user)], kind: .breakdown)
 
-        let client = GhostCLIClient(modelID: "claude-sonnet-5")
+        let client = OpenAICompatibleClient(modelID: "claude-sonnet-5")
         let response = try await client.send(request)   // THROWS on failure — no try?
         try response.validated()
 

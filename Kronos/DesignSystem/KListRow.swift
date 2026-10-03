@@ -13,10 +13,12 @@
 // accessibility element, not a pile of child elements, so a 200-row list stays usable
 // with VoiceOver. Leave it nil only for a scaffold that isn't a real task row yet.
 //
-// Geometry (spec B3, mirrors the sidebar's rhythm): row height 36, leading inset 12 to
-// the checkbox (16pt, style G), gap 10 to the title, trailing metadata right-aligned with a
-// 12pt trailing inset and 8pt between slots. The selected row's bar uses the same
-// geometry as KSidebarRow's (white, 2pt, inset 6 top/bottom).
+// Geometry (spec B3, mirrors the sidebar's rhythm): row height `Metrics.rowHeight` (40,
+// scaled by density), leading inset 12 to the checkbox (16pt, style G), gap 10 to the title,
+// trailing metadata right-aligned with a 12pt trailing inset and 8pt between slots. A selected
+// row = `KSelection.fill` in its hue (`selectionTint`: the task's project colour, else the
+// accent; neutral white in Focus mode) + a 0.5 pt edge + a 2pt bar in the same hue, with the same
+// geometry as KSidebarRow's bar (inset 6 top/bottom).
 import SwiftUI
 
 public struct KListRow<Title: View, Trailing: View>: View {
@@ -26,6 +28,10 @@ public struct KListRow<Title: View, Trailing: View>: View {
     var density: CGFloat = Metrics.rowHeight
     let isChecked: Bool
     var accessibilityLabel: String?
+    /// What VoiceOver reads after the label; nil keeps the old behaviour (the word "Done" for a done row).
+    var accessibilityValue: String?
+    /// The hue this row is selected in (fill + bar); nil = the user's accent.
+    var selectionTint: Color?
     let onToggle: () -> Void
     let onSelect: () -> Void
     @ViewBuilder let title: () -> Title
@@ -33,9 +39,11 @@ public struct KListRow<Title: View, Trailing: View>: View {
     @State private var isHovering = false
     @FocusState private var isFocused: Bool
     @Environment(\.kAccent) private var accent
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(isSelected: Bool = false, isMultiSelected: Bool = false, isDone: Bool = false,
-                density: CGFloat = Metrics.rowHeight, isChecked: Bool, accessibilityLabel: String? = nil,
+                density: CGFloat = Metrics.rowHeight, isChecked: Bool, accessibilityLabel: String? = nil, accessibilityValue: String? = nil,
+                selectionTint: Color? = nil,
                 onToggle: @escaping () -> Void, onSelect: @escaping () -> Void,
                 @ViewBuilder title: @escaping () -> Title,
                 @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
@@ -45,6 +53,8 @@ public struct KListRow<Title: View, Trailing: View>: View {
         self.density = density
         self.isChecked = isChecked
         self.accessibilityLabel = accessibilityLabel
+        self.accessibilityValue = accessibilityValue
+        self.selectionTint = selectionTint
         self.onToggle = onToggle
         self.onSelect = onSelect
         self.title = title
@@ -73,7 +83,7 @@ public struct KListRow<Title: View, Trailing: View>: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel ?? "")
             .accessibilityAddTraits(.isButton)
-            .accessibilityValue(isDone ? String(localized: "status.done") : "")
+            .accessibilityValue(accessibilityValue ?? (isDone ? String(localized: "status.done") : ""))
     }
 
     private var rowContent: some View {
@@ -113,7 +123,7 @@ public struct KListRow<Title: View, Trailing: View>: View {
 
     private var rowFill: some View {
         RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
-            .fill(isEmphasized ? Tok.selectedFill : (isHovering ? Tok.hoverFill : .clear))
+            .fill(isEmphasized ? KSelection.fill(selectionTint ?? accent, increasedContrast: KContrast.isIncreased(contrast)) : (isHovering ? Tok.hoverFill : .clear))
     }
 
     /// Fixed-width gutter so the bar's presence/absence never shifts the checkbox
@@ -128,7 +138,7 @@ public struct KListRow<Title: View, Trailing: View>: View {
             .frame(width: Metrics.sidebarSelectionBarWidth, height: density - Metrics.sidebarSelectionBarInset * 2)
             .overlay(
                 RoundedRectangle(cornerRadius: Metrics.sidebarSelectionBarWidth / 2)
-                    .fill(isEmphasized ? accent : Color.clear)
+                    .fill(isEmphasized ? (selectionTint ?? accent) : Color.clear)
             )
     }
 }

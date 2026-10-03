@@ -14,6 +14,8 @@ struct CommandPaletteView: View {
     @State private var query = ""
     @State private var selectedID: String?
     @State private var isShowingKeymap = false
+    /// The second step of "Move to…", "Pick…" and "Rename…", shown in place of the command list.
+    @State private var prompt: PalettePrompt?
     @FocusState private var isFieldFocused: Bool
 
     init(model: AppModel) {
@@ -36,7 +38,13 @@ struct CommandPaletteView: View {
 
     var body: some View {
         Group {
-            if isShowingKeymap {
+            if let prompt {
+                PalettePromptView(model: model, prompt: prompt, onBack: {
+                    self.prompt = nil
+                    query = ""
+                    DispatchQueue.main.async { isFieldFocused = true }
+                })
+            } else if isShowingKeymap {
                 KeymapReferenceView(onClose: { isShowingKeymap = false })
             } else {
                 paletteCard
@@ -62,6 +70,7 @@ struct CommandPaletteView: View {
             footer
         }
         .onAppear {
+            PaletteResults.invalidate()
             if !initialQuery.isEmpty { query = initialQuery }
             selectedID = selectFirstTaskOnAppear
                 ? flatItems.first { if case .task = $0 { return true }; return false }?.id ?? flatItems.first?.id
@@ -90,7 +99,7 @@ struct CommandPaletteView: View {
         }
         .padding(.horizontal, Space.x4)
         .frame(height: Metrics.toolbarHeight)
-        .background(KeyCatcher(onKey: handle))
+        .background(PaletteKeyCatcher(onKey: handle))
     }
 
     // MARK: Results
@@ -143,7 +152,7 @@ struct CommandPaletteView: View {
                 }
             }
         }
-        .frame(height: min(CGFloat(items.count), 5) * Metrics.rowHeight)
+        .frame(height: min(CGFloat(items.count), 5) * Metrics.rowHeight + (min(CGFloat(items.count), 5) - 1) * Space.x1)
     }
 
     @ViewBuilder
@@ -152,10 +161,18 @@ struct CommandPaletteView: View {
         switch item {
         case .command(let c):
             PaletteRow(isSelected: isSelected, title: c.title,
-                       accessibilityLabel: c.shortcut.isEmpty ? c.title : "\(c.title), \(c.shortcut.joined())",
+                       accessibilityLabel: ([c.title] + (c.detail.map { [$0] } ?? []) + (c.shortcut.isEmpty ? [] : [c.shortcut.joined()]))
+                           .joined(separator: ", "),
                        onSelect: { selectedID = item.id; run(item, withCommandModifier: false) },
                        leading: { commandLeading(c) },
-                       trailing: { if !c.shortcut.isEmpty { KeyCaps(c.shortcut) } })
+                       trailing: {
+                           HStack(spacing: Space.x2) {
+                               if let detail = c.detail {
+                                   Text(detail).font(Typo.caption).foregroundStyle(Tok.textTertiary).lineLimit(1)
+                               }
+                               if !c.shortcut.isEmpty { KeyCaps(c.shortcut) }
+                           }
+                       })
             .id(item.id)
         case .task(let t):
             PaletteRow(isSelected: isSelected, title: t.title, accessibilityLabel: t.title,
@@ -205,7 +222,7 @@ struct CommandPaletteView: View {
                 Icon("sliders", size: Metrics.iconM).foregroundStyle(Tok.textSecondary)
                 Text("settings.tab.shortcuts").font(Typo.row).foregroundStyle(Tok.textPrimary)
                 Spacer(minLength: Space.x2)
-                KKeyHint("⌘", "/")
+                KeyCaps(HotkeyRegistry.current(for: "window.keymap")?.displayKeys ?? [])
             }
             .padding(.horizontal, Space.x2)
             .frame(height: Metrics.rowHeight)
@@ -233,7 +250,7 @@ struct CommandPaletteView: View {
         HStack(spacing: Space.x4) {
             KKeyHintItem(["↑", "↓"], label: String(localized: "palette.hint.navigate"))
             KKeyHintItem(["⏎"], label: String(localized: "palette.hint.open"))
-            KKeyHintItem(["⎋"], label: String(localized: "palette.hint.close"))
+            KKeyHintItem(["esc"], label: String(localized: "palette.hint.close"))
             Spacer()
         }
         .padding(.horizontal, Space.x4)
@@ -298,7 +315,13 @@ struct CommandPaletteView: View {
     }
 
     private func run(_ item: PaletteItem, withCommandModifier keepsOpen: Bool) {
+        PalettePromptCenter.shared.take()   // drop a stale request
         item.run(model)
+        // A command that needs one more answer leaves a request: show its step, keep the card.
+        if let next = PalettePromptCenter.shared.take() {
+            prompt = next
+            return
+        }
         if !keepsOpen { model.isPaletteOpen = false }
     }
 }
@@ -306,13 +329,18 @@ struct CommandPaletteView: View {
 /// Relative-date text for a task row's trailing slot — mirrors the list screen's own
 /// formatting approach (short, locale-aware) without depending on Kronos/List internals.
 /// Uses KronosLocale, consistent with every other date display in the app.
-private enum DeadlineFormatter {
-    static func short(day: Int) -> String {
+enum DeadlineFormatter {
+    static func short(day: Int) -> String { format(day: day, template: "MMMd") }
+
+    /// "Fri 9 Oct": the date step names the weekday so a typed "fri" reads back as what it means.
+    static func withWeekday(day: Int) -> String { format(day: day, template: "EEEMMMd") }
+
+    private static func format(day: Int, template: String) -> String {
         let date = KronosCore.Day.date(day, calendar: KronosLocale.calendar)
         let formatter = DateFormatter()
         formatter.locale = KronosLocale.current
         formatter.calendar = KronosLocale.calendar
-        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        formatter.setLocalizedDateFormatFromTemplate(template)
         return formatter.string(from: date)
     }
 }
@@ -323,7 +351,7 @@ private enum DeadlineFormatter {
 /// no done/undone state at all), so both commands and tasks share this instead, built only
 /// from `Tok`/`Space`/`Radius`/`Metrics` tokens and matching KListRow's own selection language
 /// (fill + a 2pt leading bar, no focus ring — same rationale as KListRow's).
-private struct PaletteRow<Leading: View, Trailing: View>: View {
+struct PaletteRow<Leading: View, Trailing: View>: View {
     let isSelected: Bool
     let title: String
     let accessibilityLabel: String
@@ -399,7 +427,7 @@ struct KeyCaps: View {
 /// Installs a local NSEvent monitor scoped to this view's lifetime so arrow/Return/Esc/Tab
 /// reach the palette even while the text field has first responder — SwiftUI's `.onKeyPress`
 /// does not fire while a TextField owns the field editor.
-private struct KeyCatcher: NSViewRepresentable {
+struct PaletteKeyCatcher: NSViewRepresentable {
     let onKey: (NSEvent) -> Bool
 
     func makeNSView(context: Context) -> NSView {

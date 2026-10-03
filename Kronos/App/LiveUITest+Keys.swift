@@ -33,7 +33,7 @@ extension LiveUITest {
         try? await Task.sleep(for: .milliseconds(700))
         // Plain open tasks that are on screen right now (anchors report the rendered rows).
         let candidates = store.allTasks().filter {
-            KStatus.open.contains($0.status) && ($0.subtasks ?? []).isEmpty && UITestAnchors.frames["row." + $0.title] != nil
+            KStatus.open.contains($0.status) && $0.orderedChildren.isEmpty && UITestAnchors.frames["row." + $0.title] != nil
         }
         guard candidates.count >= 3 else { record("keys: three visible plain tasks", false, "found \(candidates.count)"); return }
         let (a, b, c) = (candidates[0], candidates[1], candidates[2])
@@ -65,15 +65,18 @@ extension LiveUITest {
         record("keys: Space completes, then the FIRST Undo reopens it", ok && completed && depthDelta == 1 && ran && store.task(b.id)?.status == .todo,
                "selected=\(ok) completed=\(completed) selectionMoved=\(moved) undoStepsAdded=\(depthDelta) menu=\(ran) status=\(String(describing: store.task(b.id)?.status))")
 
-        // A. H snoozes, selection moves, FIRST undo restores the due day and status.
+        // A. H snoozes (plans the task for tomorrow; the deadline is never touched), selection
+        // moves, FIRST undo restores the plan, the due day and the status.
         ok = await select(c)
         let dueBefore = store.task(c.id)?.dueDay, statusBefore = store.task(c.id)?.status
+        let plannedBefore = store.task(c.id)?.plannedDay
         key("h"); await settle()
-        let snoozed = store.task(c.id)?.dueDay != dueBefore
+        let snoozed = store.task(c.id)?.plannedDay != plannedBefore && store.task(c.id)?.dueDay == dueBefore
         let ran2 = performUndoMenuItem(); await settle()
         record("keys: H snoozes, then the FIRST Undo restores it", ok && snoozed && ran2
+               && store.task(c.id)?.plannedDay == plannedBefore
                && store.task(c.id)?.dueDay == dueBefore && store.task(c.id)?.status == statusBefore,
-               "selected=\(ok) snoozed=\(snoozed) menu=\(ran2) due=\(String(describing: store.task(c.id)?.dueDay)) was=\(String(describing: dueBefore))")
+               "selected=\(ok) snoozed=\(snoozed) menu=\(ran2) planned=\(String(describing: store.task(c.id)?.plannedDay)) was=\(String(describing: plannedBefore)) due=\(String(describing: store.task(c.id)?.dueDay)) was=\(String(describing: dueBefore))")
 
         // B. Backspace deletes the selected row (no text field is being edited), Undo restores it.
         ok = await select(a)

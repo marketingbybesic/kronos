@@ -57,21 +57,16 @@ public enum ListScopeDefaults {
         case .area(let id):
             return Result(status: .todo, dueDay: explicitDueDay, areaID: id)
         case nil, .inbox, .all:
-            // nil (the global panel, not typed INTO any list), Inbox and All used to share the
-            // same "no default" bucket as project/saved-view — `.todo` + no due day, which
-            // `ScopeFilter.matches` shows under Inbox/All regardless of date even though the
-            // user never said when to do it (`Kronos/Shared/ScopeFilter.swift:19,31`). A task
-            // with genuinely no date, typed with no more specific destination than "no
-            // project" (Inbox) or "everything" (All) or no list at all, is exactly what
-            // Someday is FOR (spec's own status model): default it there, still overridable by
-            // an explicit date, which keeps `.todo` + that date (same shape every scoped case
-            // above already uses).
-            guard let explicitDueDay else { return Result(status: .someday, dueDay: nil, areaID: nil) }
+            // The Inbox rule: a task typed with no more specific destination than "no
+            // project" (Inbox), "everything" (All) or no list at all stays an open `.todo`
+            // with no due date and no project. That is exactly what the Inbox list shows
+            // (`Kronos/Shared/ScopeFilter.swift`), so the new task is where the user looks
+            // for it. Someday is only ever chosen on purpose (the Someday scope, or a later
+            // status pick), never filled in for a missing date. An explicit date wins.
             return Result(status: .todo, dueDay: explicitDueDay, areaID: nil)
         case .project, .savedView:
-            // Unchanged: fallbackProject (for a project scope) already carries the right
-            // membership, and a saved view has no scope-specific default — both are a
-            // specific, deliberate destination already, not "the user said no date is fine".
+            // fallbackProject (for a project scope) already carries the right membership, and a
+            // saved view has no scope-specific default.
             return Result(status: .todo, dueDay: explicitDueDay, areaID: nil)
         }
     }

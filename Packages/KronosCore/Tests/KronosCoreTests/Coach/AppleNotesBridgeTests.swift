@@ -139,7 +139,7 @@ struct AppleNotesBridgeTests {
         #expect(found?.displayName == "Q4 | Plan.pdf") // pipe in the name survives escaping
         #expect(withLink.contains("Some task notes"))
 
-        // Wave 18: a second attachment ACCUMULATES (several chips), it no longer replaces.
+        // release: a second attachment ACCUMULATES (several chips), it no longer replaces.
         let web = ContextLink(kind: .web, reference: "https://example.com/doc", displayName: "Example doc")
         let relinked = web.appending(to: withLink)
         #expect(ContextLink.findAll(in: relinked).map(\.kind) == [.file, .web])

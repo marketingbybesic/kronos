@@ -12,6 +12,9 @@ struct ReminderItem: Equatable, Sendable {
     /// The Reminders list the item lives in ("Groceries"): becomes the project when a project
     /// of that name exists.
     var listName: String
+    /// The Reminders item's own identifier (stable on this Mac). Empty when the source gave none;
+    /// such an item can never be recognised again and is always offered.
+    var id: String = ""
 }
 
 enum RemindersMapping {
@@ -29,7 +32,39 @@ enum RemindersMapping {
         guard !title.isEmpty else { return nil }
         let notes = item.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         return ReminderItem(title: title, notes: (notes?.isEmpty ?? true) ? nil : notes,
-                            due: item.due, listName: item.listName.trimmingCharacters(in: .whitespaces))
+                            due: item.due, listName: item.listName.trimmingCharacters(in: .whitespaces),
+                            id: item.id)
+    }
+
+    // MARK: Origin stamp and re-import
+
+    /// What a task made from a reminder carries in `source`.
+    static let originSource = "reminders"
+
+    /// The `externalID` stamped on a task made from a reminder; nil when the reminder has no id.
+    static func externalID(for item: ReminderItem) -> String? {
+        item.id.isEmpty ? nil : originSource + ":" + item.id
+    }
+
+    /// The reminders that are not yet a task: an item whose stamped id is in `known` is skipped, an
+    /// item without an id is always kept. Order is untouched.
+    static func fresh(_ items: [ReminderItem], knownExternalIDs known: Set<String>) -> [ReminderItem] {
+        items.filter { item in
+            guard let key = externalID(for: item) else { return true }
+            return !known.contains(key)
+        }
+    }
+
+    /// Which reminder a just-created task came from: the first unclaimed item whose cleaned title
+    /// equals the task's title (case and diacritics ignored). Nil when none matches, for instance
+    /// after the title was edited in the review step; that task simply is not stamped.
+    static func matchOrigin(taskTitle: String, in items: [ReminderItem], claimed: Set<String>) -> ReminderItem? {
+        let key = fold(taskTitle)
+        guard !key.isEmpty else { return nil }
+        return items.first { item in
+            guard let ext = externalID(for: item), !claimed.contains(ext) else { return false }
+            return fold(cleaned(item)?.title ?? "") == key
+        }
     }
 
     /// Cleaned items in a stable order: dated reminders first (soonest first), then the undated

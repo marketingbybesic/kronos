@@ -60,6 +60,45 @@ enum QuickAddSnapshots {
             "quickadd.panel.waiting": AnyView(QuickAddPanelView(
                 model: model, seedText: "Wait for Acme to reply", seedIsWaiting: true,
                 onSubmit: {}, onClose: {})),
+            // Entry field: `#hi` typed, the suggestion list open (projects, an area, the create row).
+            "quickadd.entry.suggest": AnyView(SeededEntryPanel(model: model, text: "Call mom #hi")),
+            // Entry field: every pill kind at once (destination, label, priority, effort, date).
+            "quickadd.entry.pills": AnyView(SeededEntryPanel(model: model, text: "Call mom", pills: { m in
+                [.destination(SeededEntryPanel.destination(m, "Hit list")), .label("finance"), .priority(.high),
+                 .effort(.m), .due(Day.today(calendar: KronosLocale.calendar) + 1)] })),
+            // Entry field: a long name and an area wrap onto a second line instead of overflowing.
+            "quickadd.entry.pills.long": AnyView(SeededEntryPanel(model: model, text: "Prepare the offer", pills: { m in
+                [.destination(SeededEntryPanel.destination(m, "Hit list")), .label("deep work and long review sessions"),
+                 .priority(.urgent), .effort(.xl), .due(Day.today(calendar: KronosLocale.calendar) + 3)] })),
+            // Entry field: a project created on submit and an unresolved #word offered as "Create project".
+            "quickadd.entry.create": AnyView(SeededEntryPanel(model: model, text: "Plan the launch #brand-new")),
+            // Entry field: a pill clicked open (its alternatives listed).
+            "quickadd.entry.slotmenu": AnyView(SeededEntryPanel(model: model, text: "Call mom", pills: { m in
+                [.destination(SeededEntryPanel.destination(m, "Hit list")), .priority(.medium)] }, openSlot: .destination)),
+            // Entry field: a date word typed (the resolved date shown).
+            "quickadd.entry.date": AnyView(SeededEntryPanel(model: model, text: "Pay the invoice next we")),
+            // Entry field: a repeat phrase typed (the schedule shown as a pill).
+            "quickadd.entry.repeat": AnyView(SeededEntryPanel(model: model, text: "Send the report every 2 weeks")),
+            // First quick adds: the legend opens by itself; the placeholder shows its first example.
+            "quickadd.panel.firstrun": AnyView(QuickAddPanelView(model: model, seedLegendPinned: false, seedAddsCount: 0,
+                                                               seedGhost: 0, onSubmit: {}, onClose: {})),
+            // The placeholder on a later example (the one that teaches repeats).
+            "quickadd.panel.ghost": AnyView(QuickAddPanelView(model: model, seedLegendPinned: false, seedGhost: 4,
+                                                            onSubmit: {}, onClose: {})),
+            // Opened over a browser: the page title as the starting title, the page as a chip.
+            "quickadd.panel.context": AnyView(QuickAddPanelView(
+                model: model, seedText: "Quarterly report draft", seedLegendPinned: false,
+                context: QuickAddContextState(links: [
+                    ContextLink(kind: .web, reference: "https://example.com/reports/q3", displayName: "Quarterly report draft"),
+                    ContextLink(kind: .email, reference: "message://%3Cq3@example.com%3E", displayName: "Re: Q3 numbers"),
+                ]),
+                onSubmit: {}, onClose: {})),
+            // Opened over a browser whose Automation answer is not known yet: the chip that asks.
+            "quickadd.panel.consent": AnyView(QuickAddPanelView(
+                model: model, seedLegendPinned: false,
+                context: QuickAddContextState(links: [], consent: .safari,
+                                              front: QuickAddFrontApp(bundleID: "com.apple.Safari", pid: 0, name: "Safari")),
+                seedGhost: 0, onSubmit: {}, onClose: {})),
         ]
     }
 }
@@ -87,6 +126,51 @@ private struct SeededQuickAddPanel: View {
                                           icon: "briefcase", area: nil)
             model.didMutate()
             didSeed = true
+        }
+    }
+}
+
+/// Seeds projects, an area and a label on `.onAppear` (never while the registry dictionary is
+/// built), then shows the panel over an entry model that has the seeded catalog.
+private struct SeededEntryPanel: View {
+    let model: AppModel
+    var text: String
+    var pills: (AppModel) -> [EntryPill] = { _ in [] }
+    var openSlot: EntryPill.Slot?
+    @State private var entry: EntryFieldModel?
+
+    static func destination(_ model: AppModel, _ name: String) -> EntryDestination {
+        let p = model.store.allProjects().first { $0.name == name }
+        return EntryDestination(kind: .project, name: name, id: p?.id)
+    }
+
+    var body: some View {
+        Group {
+            if let entry {
+                QuickAddPanelView(model: model, seedLegendPinned: false, entry: entry, onSubmit: {}, onClose: {})
+            } else {
+                Color.clear
+            }
+        }
+        .onAppear {
+            guard entry == nil else { return }
+            let store = model.store
+            if store.allProjects().first(where: { $0.name == "Hit list" }) == nil {
+                _ = store.createProject(name: "Hit list", colorHex: KProjectPalette.swatches[10].color.quickAddHexString,
+                                        icon: "target", area: nil)
+                _ = store.createProject(name: "Hit parade", colorHex: KProjectPalette.swatches[4].color.quickAddHexString,
+                                        icon: "flag", area: nil)
+                _ = store.createProject(name: "Home renovation", colorHex: KProjectPalette.swatches[7].color.quickAddHexString,
+                                        icon: "folder", area: nil)
+                _ = store.createArea(name: "Hiring", colorHex: KProjectPalette.swatches[2].color.quickAddHexString)
+                _ = store.label(named: "finance")
+            }
+            model.didMutate()
+            let made = EntryFieldModel(text: text, pills: pills(model), catalog: EntryCatalog.make(store: store))
+            if let slot = openSlot, let chip = made.resolved.chips.first(where: { $0.pill.slot == slot }) {
+                made.openSlotMenu(chip)
+            }
+            entry = made
         }
     }
 }

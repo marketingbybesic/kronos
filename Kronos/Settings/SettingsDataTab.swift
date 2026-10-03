@@ -16,6 +16,9 @@ struct SettingsDataTab: View {
     @State private var importSummary: ImportSummary?
     @State private var replaceConfirmText: String = ""
     @State private var lastActionNote: String?
+    @State private var lastBackup: Date? = BackupStatusLine.initialLastBackup()
+    @State private var secondFolder: URL? = BackupScheduler.secondFolder()
+    @State private var secondFolderFailed: Bool = BackupScheduler.secondFolderFailed()
     private let isHermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
 
     private struct ImportSummary: Identifiable {
@@ -62,11 +65,41 @@ struct SettingsDataTab: View {
                     .labelsHidden()
                     .onChange(of: dailyBackupEnabled) { _, v in AppSettingsStore2.dailyBackupEnabled = v }
             }
+            lastBackupLine
             SettingsHelpRow {
                 Text(String(localized: "settings.data.backup.keep"))
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                 Spacer()
+            }
+            SettingsRow(label: String(localized: "settings.data.backup.second.label")) {
+                HStack(spacing: Space.x2) {
+                    Text(secondFolder?.lastPathComponent ?? String(localized: "settings.data.backup.second.off"))
+                        // A folder name is a path and stays monospace; "Off" is a word.
+                        .font(secondFolder == nil ? Typo.row : Typo.mono)
+                        .foregroundStyle(Tok.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(secondFolder?.path ?? "")
+                    Button(String(localized: "settings.data.backup.second.choose")) { chooseSecondFolder() }
+                        .kButton(.secondary, size: .compact)
+                        .fixedSize()
+                    if secondFolder != nil {
+                        Button(String(localized: "settings.data.backup.second.clear")) { setSecondFolder(nil) }
+                            .kButton(.ghost, size: .compact)
+                            .fixedSize()
+                    }
+                }
+            }
+            if secondFolder != nil {
+                SettingsHelpRow {
+                    Text(secondFolderFailed ? String(localized: "settings.data.backup.second.failed")
+                                            : String(localized: "settings.data.backup.second.help"))
+                        .font(Typo.meta)
+                        .foregroundStyle(secondFolderFailed ? Tok.textPrimary : Tok.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                }
             }
             SettingsTrailingRow {
                 Button(String(localized: "settings.data.backup.open_folder")) { revealBackupsFolder() }
@@ -167,7 +200,8 @@ struct SettingsDataTab: View {
                         }
                         .kButton(.secondary, size: .compact)
                         .disabled(replaceConfirmText.caseInsensitiveCompare(
-                            String(localized: "settings.data.import.replace.word")) != .orderedSame)
+                            String(localized: "settings.data.import.replace.word")) != .orderedSame
+                            || summary.envelope.tasks.isEmpty)
                     }
                 }
             }
@@ -183,16 +217,63 @@ struct SettingsDataTab: View {
         guard !isHermetic else { importSummary = nil; return }
         do {
             let data = try KronosExportCodec.makeEncoder().encode(summary.envelope)
-            _ = try KronosImporter(store: model.store).importData(data, mode: mode)
+            _ = try ImportRunner.run(data: data, mode: mode, store: model.store)
             if let incoming = summary.envelope.templates {
                 TemplateStore.shared.importTemplates(incoming, replace: mode == .replace)
             }
             model.didMutate()
             importSummary = nil
             lastActionNote = String(localized: "settings.data.import.done")
+        } catch let error as KronosImporter.ImportError {
+            switch error {
+            case .emptyEnvelope: lastActionNote = String(localized: "settings.data.import.empty")
+            case .safetyCopyFailed: lastActionNote = String(localized: "settings.data.import.safety_failed")
+            case .saveFailed: lastActionNote = String(localized: "settings.data.import.failed")
+            }
+            model.didMutate()
         } catch {
             lastActionNote = String(localized: "settings.data.import.failed")
         }
+    }
+
+    // MARK: Last backup and second folder
+
+    private var lastBackupLine: some View {
+        let now = Date()
+        let stale = BackupStatusLine.isStale(lastBackup, now: now)
+        return SettingsHelpRow {
+            Text(BackupStatusLine.text(lastBackup, now: now))
+                .font(Typo.meta)
+                .foregroundStyle(stale ? Tok.textPrimary : Tok.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+        .accessibilityElement(children: .combine)
+        .uiTestAnchor("settings.data.lastBackup")
+        .onAppear {
+            lastBackup = BackupStatusLine.initialLastBackup()
+            secondFolderFailed = BackupScheduler.secondFolderFailed()
+        }
+    }
+
+    private func chooseSecondFolder() {
+        guard !isHermetic else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.presentOnKeyWindow { url in
+            // The backups folder itself would copy every file onto itself.
+            guard url.standardizedFileURL != BackupScheduler.defaultDirectory.standardizedFileURL else { return }
+            setSecondFolder(url)
+        }
+    }
+
+    private func setSecondFolder(_ url: URL?) {
+        BackupScheduler.setSecondFolder(url)
+        secondFolder = url
+        secondFolderFailed = false
     }
 
     // MARK: Backups folder / store location
@@ -214,5 +295,70 @@ struct SettingsDataTab: View {
     private func revealStore() {
         guard !isHermetic else { return }
         NSWorkspace.shared.activateFileViewerSelecting([KronosStore.storeURL()])
+    }
+}
+
+/// The text of the "Last backup" line, from the pure rule in KronosCore (`BackupPolicy.lastBackup`).
+/// Calm by design: no colour alarm, a stale state only reads brighter and says what to check.
+enum BackupStatusLine {
+    static func initialLastBackup() -> Date? {
+        #if !RELEASE
+        // Snapshot runs have a fresh defaults suite; this lets a shot show each state.
+        if let raw = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT_LASTBACKUP"] {
+            return Double(raw).map { Date().addingTimeInterval(-$0) }
+        }
+        #endif
+        return BackupScheduler.lastBackupDate()
+    }
+
+    static func isStale(_ last: Date?, now: Date = Date()) -> Bool {
+        if case .stale = BackupPolicy.lastBackup(last, now: now) { return true }
+        return false
+    }
+
+    static func text(_ last: Date?, now: Date = Date()) -> String {
+        switch BackupPolicy.lastBackup(last, now: now) {
+        case .never:
+            return String(localized: "settings.data.backup.last.never")
+        case .recent(let seconds):
+            guard let last, seconds >= 60 else { return String(localized: "settings.data.backup.last.now") }
+            return String(format: String(localized: "settings.data.backup.last.ago"), relative(last, now))
+        case .stale:
+            guard let last else { return String(localized: "settings.data.backup.last.never") }
+            return String(format: String(localized: "settings.data.backup.last.stale"), relative(last, now))
+        }
+    }
+
+    private static func relative(_ date: Date, _ now: Date) -> String {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return f.localizedString(for: date, relativeTo: now)
+    }
+}
+
+/// Import with the safety net in front of Replace: before anything is deleted, the current data
+/// is written twice into the backups folder (`pre-import-<time>.json` readable and
+/// `pre-import-<time>.store` restorable). If either cannot be written the import stops and
+/// nothing is changed.
+@MainActor
+enum ImportRunner {
+    @discardableResult
+    static func run(data: Data, mode: KronosImporter.Mode, store: TaskStore,
+                    backups: URL = BackupScheduler.defaultDirectory,
+                    liveStore: URL = KronosStore.storeURL(),
+                    now: Date = Date()) throws -> KronosImporter.Result {
+        try KronosImporter(store: store).importData(data, mode: mode) {
+            let fm = FileManager.default
+            try fm.createDirectory(at: backups, withIntermediateDirectories: true)
+            // The store copy reads the file on disk: write what is pending first.
+            store.context.processPendingChanges()
+            if store.context.hasChanges { try store.context.save() }
+            let json = backups.appendingPathComponent(BackupRestore.preImportStem(now: now) + ".json")
+            try BackupFile.write(JSONExporter(store: store).makeEnvelope(now: now), to: json)
+            let copy = try BackupRestore.snapshotBeforeImport(live: liveStore, into: backups, now: now)
+            guard fm.fileExists(atPath: json.path), fm.fileExists(atPath: copy.path) else {
+                throw KronosImporter.ImportError.safetyCopyFailed
+            }
+        }
     }
 }

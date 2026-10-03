@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 @testable import KronosCore
 
-/// Reflects over the real V1 schema and asserts the rules CloudKit's mirroring
+/// Reflects over the real main schema (V2) and asserts the rules CloudKit's mirroring
 /// delegate enforces on every SwiftData model, whether or not sync is turned
 /// on: every stored attribute optional-or-defaulted, no unique constraint, no
 /// `.deny` delete rule, every relationship optional with an inverse resolved
@@ -71,22 +71,50 @@ struct CloudKitReadyTests {
     // MARK: - the real schema
 
     @Test func liveSchemaHasNoCloudKitViolations() {
-        // The exact schema TaskStore builds (KronosSchemaV1.models: KArea,
-        // KProject, KLabel, KTask, KSubtask, KRule, KSavedView — 7 types).
-        // A test that hand-lists fewer models than KronosSchemaV1 would be a
-        // false green: build the Schema from the versioned schema itself so
-        // adding an 8th model to KronosSchemaV1 without adding it here still
-        // gets audited.
-        let schema = Schema(versionedSchema: KronosSchemaV1.self)
-        #expect(schema.entities.count == KronosSchemaV1.models.count)
+        // The exact schema TaskStore builds (KronosSchemaV2.models). Built from the versioned
+        // schema itself, so a model added to V2 without being listed here is still audited.
+        let schema = Schema(versionedSchema: KronosSchemaV2.self)
+        #expect(schema.entities.count == KronosSchemaV2.models.count)
 
         let found = Self.violations(in: schema)
         #expect(found.isEmpty, "CloudKit-readiness violations: \(found.map(\.description).joined(separator: ", "))")
     }
 
-    @Test func liveSchemaCoversAllSevenModels() {
-        let names = Set(KronosSchemaV1.models.map { String(describing: $0) })
+    @Test func liveSchemaIsTheNineMainModels() {
+        let names = Set(KronosSchemaV2.models.map { String(describing: $0) })
+        #expect(names == ["KArea", "KProject", "KLabel", "KTask", "KRule", "KSavedView",
+                          "KStoreMeta", "KSession", "KAttachment"])
+        #expect(KronosSchemaV2.models.count == 9)
+        let entities = Set(Schema(versionedSchema: KronosSchemaV2.self).entities.map(\.name))
+        #expect(entities == names)
+    }
+
+    @Test func agentsAndActivityLiveOnlyInTheLocalSchema() {
+        let main = Set(Schema(versionedSchema: KronosSchemaV2.self).entities.map(\.name))
+        #expect(!main.contains("KAgent"))
+        #expect(!main.contains("KActivity"))
+        #expect(!main.contains("KSubtask"))
+        let local = Set(Schema(versionedSchema: KronosLocalSchemaV1.self).entities.map(\.name))
+        #expect(local == ["KAgent", "KActivity"])
+        // Local models reference main rows by UUID only, never by relationship.
+        #expect(Schema(versionedSchema: KronosLocalSchemaV1.self).entities.allSatisfy { $0.relationships.isEmpty })
+    }
+
+    @Test func frozenV1StillListsItsSevenModels() {
+        // Type names only: building a V1 Schema here could race the parallel V2 writes.
+        let names = KronosSchemaV1.models.map { String(describing: $0) }
         #expect(names == ["KArea", "KProject", "KLabel", "KTask", "KSubtask", "KRule", "KSavedView"])
+    }
+
+    @Test func taskAttachmentsAreOptionalCascadeWithAnInverse() throws {
+        let schema = Schema(versionedSchema: KronosSchemaV2.self)
+        let task = try #require(schema.entities.first { $0.name == "KTask" })
+        let rel = try #require(task.relationships.first { $0.name == "attachments" })
+        #expect(rel.isOptional)
+        #expect(rel.deleteRule == .cascade)
+        #expect(rel.inverseName == "task")
+        let removed = task.relationships.contains { $0.name == "subtasks" }
+        #expect(!removed, "the step relationship is gone in V2")
     }
 
     @Test func taskProjectInverseResolvesFromTheProjectSide() throws {
@@ -98,7 +126,7 @@ struct CloudKitReadyTests {
         // side" fallback (exercised directly by the bad-model test below,
         // whose KBadCloudKitRelated has no reverse relationship at all)
         // isn't the only thing standing between this and a false flag.
-        let schema = Schema(versionedSchema: KronosSchemaV1.self)
+        let schema = Schema(versionedSchema: KronosSchemaV2.self)
         let taskEntity = try #require(schema.entities.first { $0.name == "KTask" })
         let projectRel = try #require(taskEntity.relationships.first { $0.name == "project" })
         #expect(projectRel.inverseName == "tasks")

@@ -4,6 +4,11 @@ import Foundation
 /// title field, the inline "+" row and the Due popover (spec/interaction §4).
 /// Deterministic, offline, status-blind. One token of each kind is consumed;
 /// later tokens of the same kind stay in the title as literal text.
+///
+/// The grammar itself lives in `EntryParser` (EntryParser.swift: token ranges, `#` over
+/// projects AND areas, multi-word names). This type keeps the original flat result shape
+/// (`Parsed`, project names only) for callers that need no more, plus the date-phrase
+/// vocabulary and scanner (`matchDatePhrase`) both parsers share.
 public struct QuickAddParser: Sendable {
 
     public struct Parsed: Equatable, Sendable {
@@ -52,132 +57,19 @@ public struct QuickAddParser: Sendable {
     public func parse(_ input: String, projects: [String], today: Int,
                        languages: [String] = Self.defaultLanguages,
                        calendar: Calendar = .current) -> Parsed {
-        let tokens = input.split(separator: " ", omittingEmptySubsequences: true)
-            .map(String.init)
-        var keep = Array(tokens.indices)
-
-        var projectName: String?
-        var labelName: String?
-        var priority: KPriority = .none
-        var dueDay: Int?
-        var unresolved: String?
-        var effort: KEffort?
-
-        func fold(_ s: String) -> String {
-            s.replacingOccurrences(of: "đ", with: "d")
-             .replacingOccurrences(of: "Đ", with: "D")
-             .folding(options: [.caseInsensitive, .diacriticInsensitive],
-                      locale: Locale(identifier: "en_US_POSIX"))
-        }
-
-        // Priority: standalone 1-4 "!"
-        for i in keep where tokens[i].range(of: #"^!{1,4}$"#, options: .regularExpression) != nil {
-            priority = [KPriority.low, .medium, .high, .urgent][tokens[i].count - 1]
-            keep.removeAll { $0 == i }
-            break
-        }
-
-        // Effort: standalone *xs/*s/*m/*l/*xl or ~xs/~s/~m/~l/~xl, case-insensitive. `*` is
-        // the primary alias, since `~` sits under a dead-key/option chord on a Croatian Mac
-        // keyboard while `*` is a plain Shift-8. `~` keeps working for muscle memory and
-        // existing docs/tests.
-        //
-        // Matched against the WHOLE token, never a prefix, so the marker inside a word
-        // or a path is not a token: `~/Downloads` keeps its slash and fails the match,
-        // `a~b`/`a*b` has no leading marker, and a bare `~`/`*` has no size after it.
-        // `5*3 plan` also survives untouched: its first token is "5*3", which does not
-        // START with `*` (hasPrefix checks the token's own first character, not any
-        // substring), so it is never mistaken for an effort token. A path like
-        // `~/Downloads` is common in real task titles, and eating it would silently
-        // corrupt the title.
-        //
-        // Last one wins (the other tokens keep first-wins): a user correcting
-        // themselves mid-line types the new size after the old one, and the
-        // correction is what they meant.
-        let effortSizes: [String: KEffort] = [
-            "xs": .xs, "s": .s, "m": .m, "l": .l, "xl": .xl
-        ]
-        let effortMarkers: [Character] = ["*", "~"]
-        // Bare star-count: `*` = small, `**` = medium, `***` = large; 4+ stars is not a token
-        // (same "not a token past the max" shape as `!!!!!` for priority). The token must be
-        // made ONLY of stars — nothing else — so `5*3` (fails: contains digits), `a*b`/`a*`
-        // (fails: contains a letter) and a mixed run never match. This DOES make a lone `*`
-        // an effort token (small) where it would otherwise be inert text — a deliberate
-        // choice, matched by QuickAddEffortTests.
-        let starCountSizes: [Int: KEffort] = [1: .s, 2: .m, 3: .l]
-        // One reversed pass over BOTH forms, so "last one wins" is positional (whichever
-        // effort-shaped token appears last in the line), not "star-count always beats *s/*m/*l".
-        for i in keep.reversed() {
-            if tokens[i].allSatisfy({ $0 == "*" }), let e = starCountSizes[tokens[i].count] {
-                effort = e
-                keep.removeAll { $0 == i }
-                break
-            }
-            if tokens[i].first.map(effortMarkers.contains) == true,
-               let e = effortSizes[String(tokens[i].dropFirst()).lowercased()] {
-                effort = e
-                keep.removeAll { $0 == i }
-                break
-            }
-        }
-
-        // Label: first @token
-        for i in keep where tokens[i].hasPrefix("@") && tokens[i].count > 1 {
-            labelName = String(tokens[i].dropFirst())
-            keep.removeAll { $0 == i }
-            break
-        }
-
-        // Project: first #token, exact → prefix → substring (§4.2)
-        for i in keep where tokens[i].hasPrefix("#") && tokens[i].count > 1 {
-            let raw = String(tokens[i].dropFirst())
-            let key = fold(raw.replacingOccurrences(of: "-", with: " "))
-            let candidates = projects.filter { !$0.isEmpty }
-            var matched: String? = nil
-            if let exact = candidates.first(where: { fold($0) == key }) {
-                matched = exact
-            } else if let prefix = candidates.first(where: { fold($0).hasPrefix(key) }) {
-                matched = prefix
-            } else if let sub = candidates.first(where: { fold($0).contains(key) }) {
-                matched = sub
-            }
-            if let m = matched {
-                projectName = m
-                keep.removeAll { $0 == i }
-            } else {
-                unresolved = tokens[i]
-            }
-            break
-        }
-
-        // Date: relative keyword (1-4 words), a weekday name, YYYY-MM-DD, or `25.9.[2026]`.
-        // Relative dates span one to four tokens ("next week", "next monday", "in 3 days"), so
-        // a single-token lookup can never match them, and a plain today/tomorrow map has no
-        // weekday-name or tonight/prekosutra table at all. `matchDatePhrase` below scans 4-,
-        // 3-, 2- then 1-token windows starting at each kept position so the longer phrases win
-        // over a bare weekday/"next" reading of the same words. The vocabulary itself (hand
-        // table + system-sourced CLDR words for `languages` + typo tolerance) lives in
-        // DatePhrases.swift; this loop's shape stays constant across vocabulary changes.
-        let vocabulary = DatePhrases.buildSystemVocabulary(languages: languages, calendar: calendar)
-        if let (dueDayHit, consumed) = Self.matchDatePhrase(tokens, keep: keep, today: today,
-                                                              calendar: calendar, vocabulary: vocabulary) {
-            dueDay = dueDayHit
-            keep.removeAll { consumed.contains($0) }
-        }
-
-        // Remaining tokens form the title; the unresolved #token stays in it
-        // as literal text (§4.2), which it already does by being kept.
-        let kept = tokens.enumerated().filter { keep.contains($0.offset) }.map(\.element)
-        let title = kept.joined(separator: " ").trimmingCharacters(in: .whitespaces)
-
-        return Parsed(title: title,
-                      projectName: projectName,
-                      labelName: labelName,
-                      priority: priority,
-                      dueDay: dueDay,
-                      unresolvedProjectToken: unresolved,
-                      effort: effort)
+        // One grammar: this is `EntryParser` (EntryParser.swift) with only projects to resolve
+        // `#` against, flattened to the old result shape. Areas, ranges and pills are the v2 API.
+        let parsed = EntryParser.parse(input, directory: EntryDirectory(projects: projects.map { EntryName($0) }),
+                                       today: today, languages: languages, calendar: calendar)
+        return Parsed(title: parsed.title,
+                      projectName: parsed.destination?.name,
+                      labelName: parsed.labelName,
+                      priority: parsed.priority,
+                      dueDay: parsed.dueDay,
+                      unresolvedProjectToken: parsed.unresolvedDestination?.text,
+                      effort: parsed.effort)
     }
+
     /// Rewrites the unresolved `#token` in the raw input to a `#`-token for the project the
     /// user actually picked, so re-parsing resolves it: the suggestion chip only carries the
     /// resolved project name, not a rewritten input, so without this the UI shows the pick but

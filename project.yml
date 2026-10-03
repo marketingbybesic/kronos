@@ -14,6 +14,8 @@ configs:
 packages:
   KronosCore:
     path: Packages/KronosCore
+  KronosSnapshot:
+    path: Packages/KronosSnapshot
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     exactVersion: 2.2.1
@@ -23,6 +25,7 @@ packages:
 
 settings:
   base:
+    OTHER_SWIFT_FLAGS: "$(inherited) -DKRONOS_PUBLIC"
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: targeted
     SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
@@ -51,6 +54,8 @@ targets:
     dependencies:
       - package: KronosCore
         product: KronosCore
+      - package: KronosSnapshot
+        product: KronosSnapshot
       - package: KeyboardShortcuts
       - package: MarkdownUI
       - sdk: EventKit.framework
@@ -83,7 +88,7 @@ targets:
           NSAllowsLocalNetworking: true
         NSCalendarsFullAccessUsageDescription: "Kronos reads your calendar to show how much free time today has. Nothing leaves this Mac."
         NSRemindersFullAccessUsageDescription: "Kronos reads your open reminders so you can turn them into tasks. Nothing is changed in Reminders and nothing leaves this Mac."
-        NSAppleEventsUsageDescription: "Kronos reads the Apple Notes you choose so it can turn them into tasks and give a task its context. Nothing is changed in Notes and nothing leaves this Mac unless you use an online AI model."
+        NSAppleEventsUsageDescription: "Kronos reads the Apple Notes you choose, and the page, message or file you are looking at in your browser, Mail or Finder when you capture it, so it can turn them into tasks and give a task its context. Nothing is changed in those apps and nothing leaves this Mac unless you use an online AI model."
         NSSupportsAutomaticTermination: false
         NSSupportsSuddenTermination: false
         # macOS integration without a developer program (Kronos/App/URLScheme.swift, ServicesProvider.swift,
@@ -103,6 +108,11 @@ targets:
             NSMessage: captureInKronos
             NSPortName: Kronos
             NSSendTypes: [NSStringPboardType, public.utf8-plain-text]
+          - NSMenuItem:
+              default: Add link to Kronos
+            NSMessage: addLinkToKronos
+            NSPortName: Kronos
+            NSSendTypes: [public.file-url, public.url, NSURLPboardType, NSFilenamesPboardType]
         CFBundleDocumentTypes:
           - CFBundleTypeName: Kronos backup
             CFBundleTypeRole: Viewer
@@ -142,7 +152,7 @@ targets:
           ENABLE_HARDENED_RUNTIME: NO
           ENABLE_APP_SANDBOX: NO
           DEVELOPMENT_TEAM: ""
-        # Every build up to this wave used Alpha (a debug config): unoptimised, and slower to
+        # Every build up to this release used Alpha (a debug config): unoptimised, and slower to
         # launch than what the app will actually ship. Release adds full optimisation and
         # strips the in-app test harnesses (LiveUITest*, LiveSelfTest, SnapshotHarness, every
         # *Snapshots.swift registry — 2,725 lines that exist to drive hand-testing, never to
@@ -210,6 +220,7 @@ targets:
           SWIFT_COMPILATION_MODE: wholemodule
           CODE_SIGN_STYLE: Manual
           ENABLE_HARDENED_RUNTIME: NO
+
 
 schemes:
   Kronos:

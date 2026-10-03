@@ -26,7 +26,8 @@ public struct KButtonStyle: ButtonStyle {
         self.size = size
     }
 
-    private var height: CGFloat { size == .compact ? Metrics.controlCompact : Metrics.controlRegular }
+    /// Never below the 24 pt hit target, whatever the list density scales the control to.
+    private var height: CGFloat { max(size == .compact ? Metrics.controlCompact : Metrics.controlRegular, Metrics.minHit) }
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -58,7 +59,7 @@ public struct KButtonStyle: ButtonStyle {
 
     private func background(pressed: Bool) -> Color {
         switch kind {
-        case .primary:   return accent.opacity(pressed ? 0.80 : (isHovering ? 1.0 : 0.92))
+        case .primary:   return accent.opacity(pressed ? Tok.primaryFillPressed : (isHovering ? Tok.primaryFillHover : Tok.primaryFill))
         case .secondary: return pressed ? Tok.dropFill : (isHovering ? Tok.pressedFill : Tok.controlFill)
         case .ghost:      return pressed ? Tok.pressedFill : (isHovering ? Tok.hoverFill : .clear)
         case .icon:       return pressed ? Tok.pressedFill : (isHovering ? Tok.hoverFill : .clear)

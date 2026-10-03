@@ -119,7 +119,7 @@ private struct BlockBannerHost: View {
                 let colorHex = (projects.first { $0.name == "Acme" } ?? projects.first)?.colorHex ?? KProjectPalette.swatches[0].color.hexString
                 project = model.store.allProjects().first { $0.name == "Acme" }
                     ?? model.store.createProject(name: "Acme", colorHex: colorHex, icon: "briefcase", area: nil)
-                model.didMutate()
+                model.didMutate()   // refresh-only: snapshot fixture seeding
             }
     }
 

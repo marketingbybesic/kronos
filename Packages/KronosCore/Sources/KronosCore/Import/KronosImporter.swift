@@ -30,23 +30,66 @@ public final class KronosImporter {
         public var savedViews = 0, tasks = 0, subtasks = 0
     }
 
+    public enum ImportError: Error, Equatable {
+        /// Replace with a file that holds no tasks would erase a store that has data, for nothing.
+        case emptyEnvelope
+        /// The safety copy taken before a Replace failed; nothing was changed.
+        case safetyCopyFailed
+        /// Writing the imported rows failed; the unsaved changes were rolled back.
+        case saveFailed
+    }
+
     /// Import raw envelope JSON. Throws `StoreError.unsupportedExportVersion`
     /// for `version > 1` (§10.2); older versions would run through
     /// `ExportMigration` first, which does not exist yet (nothing has ever
     /// shipped v0).
+    ///
+    /// `beforeReplace` runs once, after the file is validated and before anything is deleted,
+    /// and only in Replace mode: it is where the caller writes its safety copy. If it throws,
+    /// the import stops with `.safetyCopyFailed` and the store is untouched.
     @discardableResult
-    public func importData(_ data: Data, mode: Mode = .merge) throws -> Result {
+    public func importData(_ data: Data, mode: Mode = .merge,
+                           beforeReplace: (() throws -> Void)? = nil) throws -> Result {
         let envelope = try KronosExportCodec.makeDecoder().decode(KronosExportEnvelope.self, from: data)
         guard envelope.version <= 1 else {
             throw StoreError.unsupportedExportVersion(envelope.version)
         }
-        return importEnvelope(envelope, mode: mode)
+        return try performImport(envelope, mode: mode, beforeReplace: beforeReplace)
     }
 
+    /// Non-throwing form for callers that already hold a decoded envelope: a refused or failed
+    /// import returns an empty `Result` and leaves the store as it was. Prefer `importData`.
     @discardableResult
     public func importEnvelope(_ envelope: KronosExportEnvelope, mode: Mode) -> Result {
-        if mode == .replace { wipeEverything() }
+        (try? performImport(envelope, mode: mode, beforeReplace: nil)) ?? Result()
+    }
 
+    /// Replace needs at least one task in the file (unless the store holds nothing to lose), the
+    /// safety copy, and a save that works.
+    /// A failed save rolls the context back so memory never shows rows the disk does not have.
+    @discardableResult
+    func performImport(_ envelope: KronosExportEnvelope, mode: Mode,
+                       beforeReplace: (() throws -> Void)?,
+                       save: (() throws -> Void)? = nil) throws -> Result {
+        let save = save ?? { [store] in try store.context.save() }
+        if mode == .replace {
+            guard !envelope.tasks.isEmpty || !storeHoldsData() else { throw ImportError.emptyEnvelope }
+            if let beforeReplace {
+                do { try beforeReplace() } catch { throw ImportError.safetyCopyFailed }
+            }
+            wipeEverything()
+            do { try save() } catch { store.context.rollback(); throw ImportError.saveFailed }
+        }
+        let result = insertRows(of: envelope)
+        do { try save() } catch { store.context.rollback(); throw ImportError.saveFailed }
+        return result
+    }
+
+    private func storeHoldsData() -> Bool {
+        !store.allTasksIncludingDeleted().isEmpty || !fetchAll(KProject.self).isEmpty || !fetchAll(KArea.self).isEmpty
+    }
+
+    private func insertRows(of envelope: KronosExportEnvelope) -> Result {
         var result = Result()
 
         // Referential order (§10.2): areas -> projects -> labels -> rules ->
@@ -78,14 +121,30 @@ public final class KronosImporter {
 
         var tasksByID: [UUID: KTask] = [:]
         for t in store.allTasksIncludingDeleted() { tasksByID[t.id] = t }
+        // Rows whose fields were written by this import, with the parent the file gives them.
+        var links: [(id: UUID, parentID: UUID?)] = []
         for t in envelope.tasks {
-            let (inserted, subtasksAdded) = upsert(t, projectsByID: projectsByID,
-                                                   labelsByID: labelsByID, into: &tasksByID)
+            let (inserted, applied, subtasksAdded) = upsert(t, projectsByID: projectsByID,
+                                                            labelsByID: labelsByID, into: &tasksByID)
             if inserted { result.tasks += 1 }
+            if applied { links.append((t.id, t.parentID)) }
             result.subtasks += subtasksAdded
         }
+        // Second pass, once every row exists: a file's `parentID` (current format) makes the
+        // row a subtask of that task. One level only — a link that would nest under a subtask,
+        // or give a parent to a row that has subtasks, is skipped and the row stays top-level.
+        for link in links {
+            guard let child = tasksByID[link.id] else { continue }
+            guard let pid = link.parentID, pid != link.id, let parent = tasksByID[pid],
+                  parent.parentID == nil, (child.children ?? []).isEmpty else {
+                if link.parentID == nil, child.parent != nil { child.parent = nil; child.parentID = nil }
+                continue
+            }
+            child.parent = parent
+            child.parentID = parent.id
+            store.inheritPlacement(child, from: parent)
+        }
 
-        try? store.context.save()
         return result
     }
 
@@ -98,7 +157,6 @@ public final class KronosImporter {
         for l in fetchAll(KLabel.self) { store.context.delete(l) }
         for p in fetchAll(KProject.self) { store.context.delete(p) }
         for a in fetchAll(KArea.self) { store.context.delete(a) }
-        try? store.context.save()
     }
 
     // MARK: - Per-model upsert
@@ -202,33 +260,71 @@ public final class KronosImporter {
         k.updatedAt = v.updatedAt
     }
 
-    /// Returns (didInsertTask, subtasksInserted).
+    /// Returns (didInsertTask, fieldsWritten, subtasksInserted).
     private func upsert(_ t: ExportedTask, projectsByID: [UUID: KProject],
                         labelsByID: [UUID: KLabel],
-                        into map: inout [UUID: KTask]) -> (Bool, Int) {
+                        into map: inout [UUID: KTask]) -> (Bool, Bool, Int) {
         let project = t.projectID.flatMap { projectsByID[$0] }
         let labels = t.labelIDs.compactMap { labelsByID[$0] }
 
         if let existing = map[t.id] {
             if existing.updatedAt < t.updatedAt {
-                let added = apply(t, project: project, labels: labels, to: existing)
-                return (false, added)
+                apply(t, project: project, labels: labels, to: existing)
+                return (false, true, importLegacySteps(t.subtasks, parent: existing, into: &map))
             }
-            return (false, 0)
+            return (false, false, 0)
         }
         let task = KTask(title: t.title, notes: t.notes, project: project)
         task.id = t.id
         store.context.insert(task)
         map[t.id] = task
-        let added = apply(t, project: project, labels: labels, to: task)
-        return (true, added)
+        apply(t, project: project, labels: labels, to: task)
+        return (true, true, importLegacySteps(t.subtasks, parent: task, into: &map))
     }
 
-    /// Applies every scalar field plus subtasks; returns how many subtask
-    /// rows were newly inserted (existing subtasks are upserted by id too).
-    @discardableResult
+    /// The previous file format carried steps as a `subtasks` array inside their task. Each
+    /// becomes a child task with the SAME id (as the launch migration does): done -> `.done`
+    /// with `completedAt`, otherwise `.todo`; notes, due day, priority, order and dates kept.
+    /// An id that already exists is updated when the file's copy is newer. Returns how many
+    /// rows were inserted. A current-format file has empty arrays here.
+    private func importLegacySteps(_ steps: [ExportedSubtask], parent: KTask,
+                                   into map: inout [UUID: KTask]) -> Int {
+        guard !steps.isEmpty, parent.parentID == nil else { return 0 }
+        var inserted = 0
+        for s in steps {
+            let row: KTask
+            if let existing = map[s.id] {
+                guard existing.updatedAt < s.updatedAt else { continue }
+                row = existing
+            } else {
+                row = KTask(title: s.title, notes: "", project: parent.project)
+                row.id = s.id
+                store.context.insert(row)
+                map[s.id] = row
+                inserted += 1
+            }
+            row.title = s.title
+            row.notes = s.notes ?? ""
+            row.status = s.isDone ? .done : .todo
+            row.completedAt = s.isDone ? s.updatedAt : nil
+            row.dueDay = s.dueDay.flatMap(Day.parseISO)
+            row.originalDueDay = row.dueDay
+            row.priorityRaw = s.priority ?? 0
+            row.sortIndex = s.sortIndex
+            row.needsTriage = false
+            row.deletedAt = parent.deletedAt
+            row.createdAt = s.createdAt
+            row.updatedAt = s.updatedAt
+            row.parent = parent
+            row.parentID = parent.id
+            store.inheritPlacement(row, from: parent)
+        }
+        return inserted
+    }
+
+    /// Applies every scalar field. The parent link is set in a second pass (`importEnvelope`).
     private func apply(_ t: ExportedTask, project: KProject?, labels: [KLabel],
-                       to k: KTask) -> Int {
+                       to k: KTask) {
         k.title = t.title; k.notes = t.notes; k.firstMove = t.firstMove
         k.statusRaw = t.status; k.priorityRaw = t.priority; k.depthRaw = t.depth
         k.effortRaw = t.effort ?? KEffort.none.rawValue
@@ -236,6 +332,8 @@ public final class KronosImporter {
         k.estimateMinutes = t.estimateMinutes
         k.dueDay = t.dueDay.flatMap(Day.parseISO)
         k.originalDueDay = t.originalDueDay.flatMap(Day.parseISO)
+        k.plannedDay = t.plannedDay.flatMap(Day.parseISO)
+        k.carryCount = t.carryCount ?? 0
         k.completedAt = t.completedAt
         k.sortIndex = t.sortIndex; k.ordoIndex = t.ordoIndex
         k.deletedAt = t.deletedAt
@@ -249,35 +347,36 @@ public final class KronosImporter {
         k.labels = labels
         k.createdAt = t.createdAt; k.updatedAt = t.updatedAt
         k.waitsOnIDs = (t.waitsOn ?? []).map(\.uuidString).joined(separator: ",")
+        k.triageFilledFieldsRaw = t.triageFilledFields ?? ""
+        k.lockedFieldsRaw = t.lockedFields ?? ""
+        k.reviewRaw = t.review ?? 0
+        k.contextJSON = t.contextJSON
+        k.resultJSON = t.resultJSON
+        k.agentID = t.agentID
+        k.assigneeRaw = t.assignee ?? 0
+        applyAttachments(t.attachments ?? [], to: k)
 
-        var existingSubs: [UUID: KSubtask] = [:]
-        for s in k.subtasks ?? [] { existingSubs[s.id] = s }
-        var inserted = 0
-        var keep: [KSubtask] = []
-        for s in t.subtasks {
-            if let existing = existingSubs[s.id] {
-                existing.title = s.title; existing.isDone = s.isDone
-                existing.sortIndex = s.sortIndex; existing.updatedAt = s.updatedAt
-                existing.notes = s.notes ?? ""
-                keep.append(existing)
+    }
+
+    /// Attachments by id: an existing one is updated, a new one inserted on this task. One the
+    /// file does not list is left alone (an import never deletes).
+    private func applyAttachments(_ files: [ExportedAttachment], to k: KTask) {
+        guard !files.isEmpty else { return }
+        var byID: [UUID: KAttachment] = [:]
+        for a in fetchAll(KAttachment.self) { byID[a.id] = a }
+        for f in files {
+            let a: KAttachment
+            if let existing = byID[f.id] {
+                a = existing
             } else {
-                let sub = KSubtask(title: s.title, sortIndex: s.sortIndex)
-                sub.id = s.id; sub.isDone = s.isDone; sub.notes = s.notes ?? ""
-                sub.createdAt = s.createdAt; sub.updatedAt = s.updatedAt
-                sub.task = k
-                store.context.insert(sub)
-                keep.append(sub)
-                inserted += 1
+                a = KAttachment()
+                a.id = f.id
+                store.context.insert(a)
             }
+            a.kindRaw = f.kind; a.title = f.title; a.url = f.url; a.data = f.data
+            a.byteCount = f.byteCount; a.createdAt = f.createdAt
+            if a.task !== k { a.task = k }
         }
-        // Rows dropped from the incoming subtask list are removed: subtasks
-        // are owned by the task, so the export is authoritative for them
-        // exactly as the Linear importer already treats them (§10.1 "owned").
-        for (id, s) in existingSubs where !t.subtasks.contains(where: { $0.id == id }) {
-            store.context.delete(s)
-        }
-        k.subtasks = keep
-        return inserted
     }
 
     // MARK: - Helpers

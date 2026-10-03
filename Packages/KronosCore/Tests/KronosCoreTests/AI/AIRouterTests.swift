@@ -97,7 +97,7 @@ struct AIRouterTests {
         data: [DONE]
         """.data(using: .utf8)!
         #expect(throws: AIError.self) {
-            _ = try GhostCLIClient.parseBody(sseData, modelRequested: "claude-sonnet-5", latencyMS: 10)
+            _ = try OpenAICompatibleClient.parseBody(sseData, modelRequested: "claude-sonnet-5", latencyMS: 10)
         }
     }
 
@@ -108,7 +108,7 @@ struct AIRouterTests {
         // or vice versa; either signal is enough to distrust the payload).
         let plainJSON = #"{"choices":[{"message":{"content":"hi"}}]}"#.data(using: .utf8)!
         #expect(throws: AIError.self) {
-            _ = try GhostCLIClient.parseBody(plainJSON, modelRequested: "m", latencyMS: 1,
+            _ = try OpenAICompatibleClient.parseBody(plainJSON, modelRequested: "m", latencyMS: 1,
                                              contentType: "text/event-stream; charset=utf-8")
         }
     }
@@ -220,7 +220,7 @@ struct AIRouterTests {
     /// rejects the misbehaving shape rather than mis-parsing it as content.
     @Test func recordedJSONFixtureDecodesToTriageResult() throws {
         let data = try FixtureLoader.data("triage_ok.json")
-        let response = try GhostCLIClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
+        let response = try OpenAICompatibleClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
         let decoded: TriageResult = try OutputExtraction.decode(TriageResult.self, from: response.content)
         #expect(decoded.firstMove == "Open the invoice folder and find September.")
     }
@@ -228,13 +228,13 @@ struct AIRouterTests {
     @Test func recordedSSEFixtureIsRejectedNotMisparsed() throws {
         let data = try FixtureLoader.data("triage_ok.sse")
         #expect(throws: AIError.self) {
-            _ = try GhostCLIClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
+            _ = try OpenAICompatibleClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
         }
     }
 
     @Test func recordedTruncatedFixtureHopsViaFinishReasonGate() throws {
         let data = try FixtureLoader.data("triage_truncated.json")
-        let response = try GhostCLIClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
+        let response = try OpenAICompatibleClient.parseBody(data, modelRequested: "claude-sonnet-5", latencyMS: 5)
         #expect(throws: AIError.self) { try response.validated() }
     }
 
@@ -260,7 +260,7 @@ struct AIRouterTests {
 
     @Test func recordedOcFreeErrorFixtureIsHttp400() throws {
         // error_400_oc_free.json is the ERROR BODY a 400 response carries;
-        // GhostCLIClient itself classifies by status code (AIError.http),
+        // OpenAICompatibleClient itself classifies by status code (AIError.http),
         // so this fixture documents the shape without re-deriving it from a
         // status this test has no transport to produce.
         let text = try FixtureLoader.text("error_400_oc_free.json")

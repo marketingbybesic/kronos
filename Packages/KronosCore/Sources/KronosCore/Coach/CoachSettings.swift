@@ -132,9 +132,21 @@ public final class CoachSettingsStore {
     ///     `UserDefaults.standard`.
     ///   - key: overridable only for tests that need two independent stores
     ///     in the same suite.
-    public init(defaults: UserDefaults, key: String = "kronos.coach.settings.v1") {
+    public init(defaults: UserDefaults, key: String = "kronos.coach.settings.v1", sync: SettingsSync? = nil) {
         self.defaults = defaults
         self.key = key
+        self.sync = sync
+    }
+
+    /// The whitelist sync (SyncedSettings.swift); nil or disabled = nothing leaves the device.
+    public var sync: SettingsSync?
+
+    private var syncedAtKey: String { key + ".syncedAt" }
+
+    /// When the synced fields last changed on this device (or arrived from another one).
+    private var syncedAt: Date? {
+        get { defaults.object(forKey: syncedAtKey) as? Date }
+        set { defaults.set(newValue, forKey: syncedAtKey) }
     }
 
     public func load() -> CoachSettings {
@@ -147,7 +159,27 @@ public final class CoachSettingsStore {
 
     public func save(_ settings: CoachSettings) {
         guard let data = try? JSONEncoder().encode(settings) else { return }
+        let before = load()
+        defaults.set(data, forKey: key)
+        if SyncedCoachSettings(from: before, updatedAt: .distantPast)
+            .sameValues(as: SyncedCoachSettings(from: settings, updatedAt: .distantPast)) == false {
+            syncedAt = Date()
+        }
+        sync?.push(settings)
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
+    }
+
+    /// Takes the remote whitelist when another device wrote it later than this one did.
+    /// Device-local fields are kept. Returns true when local settings changed.
+    @discardableResult
+    public func applyRemote() -> Bool {
+        guard let remote = sync?.newerRemote(than: syncedAt) else { return false }
+        let local = load()
+        let merged = remote.applied(to: local)
+        syncedAt = remote.updatedAt
+        guard merged != local, let data = try? JSONEncoder().encode(merged) else { return false }
         defaults.set(data, forKey: key)
         NotificationCenter.default.post(name: Self.didChangeNotification, object: nil)
+        return true
     }
 }

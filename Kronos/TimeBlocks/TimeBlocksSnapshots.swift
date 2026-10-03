@@ -127,6 +127,11 @@ private struct EndedBlockHost: View {
             // "switch to <next>" wording has something real to name.
             let ended = fixtureEvent(id: "evt-ended", title: "Acme blok", startOffset: -3600, endOffset: -600)
             let next = fixtureEvent(id: "evt-next", title: "Globex poziv", startOffset: 600, endOffset: 2400)
+            // One task tied to the ended block by its own link, so "Move rest to next block" shows.
+            let linked = model.store.create(title: "Pošalji Acme ponudu", notes: "", project: nil,
+                                            status: .todo, priority: .medium, dueDay: nil)
+            let link = TaskCalendarLink(eventID: ended.id, title: ended.title, start: ended.start, end: ended.end)
+            model.store.update(linked.id) { $0.notes = link.appending(to: $0.notes) }
             blocks = [TimeBlockEntry(event: ended, projectID: project.id), TimeBlockEntry(event: next, projectID: nil)]
             model.didMutate()
             didSeed = true

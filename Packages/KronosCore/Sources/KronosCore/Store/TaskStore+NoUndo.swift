@@ -21,19 +21,24 @@ extension TaskStore {
     /// Factoring it this way keeps ONE implementation of each mutation: the
     /// undoable body stays the single source of truth for what a write does,
     /// and the NoUndo variant differs only in bookkeeping.
-    private func withoutUndo<T>(_ body: () -> T) -> T {
-        let undoDepth = undoStack.count
-        let redoBefore = redoStack
-        let wasMachine = isMachineWrite
-        isMachineWrite = true
-        let result = body()
-        isMachineWrite = wasMachine
-        if undoStack.count > undoDepth {
-            undoStack.removeLast(undoStack.count - undoDepth)
+    /// Public so a caller outside Core (auto-triage) can wrap its own sequence of writes.
+    public func withoutUndo<T>(_ body: () -> T) -> T {
+        // The cap waits: the truncation below indexes the stack, and a trim in between would
+        // drop the user's oldest step AND leave this write's step behind.
+        withUndoTrimSuspended {
+            let undoDepth = undoStack.count
+            let redoBefore = redoStack
+            let wasMachine = isMachineWrite
+            isMachineWrite = true
+            let result = body()
+            isMachineWrite = wasMachine
+            if undoStack.count > undoDepth {
+                undoStack.removeLast(undoStack.count - undoDepth)
+            }
+            // An undoable write clears the redo stack; a machine write must not.
+            redoStack = redoBefore
+            return result
         }
-        // An undoable write clears the redo stack; a machine write must not.
-        redoStack = redoBefore
-        return result
     }
 
     @discardableResult
@@ -79,20 +84,31 @@ extension TaskStore {
     }
 
     @discardableResult
-    public func addSubtaskNoUndo(_ taskID: UUID, title: String) -> KSubtask? {
-        withoutUndo { addSubtask(taskID, title: title) }
+    public func addSubtaskNoUndo(_ taskID: UUID, title: String) -> KTask? {
+        withoutUndo { addChild(to: taskID, title: title) }
     }
 
-    /// Set a step explicitly, or flip it when `isDone` is nil. Explicit is
+    /// As `addSubtaskNoUndo(_:title:)`, with the step's optional due day and priority.
+    @discardableResult
+    public func addSubtaskNoUndo(_ taskID: UUID, title: String, dueDay: Int?, priority: KPriority) -> KTask? {
+        withoutUndo { addChild(to: taskID, title: title, dueDay: dueDay, priority: priority) }
+    }
+
+    /// Set a step explicitly done/open, or flip it when `isDone` is nil. Explicit is
     /// what makes MCP `toggle_subtask` idempotent on a client retry.
     public func toggleSubtaskNoUndo(_ id: UUID, isDone: Bool? = nil) {
         withoutUndo {
             if let want = isDone {
-                let d = FetchDescriptor<KSubtask>()
-                guard let s = ((try? context.fetch(d)) ?? []).first(where: { $0.id == id }),
-                      s.isDone != want else { return }
+                guard let t = task(id), KStatus.closed.contains(t.status) != want else { return }
             }
             toggleSubtask(id)
         }
+    }
+
+    /// As `setParent`, with no undo step. NO UNDO — MCP.
+    public func setParentNoUndo(_ id: UUID, to parentID: UUID?, at placement: KNestPlacement = .end) throws {
+        var thrown: Error?
+        withoutUndo { do { try setParent(id, to: parentID, at: placement) } catch { thrown = error } }
+        if let thrown { throw thrown }
     }
 }

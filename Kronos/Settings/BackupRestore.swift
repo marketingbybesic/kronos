@@ -15,12 +15,17 @@ struct StoreBackupEntry: Identifiable, Equatable {
     let date: Date
     let bytes: Int64
     var id: URL { url }
-    /// Written by "Restore" itself (name starts with `pre-restore-`), so a restore can be undone.
-    var isSafetyCopy: Bool { url.lastPathComponent.hasPrefix(BackupRestore.safetyPrefix) }
+    /// Written by "Restore" (`pre-restore-`) or by an import that replaces everything
+    /// (`pre-import-`), so either can be undone.
+    var isSafetyCopy: Bool {
+        let name = url.lastPathComponent
+        return name.hasPrefix(BackupRestore.safetyPrefix) || name.hasPrefix(BackupRestore.preImportPrefix)
+    }
 }
 
 enum BackupRestore {
     static let safetyPrefix = "pre-restore-"
+    static let preImportPrefix = "pre-import-"
 
     enum RestoreError: Error { case openSource, openDestination, copy, missingSource }
 
@@ -37,12 +42,30 @@ enum BackupRestore {
         }.sorted { $0.date > $1.date }
     }
 
-    static func safetyFileName(now: Date) -> String {
+    private static func stamp(_ now: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = .current
         f.dateFormat = "yyyyMMdd-HHmmss"
-        return "\(safetyPrefix)\(f.string(from: now)).store"
+        return f.string(from: now)
+    }
+
+    static func safetyFileName(now: Date) -> String {
+        "\(safetyPrefix)\(stamp(now)).store"
+    }
+
+    /// File stem shared by the two safety files an import Replace writes first
+    /// (`<stem>.json` readable, `<stem>.store` restorable).
+    static func preImportStem(now: Date) -> String { "\(preImportPrefix)\(stamp(now))" }
+
+    /// The restorable half of the safety copy taken before an import Replace. Throws when the
+    /// live store cannot be read or the copy cannot be written; the caller then stops the import.
+    @discardableResult
+    static func snapshotBeforeImport(live: URL, into directory: URL, now: Date,
+                                     fileManager fm: FileManager = .default) throws -> URL {
+        let dest = directory.appendingPathComponent(preImportStem(now: now) + ".store")
+        try snapshot(from: live, to: dest, fileManager: fm)
+        return dest
     }
 
     /// The typed gate: case-insensitive, surrounding whitespace ignored, same rule as the
@@ -88,15 +111,19 @@ enum BackupRestore {
 
     // MARK: The swap (runs after the app has quit)
 
-    /// Arguments: 1 pid of the running app, 2 chosen backup, 3 live store, 4 app bundle, 5 opener.
-    /// Waits (at most 10 s) for the app to exit, removes the live -wal/-shm (a stale WAL against
-    /// a different store file corrupts it), copies the backup in via a temp file + rename, brings
-    /// along the backup's own -wal/-shm if it has them, then opens the app again. Whatever
-    /// happens it ends by reopening the app, so a failed swap leaves the old store in place.
+    /// Arguments: 1 pid of the running app, 2 chosen backup, 3 live store, 4 app bundle, 5 opener,
+    /// 6 how many tenths of a second to wait for the app to exit (default 100).
+    /// Waits for the app to exit. If it is STILL running the swap is refused (exit 3, nothing
+    /// touched, app not reopened: it is already open): replacing a store file under a running app
+    /// corrupts it. Otherwise removes the live -wal/-shm (a stale WAL against a different store
+    /// file corrupts it), copies the backup in via a temp file + rename, brings along the backup's
+    /// own -wal/-shm if it has them, then opens the app again. A failed copy leaves the old store
+    /// in place and still reopens the app.
     static let swapScript = """
-    pid="$1"; chosen="$2"; live="$3"; app="$4"; opener="$5"
+    pid="$1"; chosen="$2"; live="$3"; app="$4"; opener="$5"; waits="${6:-100}"
     n=0
-    while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n+1)); done
+    while kill -0 "$pid" 2>/dev/null && [ "$n" -lt "$waits" ]; do sleep 0.1; n=$((n+1)); done
+    if kill -0 "$pid" 2>/dev/null; then exit 3; fi
     if cp -f "$chosen" "$live.restoring"; then
       rm -f "$live-wal" "$live-shm"
       mv -f "$live.restoring" "$live"
@@ -109,7 +136,9 @@ enum BackupRestore {
     """
 
     static func swapCommand(chosen: URL, live: URL, app: URL, pid: Int32,
-                            opener: String = "/usr/bin/open") -> (executable: String, arguments: [String]) {
-        ("/bin/sh", ["-c", swapScript, "kronos-restore", String(pid), chosen.path, live.path, app.path, opener])
+                            opener: String = "/usr/bin/open",
+                            waitTenths: Int = 100) -> (executable: String, arguments: [String]) {
+        ("/bin/sh", ["-c", swapScript, "kronos-restore", String(pid), chosen.path, live.path, app.path, opener,
+                     String(waitTenths)])
     }
 }

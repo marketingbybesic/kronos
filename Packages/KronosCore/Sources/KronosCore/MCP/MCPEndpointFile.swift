@@ -1,3 +1,4 @@
+#if os(macOS)
 // MCP discovery. The bridge (and any harness) finds the running server through
 // `<secrets dir>/mcp_endpoint.json`, 0600, per bundle (the demo has its own folder, so it never
 // touches a user's). It holds NO token: the token already sits beside it in `mcp_token`.
@@ -9,6 +10,9 @@ public enum MCPEndpointFile {
 
     /// Same folder as `FileSecretStore()`'s default, so the two always sit together.
     public static func defaultDirectory(bundleID: String? = Bundle.main.bundleIdentifier) -> URL {
+        // A live test or snapshot run is another process with the same bundle id: it must never write or remove the
+        // endpoint file of the real app, so its file lives next to its own scratch store.
+        if KronosEnv.isHermetic { return KronosEnv.storeDirectory.appendingPathComponent("secrets", isDirectory: true) }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base
@@ -22,16 +26,14 @@ public enum MCPEndpointFile {
         return (try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys])) ?? Data("{}".utf8)
     }
 
-    /// Same order as FileSecretStore.write: create 0600 BEFORE the content goes in.
+    /// Same as FileSecretStore.write: 0600 from creation, replaced atomically (AtomicSecretFile).
     public static func write(port: Int, pid: Int32 = ProcessInfo.processInfo.processIdentifier,
                              bundleID: String, directory: URL) throws {
         let fm = FileManager.default
         let url = directory.appendingPathComponent(fileName)
         try fm.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-        fm.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600])
-        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        try contents(port: port, pid: pid, bundleID: bundleID).write(to: url, options: [])
+        try AtomicSecretFile.write(contents(port: port, pid: pid, bundleID: bundleID), to: url)
     }
 
     public static func remove(directory: URL) {
@@ -57,3 +59,4 @@ public enum MCPEndpointFile {
         return false
     }
 }
+#endif

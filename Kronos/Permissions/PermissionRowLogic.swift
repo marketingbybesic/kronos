@@ -37,13 +37,14 @@ enum PermissionsPane {
     static let privacyCalendars = "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
     static let privacyAutomation = "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
     static let privacyReminders = "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
+    static let privacyAccessibility = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 }
 
 /// Pure decision table. scripts/permissions-selftest.swift compiles THIS file (no mirrored copy).
 enum PermissionRowLogic {
     static func action(for status: PermissionStatus, kind: PermissionKind) -> PermissionRowAction {
         switch kind {
-        case .calendar, .notes, .reminders:
+        case .calendar, .notes, .reminders, .selectedText:
             switch status {
             case .granted, .notNeeded: return .none
             case .denied: return .openSystemSettings(pane: kind.settingsPane ?? "")
@@ -64,6 +65,17 @@ enum PermissionRowLogic {
             return .openSettingsTab
         }
     }
+
+    /// Whether a row shows its status line. A row nobody has acted on yet shows none ("Not set
+    /// up" under every row made the whole window read unfinished): only an answer the system
+    /// holds (allowed / not allowed) or a row acted on in this window shows one.
+    static func showsStatus(_ status: PermissionStatus, actedOn: Bool) -> Bool {
+        switch status {
+        case .granted, .denied: return true
+        case .notDetermined: return actedOn
+        case .notNeeded: return false
+        }
+    }
 }
 
 /// Every row this window can show. `hasSystemPrompt` = a real macOS permission with a
@@ -72,6 +84,8 @@ enum PermissionKind: String, CaseIterable, Identifiable {
     case calendar
     case reminders
     case notes
+    /// Accessibility: quick add (⌃⌥K) starts from the text selected in the app it opens over.
+    case selectedText
     case launchAtLogin
     case siriShortcuts
     case spotlight
@@ -84,6 +98,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .calendar: return PermissionsPane.privacyCalendars
         case .reminders: return PermissionsPane.privacyReminders
         case .notes: return PermissionsPane.privacyAutomation
+        case .selectedText: return PermissionsPane.privacyAccessibility
         default: return nil
         }
     }
@@ -93,6 +108,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .reminders: return "check-square"
         case .notes: return "receipt"
+        case .selectedText: return "keyboard"
         case .launchAtLogin: return "play"
         case .siriShortcuts: return "sparkles"
         case .spotlight: return "search"
@@ -105,6 +121,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .calendar: return "permissions.row.calendar.title"
         case .reminders: return "permissions.row.reminders.title"
         case .notes: return "permissions.row.notes.title"
+        case .selectedText: return "permissions.row.selectedtext.title"
         case .launchAtLogin: return "permissions.row.launch.title"
         case .siriShortcuts: return "permissions.row.siri.title"
         case .spotlight: return "permissions.row.spotlight.title"
@@ -117,6 +134,7 @@ enum PermissionKind: String, CaseIterable, Identifiable {
         case .calendar: return "permissions.row.calendar.reason"
         case .reminders: return "permissions.row.reminders.reason"
         case .notes: return "permissions.row.notes.reason"
+        case .selectedText: return "permissions.row.selectedtext.reason"
         case .launchAtLogin: return "permissions.row.launch.reason"
         case .siriShortcuts: return "permissions.row.siri.reason"
         case .spotlight: return "permissions.row.spotlight.reason"

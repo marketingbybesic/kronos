@@ -27,7 +27,6 @@ extension LiveUITest {
         key(chars, modifiers: modifiers, keyCode: keyCode)
     }
 
-    private static func settle(_ ms: Int = 500) async { try? await Task.sleep(for: .milliseconds(ms)) }
 
     /// The NSTextView that sits under the centre of an anchored view.
     private static func textView(at anchor: String) -> NSTextView? {
@@ -72,12 +71,7 @@ extension LiveUITest {
     /// Closing the quick add panel hands activation back to the previous app a moment later: wait
     /// until the main window is really key again, or a key event goes nowhere and the step lies.
     private static func ensureKeyWindow() async {
-        for _ in 0..<20 {
-            if NSApp.isActive, window.isKeyWindow { return }
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            await settle(150)
-        }
+        await ensureKey(window)
     }
 
     private static func openCapture(_ model: AppModel, text: String? = nil) async {
@@ -102,7 +96,7 @@ extension LiveUITest {
         await fix33Merge(model)
     }
 
-    // MARK: 1. Shift-Cmd-N subtask marker
+    // MARK: 1. Shift-Cmd-N always opens Capture
 
     private static func fix31Marker(_ model: AppModel) async {
         guard let chord = menuItem(key: "n", modifiers: [.command, .shift]) else {
@@ -115,57 +109,20 @@ extension LiveUITest {
         perform(chord); await settle(600)
         record("fix3.1 control: with no add field focused Shift-Cmd-N opens Capture", model.isCaptureOpen, "isCaptureOpen=\(model.isCaptureOpen)")
 
-        // In the Capture paste field, caret after a word.
+        // With the caret in the Capture paste field the chord means the same thing: nothing is typed
+        // into the field (no marker), Capture stays open.
         await openCapture(model)
         guard let tv = textView(at: "capture.paste") else { record("fix3.1 Capture paste field found", false, "no text view"); await closeCapture(model); return }
         setText(tv, "Prepare the offer")
         perform(chord); await settle(250)
-        record("fix3.1 after a word the chord inserts \" > \" at the caret and Capture stays on the paste step",
-               tv.string == "Prepare the offer > " && UITestAnchors.frames["capture.paste"] != nil && model.isCaptureOpen,
+        record("fix3.1 in an add field Shift-Cmd-N types nothing and Capture stays open",
+               tv.string == "Prepare the offer" && UITestAnchors.frames["capture.paste"] != nil && model.isCaptureOpen,
                "text=\(tv.string.debugDescription) open=\(model.isCaptureOpen)")
-        record("fix3.1 feedback is visible right after the chord", UITestAnchors.frames["subtask.marker.flash"] != nil,
+        record("fix3.1 no marker confirmation appears", UITestAnchors.frames["subtask.marker.flash"] == nil,
                "flash anchor=\(UITestAnchors.frames["subtask.marker.flash"] != nil)")
-        record("fix3.1 the caret sits after the marker, so typing the subtask name continues the line",
-               tv.selectedRange().location == (tv.string as NSString).length, "caret=\(tv.selectedRange().location) len=\((tv.string as NSString).length)")
-        tv.insertText("find the template", replacementRange: tv.selectedRange())
-        record("fix3.1 the result parses as a subtask of the line",
-               TaskOutline.parse(tv.string) == [TaskOutline.Item(line: "Prepare the offer", subtasks: ["find the template"])],
-               "parsed=\(TaskOutline.parse(tv.string))")
-
-        // On an empty line the marker is a bullet; mid-word spacing is never doubled.
-        setText(tv, "Plan the trip\n")
-        perform(chord); await settle(250)
-        record("fix3.1 on an empty line the chord inserts a bullet \"> \"", tv.string == "Plan the trip\n> ", "text=\(tv.string.debugDescription)")
-        setText(tv, "Plan ")
-        perform(chord); await settle(250)
-        record("fix3.1 after a space the chord does not double the space", tv.string == "Plan > ", "text=\(tv.string.debugDescription)")
-
-        // The real chord through the window (informational: some harness runs never deliver menu chords).
-        setText(tv, "Chord check")
-        keySync("n", modifiers: [.command, .shift], keyCode: 45); await settle(400)
-        record("fix3.1 (informational) the real Shift-Cmd-N key event reached the field: \(tv.string.debugDescription)", true,
-               "delivered=\(tv.string == "Chord check > ")")
         await closeCapture(model)
-
-        // Quick add panel.
-        AppDelegate.shared?.quickAdd.toggle()
-        await settle(900)
-        if let panel = NSApp.windows.first(where: { $0 is NSPanel && $0.isVisible && $0.canBecomeKey }),
-           let ptv = panel.contentView?.qaFirstTextView {
-            panel.makeKeyAndOrderFront(nil)
-            panel.makeFirstResponder(ptv)
-            ptv.selectAll(nil)
-            ptv.insertText("Panel task", replacementRange: ptv.selectedRange())
-            perform(chord); await settle(250)
-            record("fix3.1 quick add panel: the chord inserts the marker after the typed task", ptv.string == "Panel task > ", "text=\(ptv.string.debugDescription)")
-            ptv.selectAll(nil); ptv.insertText("", replacementRange: ptv.selectedRange())
-            AppDelegate.shared?.quickAdd.toggle()
-            await settle(400)
-        } else {
-            record("fix3.1 quick add panel: the chord inserts the marker after the typed task", false, "panel or text view not found")
-        }
         await ensureKeyWindow()
-        record("fix3.1 the main window is key again after the quick add panel", window.isKeyWindow, "key=\(window.isKeyWindow) active=\(NSApp.isActive)")
+        record("fix3.1 the main window is key again after Capture", window.isKeyWindow, "key=\(window.isKeyWindow) active=\(NSApp.isActive)")
     }
 
     /// Root cause of "Shift-Cmd-N does not work reliably": the done step's undo pill closed the

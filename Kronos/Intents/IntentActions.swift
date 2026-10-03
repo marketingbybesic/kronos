@@ -21,8 +21,48 @@ public protocol IntentTaskStore {
 
     func intentAllOpenTasks() -> [IntentTaskFacts<TaskID>]
     func intentCreateTask(title: String, projectName: String?, priorityRaw: Int, dueDay: Int?) -> TaskID
+    /// The full AddTask request (notes and a web link on top of the title fields). A store that does not
+    /// carry notes or links keeps the default below, which creates the task from the title fields only.
+    func intentCreateTask(_ request: IntentNewTask) -> TaskID
     func intentComplete(_ id: TaskID)
     func intentFirstMove(for id: TaskID) -> String?
+}
+
+public extension IntentTaskStore {
+    func intentCreateTask(_ request: IntentNewTask) -> TaskID {
+        intentCreateTask(title: request.title, projectName: request.projectName,
+                         priorityRaw: request.priorityRaw, dueDay: request.dueDay)
+    }
+}
+
+/// Everything AddTask can set. `notes` and `link` are already cleaned (`IntentNewTask.init`): blank notes and
+/// a link that is not a plain http(s) URL become nil, so a store never receives an empty or broken reference.
+public struct IntentNewTask: Equatable {
+    public let title: String
+    public let projectName: String?
+    public let priorityRaw: Int
+    public let dueDay: Int?
+    public let notes: String?
+    public let link: String?
+
+    public init(title: String, projectName: String? = nil, priorityRaw: Int = 0, dueDay: Int? = nil,
+                notes: String? = nil, link: String? = nil) {
+        self.title = title
+        self.projectName = projectName
+        self.priorityRaw = priorityRaw
+        self.dueDay = dueDay
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.notes = (trimmedNotes?.isEmpty ?? true) ? nil : trimmedNotes
+        self.link = IntentNewTask.webLink(link)
+    }
+
+    /// The URL as a string when it is http or https with a host, else nil.
+    public static func webLink(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+              let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https", let host = url.host, !host.isEmpty else { return nil }
+        return raw
+    }
 }
 
 /// A read-only projection of one task, just the fields an intent might report or rank on.
@@ -36,9 +76,11 @@ public struct IntentTaskFacts<ID: Hashable>: Equatable {
     public let dueDay: Int?
     public let ordoIndex: Double?
     public let projectName: String?
+    public let notes: String
 
     public init(id: ID, title: String, isOpen: Bool, priority: Int, dueDay: Int?,
-                ordoIndex: Double?, projectName: String?) {
+                ordoIndex: Double?, projectName: String?, notes: String = "") {
+        self.notes = notes
         self.id = id
         self.title = title
         self.isOpen = isOpen
@@ -90,6 +132,57 @@ public enum IntentActions {
         let id = store.intentCreateTask(title: title, projectName: projectName,
                                         priorityRaw: priorityRaw, dueDay: dueDay)
         return (id, title)
+    }
+
+    /// AddTask with notes, a due day and a link. Same blank-title refusal as `addTask(store:title:...)`.
+    public static func addTask<S: IntentTaskStore>(
+        store: S, request: IntentNewTask
+    ) -> (id: S.TaskID, confirmation: String)? {
+        guard !IntentQuickAdd.isBlank(request.title) else { return nil }
+        return (store.intentCreateTask(request), request.title)
+    }
+
+    /// CompleteTask: complete one task by id. Returns its title, or nil when the task is unknown or
+    /// already closed (nothing is written then, so a repeated Shortcut run never re-completes).
+    public static func completeTask<S: IntentTaskStore>(store: S, id: S.TaskID) -> String? {
+        guard let task = store.intentAllOpenTasks().first(where: { $0.id == id && $0.isOpen }) else { return nil }
+        store.intentComplete(id)
+        return task.title
+    }
+
+    /// FindTasks: tasks whose title, notes or project name contain `text` (case and diacritics ignored),
+    /// optionally inside one project and due on or before a day. Open tasks only unless `includeCompleted`.
+    /// Order: open before closed, then the Ordo order (unranked last), then due day, then title.
+    public static func findTasks<S: IntentTaskStore>(
+        store: S, text: String?, projectName: String?, dueOnOrBefore: Int?,
+        includeCompleted: Bool, limit: Int
+    ) -> [IntentTaskFacts<S.TaskID>] {
+        let needle = text.map(fold) ?? ""
+        let project = projectName.map(fold) ?? ""
+        let hits = store.intentAllOpenTasks().filter { t in
+            if !includeCompleted && !t.isOpen { return false }
+            if !needle.isEmpty && !(fold(t.title).contains(needle) || fold(t.notes).contains(needle)
+                                    || fold(t.projectName ?? "").contains(needle)) { return false }
+            if !project.isEmpty && fold(t.projectName ?? "") != project { return false }
+            if let limitDay = dueOnOrBefore {
+                guard let due = t.dueDay, due <= limitDay else { return false }
+            }
+            return true
+        }
+        let sorted = hits.sorted { a, b in
+            if a.isOpen != b.isOpen { return a.isOpen }
+            if a.ordoIndex != b.ordoIndex { return (a.ordoIndex ?? .infinity) < (b.ordoIndex ?? .infinity) }
+            if a.dueDay != b.dueDay { return (a.dueDay ?? Int.max) < (b.dueDay ?? Int.max) }
+            return a.title.localizedStandardCompare(b.title) == .orderedAscending
+        }
+        return Array(sorted.prefix(max(0, limit)))
+    }
+
+    /// Case, diacritics and the Croatian crossed d ignored, matching how the app searches.
+    static func fold(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .replacingOccurrences(of: "đ", with: "d").replacingOccurrences(of: "Đ", with: "d")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// WhatsNext: the focus task's title + first move, or a calm fallback sentence when

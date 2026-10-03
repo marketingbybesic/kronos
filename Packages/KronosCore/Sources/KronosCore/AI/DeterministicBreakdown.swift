@@ -3,7 +3,8 @@
 // same first-move template triage already falls back to — so a task's first
 // subtask is always identical to its first move. Steps 2+ are a fixed,
 // generic finish-the-task sequence (open/verify/finish/deliver), verb-family
-// aware where `FirstMoveLint`'s allowlists make that possible, and every
+// aware where `FirstMoveLint`'s allowlists make that possible (no closing
+// "check / mark finished" steps: those are filler), and every
 // step is checked against `FirstMoveLint` before being returned: a step this
 // generator produces that fails its own lint is a bug here, not an
 // acceptable deterministic result.
@@ -31,36 +32,28 @@ public enum DeterministicBreakdown {
     }
 
     /// A generic, verb-safe continuation after the first move: read what is
-    /// there, do the middle of the work, then close it out. Deliberately
-    /// generic — the deterministic path cannot know the task's specifics,
-    /// only that "started" needs 2 to 6 more concrete steps to reach "done".
+    /// there, list what is missing, start on the first item. Every step is a
+    /// physical action that moves the work forward. Deliberately no closing
+    /// ritual ("check the result", "mark the task finished"): finishing is the
+    /// person's own Complete, and a step that only repeats it is filler.
     private static func genericSteps(title: String, notesNonEmpty: Bool, language: Lang) -> [String] {
-        let obj = truncatedTitle(title, language: language)
         if language == .hr {
             var steps = [
-                "Pročitaj \(obj) do kraja.",
+                "Napiši jednu rečenicu o tome kako izgleda gotovo.",
                 "Napiši popis onoga što još treba obaviti.",
-                "Obavi prvu stavku s popisa."
+                "Otvori prvu stavku s popisa i napiši njezinu prvu rečenicu."
             ]
             if notesNonEmpty { steps.insert("Otvori bilješke i pročitaj ih do kraja.", at: 0) }
-            steps.append("Provjeri rezultat protiv izvornog zahtjeva.")
-            steps.append("Označi zadatak završenim.")
             return steps
         } else {
             var steps = [
-                "Read \(obj) from start to finish.",
+                "Write one sentence about what done looks like.",
                 "Write a list of what is still needed.",
-                "Do the first item on the list."
+                "Open the first item on the list and write its first line."
             ]
             if notesNonEmpty { steps.insert("Open the notes and read them from start to finish.", at: 0) }
-            steps.append("Check the result against the original request.")
-            steps.append("Mark the task finished.")
             return steps
         }
     }
 
-    private static func truncatedTitle(_ title: String, language: Lang) -> String {
-        let words = title.split(separator: " ").prefix(6).joined(separator: " ")
-        return words.isEmpty ? (language == .hr ? "zadatak" : "the task") : words
-    }
 }

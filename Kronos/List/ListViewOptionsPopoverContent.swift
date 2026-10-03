@@ -19,7 +19,7 @@ struct ListViewOptionsPopoverContent: View {
 
     var body: some View {
         let opts = model.options(for: scope)
-        KViewOptionsPopover {
+        KViewOptionsPopover(clearAll: opts.hasRulesToClear ? { ListViewReset.clearAll(model: model, scope: scope) } : nil) {
             sortSection(opts)
         } filter: {
             filterSection(opts)
@@ -29,7 +29,7 @@ struct ListViewOptionsPopoverContent: View {
         .popover(isPresented: $showSaveView) {
             ListSaveViewSheet(name: "") { name in
                 let view = model.store.createSavedView(name: name, filter: opts.filter, sort: opts.sort, showDone: opts.showCompleted)
-                model.didMutate()
+                model.commit(String(format: String(localized: "list.pill.viewsaved"), view.name))
                 model.scope = .savedView(view.id)
                 showSaveView = false
             } onCancel: {
@@ -58,9 +58,7 @@ struct ListViewOptionsPopoverContent: View {
         let binding = Binding<[KSortRule]>(
             get: { ViewOptionsMapper.sortRules(from: opts.sort) },
             set: { rules in
-                var o = opts
-                o.sort = ViewOptionsMapper.descriptors(from: rules)
-                model.setOptions(o, for: scope)
+                model.setOptions(ViewOptionsMapper.sortEdit(rules, on: opts), for: scope)
             }
         )
         return KSortBuilder(rules: binding, availableFields: ViewOptionsMapper.sortFields)
@@ -295,7 +293,7 @@ struct ListViewOptionsPopoverContent: View {
             Button(String(localized: modified ? "viewoptions.updateview" : "viewoptions.saveview")) {
                 if modified, let view = openSavedView {
                     model.store.updateSavedView(view.id, name: nil, filter: opts.filter, sort: opts.sort, showDone: opts.showCompleted)
-                    model.didMutate()
+                    model.commit(String(format: String(localized: "list.pill.viewupdated"), view.name))
                 } else {
                     showSaveView = true
                 }

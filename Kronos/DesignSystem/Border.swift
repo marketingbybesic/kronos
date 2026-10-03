@@ -11,10 +11,12 @@ public extension View {
         overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(color, lineWidth: width))
     }
 
-    /// A focus ring drawn outside the element's bounds with a 1pt gap, matching the
-    /// element's own radius — always visible on keyboard focus, never suppressed.
-    func kFocusRing(_ isFocused: Bool, radius: CGFloat = Radius.control, lineWidth: CGFloat = 2) -> some View {
-        modifier(KFocusRingModifier(isFocused: isFocused, radius: radius, lineWidth: lineWidth))
+    /// The one keyboard-focus ring: a `KRing.width` hairline in the accent at `KRing.opacity`
+    /// (full opacity under Increase Contrast), floating `KRing.gap` outside the element and
+    /// hugging its shape (`radius` is the element's own). Drawn as an outset overlay, so it
+    /// never changes layout. Always visible on keyboard focus, never suppressed.
+    func kFocusRing(_ isFocused: Bool, radius: CGFloat = Radius.control, circular: Bool = false) -> some View {
+        modifier(KFocusRingModifier(isFocused: isFocused, radius: radius, circular: circular))
     }
 
     /// Style G row chrome for editable rows (sort/filter rules, property rows): no box,
@@ -39,24 +41,101 @@ public extension View {
     }
 }
 
+/// Colour logic shared by every accent outline that says "this is the one": the focus ring and
+/// the drag nest outline. Numbers live in Tokens.swift (`Metrics.ring*`, `Tok.*Opacity`).
+public enum KRing {
+    /// White accent keeps `Tok.focusRing`'s own alpha (it sits on the tone of the text it may
+    /// cross); a hue accent is faded to `opacity(for:)`. Increase Contrast: full opacity.
+    public static func color(_ accent: Color, increasedContrast: Bool) -> Color {
+        if accent == Tok.textPrimary { return increasedContrast ? .white : Tok.focusRing }
+        let rgb = KColorMath.srgb(accent)
+        // A custom colour too dark for the floor even when solid is lifted toward white instead.
+        if KColorMath.contrastOnBlack(rgb) < Tok.ringContrastFloor {
+            let lifted = KColorMath.lift(rgb, toContrast: Tok.ringContrastFloor)
+            return Color(.sRGB, red: lifted.r, green: lifted.g, blue: lifted.b, opacity: 1)
+        }
+        return increasedContrast ? accent : accent.opacity(opacity(forSRGB: rgb))
+    }
+
+    /// The opacity a hue ring is drawn at: `Tok.ringAccentOpacity`, raised for a colour so dark
+    /// that the faded line would fall under `Tok.ringContrastFloor` against black (a custom accent;
+    /// every palette swatch already clears it at the base opacity). The faded line is the colour's
+    /// sRGB components times the opacity over black, so the smallest passing opacity is found on
+    /// that composite.
+    public static func opacity(for accent: Color) -> Double {
+        opacity(forSRGB: KColorMath.srgb(accent))
+    }
+
+    static func opacity(forSRGB rgb: (r: Double, g: Double, b: Double)) -> Double {
+        let base = Tok.ringAccentOpacity
+        if KColorMath.contrastOnBlack(scaled(rgb, by: base)) >= Tok.ringContrastFloor { return base }
+        var alpha = base
+        while alpha < 1 {
+            alpha = min(1, alpha + 0.01)
+            if KColorMath.contrastOnBlack(scaled(rgb, by: alpha)) >= Tok.ringContrastFloor { return alpha }
+        }
+        return 1
+    }
+
+    private static func scaled(_ c: (r: Double, g: Double, b: Double), by a: Double) -> (r: Double, g: Double, b: Double) {
+        (c.r * a, c.g * a, c.b * a)
+    }
+
+    /// The faint wash that goes with the ring so the state reads at a glance.
+    public static func tint(_ accent: Color, opacity: Double) -> Color {
+        (accent == Tok.textPrimary ? Color.white : accent).opacity(opacity)
+    }
+}
+
 private struct KFocusRingModifier: ViewModifier {
     let isFocused: Bool
     let radius: CGFloat
-    let lineWidth: CGFloat
+    let circular: Bool   // a round control: true circle (a continuous corner at full radius bulges)
     @Environment(\.kAccent) private var accent
+    @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
+        let reach = Metrics.ringGap + Metrics.ringWidth
+        let style: RoundedCornerStyle = circular ? .circular : .continuous
         content
-            .padding(1)
             .overlay(
-                RoundedRectangle(cornerRadius: radius + 1, style: .continuous)
-                    // White accent resolves to Tok.focusRing's own alpha (translucent, since
-                    // it sits on the same tone as the text it may cross); a saturated accent
-                    // is opaque data colour, not a translucent chrome tint.
-                    .strokeBorder(accent == Tok.textPrimary ? Tok.focusRing : accent, lineWidth: lineWidth)
+                RoundedRectangle(cornerRadius: radius, style: style)
+                    .fill(KRing.tint(accent, opacity: Tok.focusTintOpacity))
                     .opacity(isFocused ? 1 : 0)
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius + reach, style: style)
+                    .strokeBorder(KRing.color(accent, increasedContrast: KContrast.isIncreased(contrast)), lineWidth: Metrics.ringWidth)
+                    .padding(-reach)
+                    .opacity(isFocused ? 1 : 0)
+                    .allowsHitTesting(false)
             )
             .animation(Motion.curve(Motion.fast), value: isFocused)
+    }
+}
+
+/// The drag "nest under this row" outline: the focus ring's width and colour plus a slightly
+/// stronger wash, drawn on the row's own frame (solid, or dashed for a subtask target).
+public struct KNestOutline: View {
+    let radius: CGFloat
+    let dashed: Bool
+    var color: Color?
+    @Environment(\.kAccent) private var accent
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    public init(radius: CGFloat = Radius.row, dashed: Bool, color: Color? = nil) {
+        self.radius = radius
+        self.dashed = dashed
+        self.color = color
+    }
+
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        shape
+            .fill(color == nil ? KRing.tint(accent, opacity: Tok.nestTintOpacity) : Color.clear)
+            .overlay(shape.strokeBorder(color ?? KRing.color(accent, increasedContrast: KContrast.isIncreased(contrast)),
+                                        style: StrokeStyle(lineWidth: Metrics.ringWidth, dash: dashed ? [Space.x1, Space.x1] : [])))
     }
 }
 

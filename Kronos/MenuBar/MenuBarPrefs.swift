@@ -59,6 +59,15 @@ enum MenuBarPrefs {
         set { defaults.set(newValue, forKey: pointsKey) }
     }
 
+    private static let quietKey = "kronos.menubar.quietLines"
+
+    /// The quiet boundary lines (time left in a block, next event, long on one task). One
+    /// opt-out switch, default on; the right-click menu of the status item carries it.
+    static var quietLines: Bool {
+        get { defaults.object(forKey: quietKey) == nil ? true : defaults.bool(forKey: quietKey) }
+        set { defaults.set(newValue, forKey: quietKey) }
+    }
+
     static var width: MenuBarWidth {
         get { defaults.string(forKey: widthKey).flatMap(MenuBarWidth.init(rawValue:)) ?? .full }
         set { defaults.set(newValue.rawValue, forKey: widthKey) }

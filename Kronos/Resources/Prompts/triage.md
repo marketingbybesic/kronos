@@ -52,9 +52,12 @@ Return ONE JSON object with EXACTLY these keys:
 - effort: integer 0-5 (0 none, 1 xs, 2 s, 3 m, 4 l, 5 xl) or null, your best size guess.
 - reason: string, at most 90 characters, or null. One short line a peer would say, such as
   "Like your other Acme tasks". No exclamation marks.
+- dread: true, false or null. true ONLY when the task is one this person is likely to put
+  off because it involves a conflict, money they owe or are owed, or an apology. Plain
+  effort or length is not dread. null when you cannot tell.
 
-Every key above is REQUIRED (effort and reason may be null, but the key must be present).
-Omitting a key makes your reply unusable.
+Every key above is REQUIRED (effort, reason and dread may be null, but the key must be
+present). Omitting a key makes your reply unusable.
 
 A Croatian task classifies exactly the same way: title "Nazvati vodoinstalatera oko
 slavine, hitno" gets priority 4 (the word "hitno" = urgent), firstMove and rationale
@@ -65,6 +68,6 @@ Example (values are illustrative, not a rule to copy):
 {"project":null,"priority":2,"due":null,"depth":"shallow","estimateMinutes":15,
  "energyKind":"admin","firstMove":"Open the invoice folder and find September.",
  "labels":[],"rationale":"One document and one email, no preparation needed.",
- "effort":2,"reason":"Like your other admin tasks this month."}
+ "effort":2,"reason":"Like your other admin tasks this month.","dread":null}
 
 Return a single JSON object and nothing else.

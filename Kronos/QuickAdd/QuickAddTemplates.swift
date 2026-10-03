@@ -11,9 +11,10 @@ import KronosCore
 @MainActor
 enum QuickAddTemplates {
 
-    enum Outcome: Equatable {
-        /// Task made: the caller clears the field exactly as after a normal create.
-        case created
+    enum Outcome {
+        /// Task made: the caller clears the field exactly as after a normal create and posts the
+        /// one acknowledgement (QuickAddAck), so a template add reads like any other add.
+        case created(KTask)
         /// Bare `/`: Return completes the first suggestion instead of making a task titled "/".
         case fill(String)
         /// Bare `/` with no templates saved: nothing to do.
@@ -34,10 +35,9 @@ enum QuickAddTemplates {
         // Someday, the Waiting toggle always wins (ListScopeDefaults, hand-tabled in Core).
         let today = Day.today(calendar: KronosLocale.calendar)
         let defaults = ListScopeDefaults.apply(scope: nil, explicitDueDay: nil, today: today, isWaiting: isWaiting)
-        model.store.createFromTemplate(hit.template, rest: hit.rest, status: defaults.status, dueDay: defaults.dueDay)
+        let task = model.store.createFromTemplate(hit.template, rest: hit.rest, status: defaults.status, dueDay: defaults.dueDay)
         model.didMutate()
-        UndoToastCenter.shared.show(String(format: String(localized: "undo.template.name"), hit.rest.isEmpty ? hit.template.name : hit.rest))
-        return .created
+        return .created(task)
     }
 }
 

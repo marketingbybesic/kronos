@@ -54,39 +54,42 @@ struct OnboardingCard: View {
 
     var body: some View {
         let _ = model.version
-        if center.isVisible, let active {
-            KPanel {
-                VStack(alignment: .leading, spacing: Space.x3) {
-                    header
-                    if center.state.collapsed {
-                        EmptyView()
-                    } else if showAll {
-                        group("welcome.card.group.basics", Quest.basics, active: active)
-                        group("welcome.card.group.power", Quest.power, active: active)
-                    } else {
-                        row(active, isActive: true)
-                    }
+        Group {
+            if center.isVisible, let active { card(active) }
+        }
+        // A sample task left by a tour that was cut short is removed as soon as the list mounts.
+        .onAppear { TourCenter.shared.removeOrphanSample(model: model) }
+    }
+
+    @ViewBuilder
+    private func card(_ active: Quest) -> some View {
+        KPanel {
+            VStack(alignment: .leading, spacing: Space.x3) {
+                header
+                if center.state.captureHintOpen, !center.state.collapsed { captureHint }
+                if center.state.collapsed {
+                    EmptyView()
+                } else if showAll {
+                    group("welcome.card.group.basics", Quest.basics, active: active)
+                    group("welcome.card.group.power", Quest.power, active: active)
+                } else {
+                    row(active, isActive: true)
                 }
             }
-            .onAppear { center.refresh(model) }
-            .onChange(of: model.version) { _, _ in center.refresh(model) }
-            .animation(Motion.curve(Motion.fast), value: center.state.done)
-            .animation(Motion.curve(Motion.fast), value: showAll)
-            .animation(Motion.curve(Motion.fast), value: selected)
-            .uiTestAnchor("onboarding.card")
         }
+        .onAppear { center.refresh(model) }
+        .onChange(of: model.version) { _, _ in center.refresh(model) }
+        .animation(Motion.curve(Motion.fast), value: center.state.done)
+        .animation(Motion.curve(Motion.fast), value: showAll)
+        .animation(Motion.curve(Motion.fast), value: selected)
+        .uiTestAnchor("onboarding.card")
     }
 
     private var header: some View {
-        let all = Quest.basics + Quest.power
-        let done = all.filter(center.state.done.contains).count
-        return HStack(spacing: Space.x2) {
+        HStack(spacing: Space.x2) {
             Text(String(localized: "welcome.card.title"))
                 .font(Typo.sectionHdr)
                 .foregroundStyle(Tok.textPrimary)
-            Text(String(format: String(localized: "welcome.card.progress"), done, all.count))
-                .font(Typo.meta)
-                .foregroundStyle(Tok.textTertiary)
             if let just = center.justDone {
                 Text(String(format: String(localized: "welcome.card.ticked"), QuestCopy.of(just).title))
                     .font(Typo.meta)
@@ -100,8 +103,9 @@ struct OnboardingCard: View {
                     .kButton(.ghost, size: .compact)
             }
             if OnboardingLogic.canDismiss(center.state) {
-                Button(String(localized: "welcome.card.enough")) { center.dismissPower() }
+                Button(String(localized: "welcome.card.enough")) { center.dismiss() }
                     .kButton(.ghost, size: .compact)
+                    .uiTestAnchor("onboarding.enough")
             }
             Button {
                 center.setCollapsed(!center.state.collapsed)
@@ -111,6 +115,23 @@ struct OnboardingCard: View {
             .kButton(.icon, size: .compact)
             .accessibilityLabel(String(localized: center.state.collapsed ? "welcome.card.expand" : "welcome.card.collapse"))
         }
+    }
+
+    /// Shown once, right after the first capture: where the fast way in lives.
+    private var captureHint: some View {
+        let keys = HotkeyRegistry.current(for: "global.quickadd")?.displayKeys ?? []
+        return HStack(spacing: Space.x3) {
+            Text(String(localized: "welcome.capturehint.text"))
+                .font(Typo.body)
+                .foregroundStyle(Tok.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !keys.isEmpty { KKeyHintItem(keys, label: "") }
+            Spacer(minLength: Space.x2)
+            Button(String(localized: "welcome.capturehint.gotit")) { center.closeCaptureHint() }
+                .kButton(.ghost, size: .compact)
+                .uiTestAnchor("onboarding.capturehint.close")
+        }
+        .uiTestAnchor("onboarding.capturehint")
     }
 
     private func group(_ labelKey: String, _ quests: [Quest], active: Quest) -> some View {
@@ -146,6 +167,7 @@ struct OnboardingCard: View {
                         .strikethrough(isDone)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: Metrics.minHit)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

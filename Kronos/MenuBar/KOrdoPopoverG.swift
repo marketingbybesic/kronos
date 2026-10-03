@@ -10,13 +10,23 @@
 import SwiftUI
 import KronosCore
 
+/// What the popover's shared action row does; the host decides, the row only reports the tap.
+struct PopoverFocusActions {
+    let showsStart: Bool
+    let onStart: () -> Void
+    let onNotNow: () -> Void
+    let onTomorrow: () -> Void
+}
+
 struct KOrdoPopoverG: View {
     let task: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)?
     let isPinned: Bool
     let onComplete: () -> Void
     let onUnpin: () -> Void
-    var onNotNow: (() -> Void)?
-    var onSnooze: (() -> Void)?
+    /// Start / Not now / Tomorrow: the shared row (same words as the Now card). Nil hides the row.
+    var actions: PopoverFocusActions?
+    /// The shared "where I left off" line, or nil.
+    var leftOff: String?
     @State private var isHoveringComplete = false
     @FocusState private var isCompleteFocused: Bool
     @Environment(\.chromaMode) private var chromaMode
@@ -114,30 +124,13 @@ struct KOrdoPopoverG: View {
         }
     }
 
-    /// "Not now" (skip without completing, no shame copy) and Snooze to tomorrow — plan
-    /// rev 9 feature J. Both are quiet text actions, same tone as Unpin above; neither
-    /// implies failure, so neither is styled differently from an ordinary control.
     @ViewBuilder
     private func secondaryActions(_ task: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)) -> some View {
-        if onNotNow != nil || onSnooze != nil {
-            HStack(spacing: Space.x4) {
-                if let onNotNow {
-                    Button(String(localized: "menubar.now.notnow"), action: onNotNow)
-                        .buttonStyle(.plain)
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textSecondary)   // favourites: secondary, not tertiary
-                        .fixedSize()
-                }
-                if let onSnooze {
-                    Button(String(localized: "menubar.now.snooze"), action: onSnooze)
-                        .buttonStyle(.plain)
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textSecondary)   // favourites: secondary, not tertiary
-                        .fixedSize()
-                }
-                Spacer(minLength: 0)
-            }
+        if let actions {
+            FocusActionsRow(showsStart: actions.showsStart, onStart: actions.onStart,
+                            onNotNow: actions.onNotNow, onTomorrow: actions.onTomorrow)
         }
+        if let leftOff { LeftOffLine(text: leftOff).padding(.top, Space.x2) }
     }
 
     private var completeButton: some View {
@@ -157,7 +150,7 @@ struct KOrdoPopoverG: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .kFocusRing(isCompleteFocused, radius: Radius.full)
+        .kFocusRing(isCompleteFocused, radius: Radius.full, circular: true)
         .focusable(true, interactions: .activate)
         .focused($isCompleteFocused)
         .focusEffectDisabled()

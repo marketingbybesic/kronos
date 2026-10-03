@@ -18,6 +18,7 @@ enum MenuBarSnapshots {
         [
             "menubar.popover": AnyView(popover(model: model)),
             "menubar.popover.pinned": AnyView(pinnedPopover(model: model)),
+            "menubar.popover.quiet": AnyView(quietPopover(model: model)),
             "menubar.popover.empty": AnyView(emptyPopover()),
             "menubar.popover.block": AnyView(blockPopover(model: model)),
             "menubar.popover.capture": AnyView(capturePopover(model: model)),
@@ -63,6 +64,7 @@ enum MenuBarSnapshots {
                 model.didMutate()
                 model.publishOrdoFocus(OrdoFocus(taskID: task.id, title: task.title, firstMove: task.firstMove,
                                                   listName: "All", remaining: 6))
+                model.publishShownListHead(ShownListHead(listName: "All", ids: [task.id]))
             }
     }
 
@@ -85,6 +87,31 @@ enum MenuBarSnapshots {
                 model.didMutate()
                 model.publishOrdoFocus(OrdoFocus(taskID: queued.id, title: queued.title, firstMove: nil,
                                                   listName: "All", remaining: 4))
+                model.publishShownListHead(ShownListHead(listName: "All", ids: [queued.id]))
+            }
+    }
+
+    /// The Now zone with the quiet time line: a fixture clock 12 minutes before the block ends.
+    private static func quietPopover(model: AppModel) -> some View {
+        let clock = FixtureClock(now: Date(timeIntervalSince1970: 1_790_000_000))
+        let quiet = MenuBarQuiet(clock: clock)
+        quiet.eventsOverride = [QuietEvent(title: "Globex call", start: clock.now.addingTimeInterval(-2880),
+                                           end: clock.now.addingTimeInterval(720))]
+        return PopoverContent(model: model, quiet: quiet, previewBlockSuggestion: .some(nil))
+            .onAppear {
+                guard model.store.allProjects().first(where: { $0.name == "Acme" }) == nil else { return }
+                let project = seedAcme(model)
+                model.scope = .project(project.id)
+                let task = model.store.create(title: "Send the September invoice to Acme", notes: "",
+                                               project: project, status: .todo, priority: .none, dueDay: nil)
+                model.store.setFirstMove(task.id, "Open the invoice template and fill in the September total")
+                for title in ["Chase the Acme PO number", "Draft the Acme renewal email"] {
+                    _ = model.store.create(title: title, notes: "", project: project, status: .todo, priority: .none, dueDay: nil)
+                }
+                model.didMutate()
+                model.publishOrdoFocus(OrdoFocus(taskID: task.id, title: task.title, firstMove: task.firstMove,
+                                                  listName: "All", remaining: 3))
+                model.publishShownListHead(ShownListHead(listName: "All", ids: [task.id]))
             }
     }
 
@@ -112,6 +139,7 @@ enum MenuBarSnapshots {
                 model.didMutate()
                 model.publishOrdoFocus(OrdoFocus(taskID: task.id, title: task.title, firstMove: task.firstMove,
                                                   listName: "All", remaining: 6))
+                model.publishShownListHead(ShownListHead(listName: "All", ids: [task.id]))
             }
     }
 
@@ -136,6 +164,7 @@ enum MenuBarSnapshots {
                 model.didMutate()
                 model.publishOrdoFocus(OrdoFocus(taskID: task.id, title: task.title, firstMove: task.firstMove,
                                                   listName: "All", remaining: 6))
+                model.publishShownListHead(ShownListHead(listName: "All", ids: [task.id]))
             }
     }
 

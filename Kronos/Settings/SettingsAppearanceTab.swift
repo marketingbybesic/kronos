@@ -17,6 +17,9 @@ struct SettingsAppearanceTab: View {
     @State private var editingSlotID: String?
     @State private var paletteSlots: [PaletteSlot] = ProjectPalettePrefs.slots
     @State private var rejectedSlotID: String?
+    /// The row being dragged by its grip and the gap (0...count) its insertion line is drawn in.
+    @State private var dragIndex: Int?
+    @State private var dragSlot: Int?
     @State private var customHexInput: String = ""
 
     init(model: AppModel) {
@@ -46,38 +49,6 @@ struct SettingsAppearanceTab: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
-
-            KHairline().padding(.vertical, Space.x1)
-
-            Text(String(localized: "settings.appearance.carriers.title"))
-                .font(Typo.metaStrong)
-                .foregroundStyle(Tok.textSecondary)
-            carrierToggle(String(localized: "settings.appearance.carriers.focusrow"), $carriers.focusRowGlyph)
-            carrierToggle(String(localized: "settings.appearance.carriers.nowcard"), $carriers.nowCard)
-            carrierToggle(String(localized: "settings.appearance.carriers.sidebar"), $carriers.sidebarProject)
-            carrierToggle(String(localized: "settings.appearance.carriers.menubar"), $carriers.menuBarTitle)
-                .onChange(of: carriers) { _, v in AppearancePrefs.colourCarriers = v }
-
-            KHairline().padding(.vertical, Space.x1)
-
-            SettingsRow(label: String(localized: "settings.appearance.colourby")) {
-                Picker("", selection: $colourBy) {
-                    Text(String(localized: "settings.appearance.colourby.project")).tag(RowColourBy.project)
-                    Text(String(localized: "settings.appearance.colourby.priority")).tag(RowColourBy.priority)
-                    Text(String(localized: "settings.appearance.colourby.effort")).tag(RowColourBy.effort)
-                    Text(String(localized: "settings.appearance.colourby.none")).tag(RowColourBy.none)
-                }
-                .labelsHidden()
-                .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
-                .onChange(of: colourBy) { _, v in AppearancePrefs.colourBy = v }
-            }
-        }
-
-        SettingsSection(title: String(localized: "settings.appearance.section.palette")) {
-            Text(String(localized: "settings.appearance.palette.help"))
-                .font(Typo.meta)
-                .foregroundStyle(Tok.textTertiary)
-            paletteEditor
         }
 
         SettingsSection(title: String(localized: "settings.appearance.section.layout")) {
@@ -110,6 +81,7 @@ struct SettingsAppearanceTab: View {
                     .toggleStyle(.switch)
                     .tint(Tok.textPrimary)
                     .labelsHidden()
+                    .accessibilityLabel(String(localized: "settings.appearance.nowcard"))
                     .uiTestAnchor("settings.appearance.nowcard.toggle")
             }
             // One line explaining exact behaviour (Kronos/List/TaskListScreen.swift's
@@ -120,6 +92,40 @@ struct SettingsAppearanceTab: View {
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                 Spacer()
+            }
+        }
+
+        SettingsAdvanced(tab: "appearance") {
+            SettingsSection(title: String(localized: "settings.appearance.carriers.title")) {
+                carrierToggle(String(localized: "settings.appearance.carriers.focusrow"), $carriers.focusRowGlyph)
+                    .uiTestAnchor("settings.appearance.carriers.focusrow")
+                carrierToggle(String(localized: "settings.appearance.carriers.nowcard"), $carriers.nowCard)
+                carrierToggle(String(localized: "settings.appearance.carriers.sidebar"), $carriers.sidebarProject)
+                carrierToggle(String(localized: "settings.appearance.carriers.menubar"), $carriers.menuBarTitle)
+                    .onChange(of: carriers) { _, v in AppearancePrefs.colourCarriers = v }
+
+                KHairline().padding(.vertical, Space.x1)
+
+                SettingsRow(label: String(localized: "settings.appearance.colourby")) {
+                    Picker("", selection: $colourBy) {
+                        Text(String(localized: "settings.appearance.colourby.project")).tag(RowColourBy.project)
+                        Text(String(localized: "settings.appearance.colourby.priority")).tag(RowColourBy.priority)
+                        Text(String(localized: "settings.appearance.colourby.effort")).tag(RowColourBy.effort)
+                        Text(String(localized: "settings.appearance.colourby.none")).tag(RowColourBy.none)
+                    }
+                    .labelsHidden()
+                    .accessibilityLabel(String(localized: "settings.appearance.colourby"))
+                    .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
+                    .onChange(of: colourBy) { _, v in AppearancePrefs.colourBy = v }
+                }
+            }
+
+            SettingsSection(title: String(localized: "settings.appearance.section.palette")) {
+                Text(String(localized: "settings.appearance.palette.help"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                paletteEditor
+                    .uiTestAnchor("settings.appearance.palette")
             }
         }
     }
@@ -150,6 +156,7 @@ struct SettingsAppearanceTab: View {
                 .toggleStyle(.switch)
                 .tint(Tok.textPrimary)
                 .labelsHidden()
+                .accessibilityLabel(label)
         }
     }
 
@@ -159,24 +166,55 @@ struct SettingsAppearanceTab: View {
         VStack(alignment: .leading, spacing: Space.x1) {
             ForEach(Array(paletteSlots.enumerated()), id: \.element.id) { index, slot in
                 paletteRow(slot, index: index)
+                    .overlay(alignment: .top) { if dragSlot == index { PaletteInsertionLine().offset(y: -Space.x1 / 2 - 1) } }
+                    .overlay(alignment: .bottom) {
+                        if dragSlot == paletteSlots.count, index == paletteSlots.count - 1 { PaletteInsertionLine().offset(y: Space.x1 / 2 + 1) }
+                    }
             }
         }
     }
 
-    // A plain VStack + ForEach has no drag-to-reorder gesture of its own (that needs a `List`
-    // in edit mode, which this scroll pane is not) — explicit up/down buttons give the same
-    // "reorder" outcome deterministically, matching KSortRuleRow's direction-toggle pattern
-    // above rather than the grip-handle drag used in real lists elsewhere in the app.
+    /// Drag by the grip: the row under the pointer decides the gap, the line shows it while the pointer moves, and
+    /// letting go files the row there. The arrows beside the grip do the same one step at a time, from the keyboard.
+    private func paletteDrag(index: Int) -> some Gesture {
+        let pitch = Double(Metrics.controlRegular + Space.x1)
+        return DragGesture(minimumDistance: 3, coordinateSpace: .local)
+            .onChanged { value in
+                let target = PaletteReorder.targetIndex(from: index, translation: Double(value.translation.height), pitch: pitch, count: paletteSlots.count)
+                dragIndex = index
+                dragSlot = PaletteReorder.insertionSlot(from: index, target: target)
+            }
+            .onEnded { value in
+                let target = PaletteReorder.targetIndex(from: index, translation: Double(value.translation.height), pitch: pitch, count: paletteSlots.count)
+                if let slot = PaletteReorder.insertionSlot(from: index, target: target) {
+                    ProjectPalettePrefs.move(fromOffsets: IndexSet(integer: index), toOffset: PaletteReorder.moveOffset(forSlot: slot))
+                    paletteSlots = ProjectPalettePrefs.slots
+                }
+                dragIndex = nil
+                dragSlot = nil
+            }
+    }
+
+    // A plain VStack + ForEach has no reorder gesture of its own (that needs a `List` in edit mode,
+    // which this scroll pane is not), so the grip carries a DragGesture and the arrows stay as the
+    // keyboard and VoiceOver path. Every control is at least 24 x 24 pt.
     private func paletteRow(_ slot: PaletteSlot, index: Int) -> some View {
         let baseHex = KProjectPalette.swatches.first(where: { $0.name == slot.baseName })?.hex ?? "FFFFFF"
         let resolvedHex = slot.resolvedHex(baseHex: baseHex)
         return HStack(spacing: Space.x2) {
-            VStack(spacing: 0) {
-                moveButton(icon: "chevron-up", enabled: index > 0) {
+            Icon("grip-vertical", size: Metrics.iconXS)
+                .foregroundStyle(dragIndex == index ? Tok.textPrimary : Tok.textTertiary)
+                .frame(width: Metrics.minHit, height: Metrics.minHit)
+                .contentShape(Rectangle())
+                .gesture(paletteDrag(index: index))
+                .accessibilityLabel(String(localized: "settings.appearance.palette.drag"))
+                .uiTestAnchor("settings.appearance.palette.grip.\(slot.id)")
+            HStack(spacing: 0) {
+                moveButton(icon: "chevron-up", enabled: index > 0, slotID: slot.id) {
                     ProjectPalettePrefs.move(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
                     paletteSlots = ProjectPalettePrefs.slots
                 }
-                moveButton(icon: "chevron-down", enabled: index < paletteSlots.count - 1) {
+                moveButton(icon: "chevron-down", enabled: index < paletteSlots.count - 1, slotID: slot.id) {
                     ProjectPalettePrefs.move(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
                     paletteSlots = ProjectPalettePrefs.slots
                 }
@@ -213,15 +251,16 @@ struct SettingsAppearanceTab: View {
         .frame(height: Metrics.controlRegular)
     }
 
-    private func moveButton(icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func moveButton(icon: String, enabled: Bool, slotID: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Icon(icon, size: Metrics.iconXS)
                 .foregroundStyle(enabled ? Tok.textTertiary : Tok.textDisabled)
-                .frame(width: Metrics.minHit, height: Metrics.minHit / 2)
+                .frame(width: Metrics.minHit, height: Metrics.minHit)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .uiTestAnchor("settings.appearance.palette.\(icon == "chevron-up" ? "up" : "down").\(slotID)")
         .accessibilityLabel(String(localized: icon == "chevron-up" ? "settings.appearance.palette.moveup" : "settings.appearance.palette.movedown"))
     }
 
@@ -278,5 +317,22 @@ private extension Color {
         if let match = KProjectPalette.swatches.first(where: { $0.color == self }) { return match.hex }
         let ns = NSColor(self).usingColorSpace(.sRGB) ?? NSColor(self)
         return String(format: "%02X%02X%02X", Int(ns.redComponent * 255), Int(ns.greenComponent * 255), Int(ns.blueComponent * 255))
+    }
+}
+
+/// The accent line with a dot at its start that marks where a dragged palette row will land, the same mark the
+/// inspector draws for a dragged step.
+private struct PaletteInsertionLine: View {
+    @Environment(\.kAccent) private var accent
+    private let dot: CGFloat = 8
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Rectangle().fill(accent).frame(height: 2)
+            Circle().fill(accent).frame(width: dot, height: dot).offset(x: -dot / 2)
+        }
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
+        .uiTestAnchor("settings.appearance.palette.insertion")
     }
 }

@@ -46,16 +46,17 @@ struct InspectorFooter: View {
 
             // Shell-level pill (KUndoPill.swift / AppShellView) so it shows regardless of
             // which screen is on top when the inspector's delete fires.
-            Button(String(localized: "detail.delete")) {
+            Button {
                 let title = task.title
                 model.store.softDelete(task.id)
                 model.didMutate()
                 UndoToastCenter.shared.show(String(format: String(localized: "undo.deleted.name"), title))
+            } label: {
+                Text(String(localized: "detail.delete")).kHitTarget()
             }
             .font(Typo.meta)
             .buttonStyle(.plain)
             .foregroundStyle(Tok.textTertiary)
-            .frame(height: Metrics.minHit)
         }
         .padding(.top, Space.x2)
     }

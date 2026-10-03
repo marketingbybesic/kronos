@@ -22,11 +22,11 @@ import KronosCore
 enum OrdoPresetOption: String, AppEnum {
     case deadline, quickwins, deepwork, priority, coach
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Ordo Preset"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Up Next Preset"
     static var caseDisplayRepresentations: [OrdoPresetOption: DisplayRepresentation] = [
         .deadline: "Deadline",
         .quickwins: "Quick Wins",
-        .deepwork: "Deep Work",
+        .deepwork: "Focused Work",
         .priority: "Priority",
         .coach: "Coach"
     ]

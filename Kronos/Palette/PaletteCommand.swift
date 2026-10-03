@@ -9,11 +9,12 @@ import KronosCore
 /// first, then Go to, then Tasks last — a query must never let task-search results push
 /// commands or scopes out of the visible window.
 enum PaletteGroup: Int, CaseIterable {
-    case bulk, create, session, coach, app, view, goTo, task
+    case bulk, selected, create, session, coach, app, view, goTo, task
 
     var titleKey: String {
         switch self {
         case .bulk:    return "palette.bulk.section"   // only offered while 2+ rows are selected
+        case .selected: return "palette.section.thistask"   // acts on the task in the inspector
         case .create:  return "list.new"
         case .session: return "palette.section.run"
         // Not in the catalog yet ("Coach") — reported, per brief §"every string through the
@@ -42,16 +43,24 @@ struct PaletteCommand: Identifiable {
     /// colour) instead of `glyph`'s generic folder symbol, matching list/sidebar identity.
     var projectIcon: String? = nil
     var projectColorHex: String? = nil
-    /// Key caps shown via KKeyHint, e.g. ["⌘", "K"]. Empty when the command has no shortcut
-    /// (still listed in the palette, just absent from the keymap sheet's rows).
-    let shortcut: [String]
+    /// The `HotkeyRegistry` entry whose binding this row advertises. The caps are read from the
+    /// registry every time they are drawn, so a rebind or a keyboard layout switch shows at once;
+    /// no row carries a literal key of its own. Nil when the command has no shortcut.
+    let registryID: String?
+    /// Catalog key of a small qualifier shown before the caps ("Due date" on "Tomorrow"), and
+    /// matched when searching, so a row named only "Tomorrow" is not ambiguous.
+    let detailKey: String?
+    /// True for a command whose second step happens inside the palette ("Move to…"): running it
+    /// must not close the card.
+    let keepsOpen: Bool
     let group: PaletteGroup
     let isAvailable: (AppModel) -> Bool
     let run: (AppModel) -> Void
 
     init(id: String, titleKey: String = "", literalTitle: String? = nil, glyph: String,
          projectIcon: String? = nil, projectColorHex: String? = nil,
-         shortcut: [String] = [], group: PaletteGroup,
+         registryID: String? = nil, detailKey: String? = nil, keepsOpen: Bool = false,
+         group: PaletteGroup,
          isAvailable: @escaping (AppModel) -> Bool = { _ in true },
          run: @escaping (AppModel) -> Void) {
         self.id = id
@@ -60,7 +69,9 @@ struct PaletteCommand: Identifiable {
         self.glyph = glyph
         self.projectIcon = projectIcon
         self.projectColorHex = projectColorHex
-        self.shortcut = shortcut
+        self.registryID = registryID
+        self.detailKey = detailKey
+        self.keepsOpen = keepsOpen
         self.group = group
         self.isAvailable = isAvailable
         self.run = run
@@ -71,12 +82,18 @@ struct PaletteCommand: Identifiable {
         return String(localized: String.LocalizationValue(titleKey))
     }
 
-    /// A Go-to project row is prefixed with its area, per spec §3.2. Returned by
-    /// `PaletteCommands` when constructing project rows; kept out of `title` itself so
-    /// search still matches on the bare project name.
-    func withLiteralTitle(_ text: String) -> PaletteCommand {
-        PaletteCommand(id: id, titleKey: titleKey, literalTitle: text, glyph: glyph,
-                        projectIcon: projectIcon, projectColorHex: projectColorHex,
-                        shortcut: shortcut, group: group, isAvailable: isAvailable, run: run)
+    var detail: String? {
+        detailKey.map { String(localized: String.LocalizationValue($0)) }
+    }
+
+    /// Key caps for the row, from the live registry binding (layout aware). Empty without one.
+    var shortcut: [String] {
+        guard let registryID, let binding = HotkeyRegistry.current(for: registryID) else { return [] }
+        return binding.displayKeys
+    }
+
+    /// Words matched besides the title: the qualifier, the section name and the synonyms.
+    var searchFields: [String] {
+        [title] + (detail.map { [$0] } ?? []) + [group.titleKey] + PaletteSynonyms.aliases(for: id)
     }
 }

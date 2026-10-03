@@ -29,17 +29,31 @@ public final class MCPLiveController: MCPStatusProviding {
     /// not call it until the first request needs a token (see MCPServer.swift) — so enabling
     /// MCP, including at launch via `applyStoredEnabledState()`, never itself reads the
     /// Keychain. A self-test MUST inject its own: an earlier self-test went through
-    /// `MCPKeychain.token()` and made macOS ask to let a binary called "selftest" read the
+    /// `MCPTokenStore.token()` and made macOS ask to let a binary called "selftest" read the
     /// real `kronos_mcp_token`.
     private let tokenProvider: @Sendable () -> String?
 
+    /// Where the agent registry comes from. `.standard` opens the device-local store of this
+    /// build's folder (the app); `.none` runs without agent bookkeeping (every caller is the
+    /// person); `.custom` is a hub the caller built (tests, over an in-memory store).
+    public enum AgentHubSource { case standard, none, custom(AgentHub) }
+    private let hubSource: AgentHubSource
+    /// The live hub once the server runs; Settings > Agents reads it.
+    public private(set) var hub: AgentHub?
+    /// What `next` offers: the list on screen. Installed by the app's binding (see MCPAppBinding).
+    public var nextProvider: (@MainActor () -> MCPNextCandidates?)?
+
+    /// Injecting a `tokenProvider` is a test or self-test: such a controller never opens the
+    /// device-local store unless it is given a hub explicitly.
     public init(store: any TaskStoring, ranking: any RankingProviding,
-                tokenProvider: @escaping @Sendable () -> String? = { MCPKeychain.token() },
+                tokenProvider: (@Sendable () -> String?)? = nil,
+                agentHub: AgentHubSource? = nil,
                 endpointDirectory: URL = MCPEndpointFile.defaultDirectory()) {
         self.endpointDirectory = endpointDirectory
         self.store = store
         self.ranking = ranking
-        self.tokenProvider = tokenProvider
+        self.tokenProvider = tokenProvider ?? { MCPTokenStore.token() }
+        self.hubSource = agentHub ?? (tokenProvider == nil ? .standard : AgentHubSource.none)
     }
 
     /// Called once at launch: starts the listener only if the stored preference says so.
@@ -66,7 +80,16 @@ public final class MCPLiveController: MCPStatusProviding {
         setEnabled(true)
     }
 
+    /// The app's own wiring (the list on screen for `next`, webhook delivery) lives in
+    /// `MCPAppBinding`, which only the app target compiles. It is found by its Objective-C name so
+    /// this file builds, and the self-tests run, without the rest of the app.
+    private func callAppBinding(_ selector: String) {
+        guard let cls = NSClassFromString("KronosMCPAppBinding") as? NSObject.Type else { return }
+        _ = cls.perform(NSSelectorFromString(selector), with: self)
+    }
+
     public func stop() {
+        if server != nil { callAppBinding("detachController:") }
         server?.stop()
         server = nil
         isRunning = false
@@ -78,7 +101,17 @@ public final class MCPLiveController: MCPStatusProviding {
 
     private func startServer() {
         guard server == nil else { return }
-        let s = MCPServer(dispatcher: MCPDispatcher(store: store, ranking: ranking), tokenProvider: tokenProvider)
+        let dispatcher = MCPDispatcher(store: store, ranking: ranking)
+        switch hubSource {
+        case .standard:
+            hub = hub ?? (try? AgentHub(directory: KronosStore.containerDirectory()))
+        case .custom(let h): hub = h
+        case .none: hub = nil
+        }
+        dispatcher.hub = hub
+        dispatcher.nextProvider = { [weak self] in self?.nextProvider?() }
+        callAppBinding("attachController:")
+        let s = MCPServer(dispatcher: dispatcher, tokenProvider: tokenProvider)
         // The token lives in a 0600 file now (no Keychain dialog), so it is created the moment
         // the server starts: the stdio bridge reads it before its first request.
         _ = tokenProvider()

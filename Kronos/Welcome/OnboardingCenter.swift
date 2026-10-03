@@ -20,7 +20,8 @@ final class OnboardingCenter {
     private(set) var state = OnboardingState()
     /// The quest that ticked last, for a moment of visible reward on the card.
     private(set) var justDone: Quest?
-    /// Set by AppDelegate: shows the permissions window once the basics are done.
+    /// Set by AppDelegate: shows the permissions window. The center never calls it directly: the
+    /// explainer ("Continue") comes first, and only its Continue button reaches this.
     var offerPermissions: (() -> Void)?
 
     private static let defaultsKey = "kronos.onboarding.v1"
@@ -28,15 +29,12 @@ final class OnboardingCenter {
     private var opened: Set<Quest> = []
     private weak var model: AppModel?
 
-    /// Snapshot / UI-test / self-test runs share the app's defaults domain: never read the
-    /// a user's tour state there (same three guards as WelcomeGate).
-    private static var isHermetic: Bool {
-        let env = ProcessInfo.processInfo.environment
-        return env["KRONOS_SNAPSHOT"] != nil || env["KRONOS_STORE_DIR"] != nil || env["KRONOS_SELFTEST"] != nil
-    }
+    /// Every flag lives in `KronosEnv.defaults`: the person's domain in a normal run, a throwaway
+    /// suite in a snapshot or live test, so a test never reads or writes the person's tour state.
+    private static var defaults: UserDefaults { KronosEnv.defaults }
 
     private init() {
-        if !Self.isHermetic, let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
+        if let data = Self.defaults.data(forKey: Self.defaultsKey),
            let saved = try? JSONDecoder().decode(OnboardingState.self, from: data) {
             state = saved
         }
@@ -67,7 +65,7 @@ final class OnboardingCenter {
     func reopen(model: AppModel) {
         self.model = model
         if state.startedAt == nil { start(model: model) }
-        state.powerDismissed = false
+        state.dismissed = false
         state.collapsed = false
         if phase == .finished {  // everything ticked: start over so the card has something to teach
             state = OnboardingState(startedAt: Date(), baselineAttachments: Self.attachmentCount(model.store),
@@ -83,16 +81,31 @@ final class OnboardingCenter {
     /// The circle on a quest row: the user says "done" (did it another way, or knows it).
     func markDone(_ quest: Quest) {
         guard state.startedAt != nil, !state.done.contains(quest) else { return }
+        noteHint(ticked: [quest])
         state.done.append(quest)
         justDone = quest
         KronosSounds.play(.subtask)
         save()
     }
 
-    func dismissPower() {
+    /// "Enough for now": the card goes away; Help > Learn Kronos brings it back.
+    func dismiss() {
         guard OnboardingLogic.canDismiss(state) else { return }
-        state.powerDismissed = true
+        state.dismissed = true
+        state.captureHintOpen = false
         save()
+    }
+
+    func closeCaptureHint() {
+        guard state.captureHintOpen else { return }
+        state.captureHintOpen = false
+        save()
+    }
+
+    /// The shortcut line opens with the first capture and closes when another quest ticks.
+    private func noteHint(ticked: [Quest]) {
+        if OnboardingLogic.captureHintOpens(ticked: ticked, state: state) { state.captureHintOpen = true }
+        else if OnboardingLogic.captureHintCloses(ticked: ticked) { state.captureHintOpen = false }
     }
 
     // MARK: Measuring
@@ -114,11 +127,12 @@ final class OnboardingCenter {
     /// Re-measures and ticks whatever the facts now prove. Cheap: one pass over the live tasks.
     func refresh(_ model: AppModel) {
         self.model = model
-        // Snapshot/UI-test runs import their seed AFTER a fixture's start time: never measure there.
-        guard !Self.isHermetic, let since = state.startedAt, phase != .finished else { return }
+        // A snapshot imports its seed AFTER a fixture's start time: never measure there.
+        guard !KronosEnv.isSnapshot, let since = state.startedAt, phase != .finished else { return }
         let before = phase
         let ticked = OnboardingLogic.newlyDone(facts(model.store, since: since), done: state.done)
         guard !ticked.isEmpty else { return }
+        noteHint(ticked: ticked)
         state.done += ticked
         justDone = ticked.last
         let basicsJustFinished: Bool = {
@@ -132,17 +146,20 @@ final class OnboardingCenter {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             if self?.justDone == shown { self?.justDone = nil }
         }
-        let permissionsShown = UserDefaults.standard.bool(forKey: "kronos.permissions.shownOnce")
+        let permissionsShown = Self.defaults.bool(forKey: "kronos.permissions.shownOnce")
         if OnboardingLogic.shouldOfferPermissions(state, permissionsAlreadyShown: permissionsShown) {
             state.permissionsOffered = true
             save()
-            offerPermissions?()
+            // Explain first; the system's own questions only follow the explainer's Continue.
+            PermissionsPrimerController.show(onContinue: { [weak self] in self?.offerPermissions?() })
         }
     }
 
     private func facts(_ store: TaskStore, since: Date) -> OnboardingFacts {
-        let tasks = store.allTasks()
-        let subtasks = tasks.flatMap { $0.subtasks ?? [] }
+        // The tour's own sample task and its steps are not the user's work.
+        let samples = Set(TourCenter.shared.sampleTaskIDs)
+        let tasks = store.allTasks().filter { !OnboardingLogic.isSampleRow(id: $0.id, parentID: nil, sampleIDs: samples) }
+        let subtasks = tasks.flatMap { $0.orderedChildren }
         var f = OnboardingFacts()
         f.tasksCreated = tasks.filter { $0.createdAt > since }.count
         f.subtasksCreated = subtasks.filter { $0.createdAt > since }.count
@@ -157,7 +174,7 @@ final class OnboardingCenter {
     private static func attachmentCount(_ store: TaskStore) -> Int {
         store.allTasks().reduce(0) { sum, t in
             sum + ContextLink.findAll(in: t.notes).count
-                + (t.subtasks ?? []).reduce(0) { $0 + ContextLink.findAll(in: $1.notes).count }
+                + t.orderedChildren.reduce(0) { $0 + ContextLink.findAll(in: $1.notes).count }
         }
     }
 
@@ -206,8 +223,8 @@ final class OnboardingCenter {
     }
 
     private func save() {
-        guard !Self.isHermetic, let data = try? JSONEncoder().encode(state) else { return }
-        UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+        guard !KronosEnv.isSnapshot, let data = try? JSONEncoder().encode(state) else { return }
+        Self.defaults.set(data, forKey: Self.defaultsKey)
     }
 
     /// Snapshot fixtures only: a fixed state, never persisted.

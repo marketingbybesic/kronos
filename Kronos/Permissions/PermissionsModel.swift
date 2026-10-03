@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import ApplicationServices
 import Observation
 import KronosCore
 
@@ -50,6 +51,8 @@ final class LivePermissionsStatus: PermissionsStatusProviding {
             }
         case .notes:
             return NotesPermissionReader.currentStatus()
+        case .selectedText:
+            return SelectedTextPermission.currentStatus()
         case .reminders:
             return EventKitReminders.permissionStatus()
         case .launchAtLogin:
@@ -79,5 +82,22 @@ enum NotesPermissionReader {
         case -600: return .notDetermined
         default: return .denied            // errAEEventNotPermitted (-1743) and anything else
         }
+    }
+}
+
+/// Accessibility, which quick add needs to read the text selected in another app. macOS cannot
+/// tell "never asked" from "switched off" here, so anything but trusted reads as not set up.
+enum SelectedTextPermission {
+    static func currentStatus() -> PermissionStatus {
+        AXIsProcessTrusted() ? .granted : .notDetermined
+    }
+
+    /// Shows the system dialog that leads to System Settings > Accessibility. Never under a
+    /// snapshot, the live UI test or a scratch store.
+    @MainActor
+    static func request() {
+        guard !KronosEnv.isHermetic else { return }
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options) // prompt-ok: only from the Permissions window's button
     }
 }

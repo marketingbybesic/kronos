@@ -166,6 +166,7 @@ struct CaptureReviewRow: View {
                 priorityColumn
                 effortColumn
                 deadlineColumn
+                labelPills
                 Spacer(minLength: 0)
             }
         }
@@ -273,9 +274,23 @@ struct CaptureReviewRow: View {
         }
     }
 
+    /// What the pasted line said that none of the pickers above shows: its `@label`s, as pills
+    /// (`EntryText.pills(for:)` is the one place that reads a proposal as pills; project,
+    /// priority, effort and due keep their pickers and the deadline text).
+    @ViewBuilder
+    private var labelPills: some View {
+        ForEach(EntryText.pills(for: row.proposal).filter { $0.slot == .label }, id: \.self) { pill in
+            KBadge(EntryFormat.pillText(pill), tint: Tok.textSecondary)
+                .lineLimit(1)
+                .frame(maxWidth: 180, alignment: .leading)
+                .uiTestAnchor("capture.row.pill.label")
+        }
+    }
+
     private var accessibilityLabel: String {
         var parts = [row.proposal.title]
         if let project = row.proposal.projectName { parts.append(project) }
+        parts.append(contentsOf: row.proposal.labelNames)
         parts.append(CapturePriorityOption(row.proposal.priority).title)
         parts.append(CaptureEffortOption(row.proposal.effort).title)
         if row.proposal.isDuplicateOfOpenTask { parts.append(String(localized: "capture.row.duplicate")) }
@@ -421,8 +436,7 @@ struct CaptureReviewRow: View {
     // MARK: Notes
 
     /// Editable once selected (matches "add subtask"); read-only + 2-line-clamped otherwise.
-    /// `KTextArea` has no focus/submit hook, but this row is in-memory review state only
-    /// (nothing on disk until Create), so committing every keystroke needs no debounce.
+    /// No debounce: this row is in-memory review state only (nothing on disk until Create).
     @ViewBuilder
     private var notesSection: some View {
         if !(row.proposal.notes ?? "").isEmpty || isSelected {
@@ -448,8 +462,7 @@ struct CaptureReviewRow: View {
     }
 }
 
-// MARK: - Identifiable option wrappers
-//
+// MARK: - Identifiable option wrappers.
 // KronosCore's `KPriority` and `KEffort` are plain raw-value enums (by design — the design
 // system must not depend on KronosCore types), so their menu labels are read through these
 // thin per-screen wrappers rather than widening either module's public surface.
@@ -483,17 +496,4 @@ private struct CaptureEffortOption: Identifiable, Hashable {
         }
     }
     init(_ value: KEffort) { self.value = value }
-}
-
-/// Mirrors the palette leaf's own short relative-date formatting approach (KronosLocale-aware,
-/// no dependency on another leaf's internals).
-enum CaptureDeadlineFormatter {
-    static func short(day: Int) -> String {
-        let date = KronosCore.Day.date(day, calendar: KronosLocale.calendar)
-        let formatter = DateFormatter()
-        formatter.locale = KronosLocale.current
-        formatter.calendar = KronosLocale.calendar
-        formatter.setLocalizedDateFormatFromTemplate("MMMd")
-        return formatter.string(from: date)
-    }
 }

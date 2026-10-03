@@ -1,3 +1,4 @@
+#if os(macOS)
 // L4 — MCP. Bearer token check over a raw `Authorization` header string, so
 // the HTTP transport (Kronos/MCP, Network.framework) can call one pure
 // function instead of re-parsing "Bearer <token>" itself.
@@ -17,3 +18,4 @@ public enum BearerAuth {
         return ConstantTime.equals(presented, expectedToken)
     }
 }
+#endif

@@ -99,7 +99,7 @@ enum SidebarSnapshots {
                 .onAppear {
                     guard !seeded else { return }
                     seeded = true
-                    // Real filters, so the row counts prove the count path (both read 37 with .empty).
+                    // Real filters, so the rows carry saved views of different shapes.
                     var waiting = KFilter(); waiting.statuses = [KStatus.waiting.rawValue]
                     var high = KFilter(); high.priorities = [KPriority.high.rawValue, KPriority.urgent.rawValue]
                     model.store.createSavedView(name: "Waiting on others",

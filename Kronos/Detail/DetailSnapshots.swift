@@ -12,6 +12,11 @@ import KronosCore
 enum DetailSnapshots {
     @MainActor
     static func screens(model: AppModel) -> [String: AnyView] {
+        baseScreens(model: model).merging(InspectorSnapshots.screens(model: model)) { first, _ in first }
+    }
+
+    @MainActor
+    private static func baseScreens(model: AppModel) -> [String: AnyView] {
         [
             "inspector.recurrence": AnyView(
                 KPanel {
@@ -28,6 +33,13 @@ enum DetailSnapshots {
             // not just this one) — the seed task and its four steps are created in
             // StepsSnapshotHost's own .onAppear instead.
             "inspector.steps": AnyView(StepsSnapshotHost(model: model)),
+            // Subtask mode: breadcrumb, title, due, priority, notes, links.
+            "inspector.subtask": AnyView(SubtaskSnapshotHost(model: model)),
+            // The reorder insertion line, between the third and fourth step.
+            "inspector.steps.drop": AnyView(StepsSnapshotHost(model: model, insertionSlot: 3)),
+            // A step's file chip attached on another Mac: dimmed, with "on Studio Mac".
+            "inspector.steps.foreign": AnyView(StepsSnapshotHost(model: model, foreignAttachment: true)),
+            "list.subtasks": AnyView(ListSubtaskRowsSnapshotHost(model: model)),
             // Break down preview, no existing subtasks: 5-step AI result plus the
             // first-move offer row (task starts with no first move).
             "inspector.breakdown": AnyView(BreakdownSnapshotHost(model: model, seedExistingSubtasks: false)),
@@ -263,13 +275,16 @@ private struct NoteCardSnapshotHost: View {
 /// shows the real InspectorStepsSection with its first step forced into rename mode.
 private struct StepsSnapshotHost: View {
     let model: AppModel
+    var insertionSlot: Int?
+    var foreignAttachment = false
     @State private var task: KTask?
 
     var body: some View {
         Group {
             if let task {
                 KPanel {
-                    InspectorStepsSection(model: model, task: task, forceRenameOnAppear: true)
+                    InspectorStepsSection(model: model, task: task, forceRenameOnAppear: insertionSlot == nil && !foreignAttachment,
+                                          previewInsertionSlot: insertionSlot)
                 }
                 .padding(Space.x4)
             } else {
@@ -297,7 +312,85 @@ private struct StepsSnapshotHost: View {
                 model.store.toggleSubtask(steps[0].id)
                 model.store.toggleSubtask(steps[1].id)
             }
+            // Rows that carry the compact due/priority marks, and one with an attachment chip.
+            if steps.count >= 6 {
+                model.store.setSubtaskDueDay(steps[2].id, Day.today() + 1)
+                model.store.setSubtaskPriority(steps[2].id, .high)
+                model.store.setSubtaskPriority(steps[3].id, .medium)
+                model.store.setSubtaskDueDay(steps[4].id, Day.today() + 9)
+                model.store.updateSubtaskNotes(steps[5].id, notes: ContextLink(kind: .web, reference: "https://example.com/brief", displayName: "example.com").encodedLine)
+            }
+            if foreignAttachment, steps.count >= 7 {
+                // This Mac and the one the file was attached on differ, so the chip is foreign.
+                DeviceOrigin.current = DeviceOrigin(id: "snapshot-here", name: "This Mac")
+                let file = ContextLink(kind: .file, reference: "/home/shared/Brief.pdf", displayName: "Brief.pdf")
+                    .stamped(with: DeviceOrigin(id: "snapshot-other", name: "Studio Mac"))
+                model.store.updateSubtaskNotes(steps[6].id, notes: file.encodedLine)
+            }
             task = seeded
+        }
+    }
+}
+
+/// The middle list with one task's subtask rows opened: compact due/priority marks and the ⓘ
+/// button on each row (the expand-all notification is the same one the E key posts).
+private struct ListSubtaskRowsSnapshotHost: View {
+    let model: AppModel
+    @State private var ready = false
+
+    var body: some View {
+        Group {
+            if ready { TaskListScreen(model: model) } else { Color.clear }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Tok.bg)
+        .onAppear {
+            guard !ready else { return }
+            model.searchText = "Plan the offsite"
+            let t = model.store.createNoUndo(title: "Plan the offsite", notes: "", project: nil,
+                                             status: .todo, priority: .medium, dueDay: Day.today() + 2)
+            for (i, title) in ["Book the venue", "Confirm catering", "Send the calendar hold"].enumerated() {
+                let sub = model.store.addSubtaskNoUndo(t.id, title: title)!
+                if i == 0 { model.store.toggleSubtaskNoUndo(sub.id, isDone: true) }
+                if i == 1 { sub.dueDay = Day.today() + 1; sub.priorityRaw = KPriority.high.rawValue }
+                if i == 2 { sub.dueDay = Day.today() + 5 }
+            }
+            model.didMutate()
+            ready = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NotificationCenter.default.post(name: .kronosExpandAllSubtasks, object: true)
+            }
+        }
+    }
+}
+
+/// The inspector in subtask mode: breadcrumb, title, due, priority, notes and a links section
+/// with a web chip and a file chip, through the real `InspectorScreen` with `inspectedSubtaskID` set.
+private struct SubtaskSnapshotHost: View {
+    let model: AppModel
+    @State private var ready = false
+
+    var body: some View {
+        Group {
+            if ready { InspectorScreen(model: model) } else { Color.clear }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Tok.bg)
+        .onAppear {
+            guard !ready else { return }
+            let parent = model.store.create(title: "Plan the Zagreb offsite", notes: "", project: nil,
+                                            status: .todo, priority: .none, dueDay: nil)
+            model.store.addSubtask(parent.id, title: "Book the venue")
+            let sub = model.store.addSubtask(parent.id, title: "Confirm catering for forty people and send the final headcount")!
+            model.store.setSubtaskDueDay(sub.id, Day.today() + 3)
+            model.store.setSubtaskPriority(sub.id, .high)
+            let links = [ContextLink(kind: .web, reference: "https://example.com/menus", displayName: "example.com"),
+                         ContextLink(kind: .file, reference: "/home/example/Documents/catering-quote.pdf", displayName: "catering-quote.pdf")]
+            let notes = links.reduce("Ask about vegetarian options and the allergy list.") { $1.appending(to: $0) }
+            model.store.updateSubtaskNotes(sub.id, notes: notes)
+            model.selectedTaskID = parent.id
+            model.inspectedSubtaskID = sub.id
+            ready = true
         }
     }
 }

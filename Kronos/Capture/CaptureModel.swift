@@ -22,6 +22,9 @@ final class CaptureModel {
     private(set) var droppedLineCount = 0
     private(set) var isDeterministic = true
     private(set) var createdCount = 0
+    /// The reminders whose tasks the last `create()` made (and stamped), in row order. The
+    /// "From Reminders" import completes exactly these in Reminders when that option is on.
+    private(set) var createdReminders: [ReminderItem] = []
     /// How many ticked duplicate rows were folded into existing tasks by the last `create()`.
     private(set) var mergedCount = 0
     /// Quiet one-line status while an AI upgrade is in flight. Never a spinner.
@@ -206,13 +209,15 @@ final class CaptureModel {
         extractTask?.cancel()
         isUpgrading = false
         rows = ordered.map { item in
-            CaptureRow(proposal: ProposedTask(
+            var row = CaptureRow(proposal: ProposedTask(
                 title: item.title,
                 projectName: RemindersMapping.matchProject(listName: item.listName, projectNames: names),
                 dueDay: item.due.map { Day.from($0, calendar: KronosLocale.calendar) },
                 notes: item.notes,
                 sourceLine: item.title,
                 isDuplicateOfOpenTask: foldedOpen.contains(KTextFold.fold(item.title))))
+            row.reminder = item
+            return row
         }
         droppedLineCount = 0
         isDeterministic = true
@@ -294,6 +299,7 @@ final class CaptureModel {
         }()
         var created = 0
         var merged = 0
+        var stamped: [ReminderItem] = []
         model.store.groupedUndo(String(localized: "undo.capture.create")) {
             // Rows that fold into an existing task: found again NOW (the task may have been
             // completed or deleted since the review opened; then the row becomes a new task, so
@@ -314,11 +320,19 @@ final class CaptureModel {
             for (row, task) in zip(newRows, made) where !row.subtasks.isEmpty {
                 model.store.addSubtasks(row.subtasks, to: task.id)
             }
+            // Origin stamp: the task made from a reminder row carries that reminder's identity,
+            // so a second import offers nothing twice, even when the title was edited in review.
+            for (row, task) in zip(newRows, made) {
+                guard let item = row.reminder, let ext = RemindersMapping.externalID(for: item) else { continue }
+                model.store.update(task.id) { $0.externalID = ext; $0.source = RemindersMapping.originSource }
+                stamped.append(item)
+            }
             created = made.count
         }
         model.didMutate()
         createdCount = created
         mergedCount = merged
+        createdReminders = stamped
         step = .done
     }
 

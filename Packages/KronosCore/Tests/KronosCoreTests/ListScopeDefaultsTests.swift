@@ -63,19 +63,14 @@ struct ListScopeDefaultsTests {
         }
     }
 
-    // Broadened from "the global panel" to every general-purpose scope: an undated task should
-    // land in Someday regardless of which general-purpose scope it was added from — nil (the
-    // global panel), Inbox and All must all land an undated task in Someday, not silently with
-    // no date under whichever of those the user happened to be looking at. An explicit date
-    // still makes it a normal open task, same shape as every scoped case above. Note: for
-    // `.inbox`, this means an undated task typed while looking at Inbox will NOT show in Inbox
-    // — `ScopeFilter.matches(.inbox)` (Kronos/Shared/ScopeFilter.swift:19) excludes
-    // `status == .someday` by definition; it shows in Someday instead, by design.
-    @Test func noScopeInboxAndAllDefaultToSomedayWithoutADate() {
+    // The Inbox rule: with no date, a task typed into nothing, Inbox or All stays an open todo with
+    // no due day and no project, which is exactly what ScopeFilter.matches(.inbox) lists. Someday is
+    // never filled in for a missing date. An explicit date still wins and keeps .todo.
+    @Test func noScopeInboxAndAllDefaultToAnOpenTodoInTheInbox() {
         let kinds: [QuickAddScopeKind?] = [nil, .inbox, .all]
         for kind in kinds {
             let noDate = ListScopeDefaults.apply(scope: kind, explicitDueDay: nil, today: today)
-            #expect(noDate == .init(status: .someday, dueDay: nil, areaID: nil), "\(String(describing: kind))")
+            #expect(noDate == .init(status: .todo, dueDay: nil, areaID: nil), "\(String(describing: kind))")
             let withDate = ListScopeDefaults.apply(scope: kind, explicitDueDay: today + 9, today: today)
             #expect(withDate == .init(status: .todo, dueDay: today + 9, areaID: nil), "\(String(describing: kind))")
         }

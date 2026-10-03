@@ -46,7 +46,7 @@ public enum KSortKey: String, Codable, CaseIterable, Sendable {
     case status
     case priority
     case effort
-    /// `dueDay`. Called "deadline" in the UI; tasks without one sort last.
+    /// `effectiveDue` (own day, or an earlier undone subtask day). Called "deadline" in the UI; tasks without one sort last.
     case deadline
     case project
     case area
@@ -132,7 +132,7 @@ public enum KTaskSorter {
             // other absent value rather than ahead of every xs task.
             return t.effort == .none ? .absent : .int(t.effortRaw)
         case .deadline:
-            return t.dueDay.map { Value.int($0) } ?? .absent
+            return t.effectiveDue.map { Value.int($0) } ?? .absent
         case .project:
             guard let n = t.project?.name, !n.isEmpty else { return .absent }
             return .text(KTextFold.fold(n))

@@ -27,7 +27,7 @@ enum TriageQueue {
     /// forever and the badge sat at 22 next to "All 22" (audit F2).
     static func ordered(in tasks: [KTask]) -> [KTask] {
         tasks
-            .filter { KStatus.open.contains($0.status) && $0.needsTriage && isMissingData($0) }
+            .filter { !$0.isSubtask && $0.reviewRaw != 1 && KStatus.open.contains($0.status) && $0.needsTriage && isMissingData($0) }
             .sorted {
                 if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
                 return $0.id.uuidString < $1.id.uuidString

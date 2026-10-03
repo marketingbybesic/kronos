@@ -20,7 +20,7 @@ extension TaskStore {
 
     /// Ids of every blocked task among `tasks` (default: every live task), one fetch.
     public func blockedIDs(in tasks: [KTask]? = nil) -> Set<UUID> {
-        let all = allTasks()
+        let all = allTasksIncludingSubtasks()
         return DependencyGraph.blocked(in: tasks ?? all, lookup: all)
     }
 
@@ -45,7 +45,29 @@ extension TaskStore {
 
     /// True when making `id` wait on `other` would create a cycle (or is the task itself).
     public func wouldCreateCycle(_ id: UUID, waitingOn other: UUID) -> Bool {
-        DependencyGraph.wouldCycle(id, waitingOn: other, edges: edgeMap(allTasks()))
+        DependencyGraph.wouldCycle(id, waitingOn: other, edges: edgeMap(allTasksIncludingSubtasks()))
+    }
+
+    /// What the "Waits on" picker offers `id`: open live tasks INCLUDING child tasks (a child is
+    /// a full task and can be waited on), never the task itself, never one already chosen, never
+    /// one that would close a loop. `query` is matched folded against `waitsOnDisplayName`, so
+    /// typing a parent's title also lists its children. Sorted by that name, at most `limit`.
+    public func waitsOnCandidates(for id: UUID, query: String, limit: Int = 8) -> [KTask] {
+        guard let me = task(id) else { return [] }
+        let all = allTasksIncludingSubtasks()
+        let edges = edgeMap(all)
+        let have = Set(me.waitsOn)
+        let needle = KTextFold.fold(query.trimmingCharacters(in: .whitespacesAndNewlines))
+        let named = all.compactMap { t -> (KTask, String)? in
+            guard t.id != id, KStatus.open.contains(t.status), !have.contains(t.id) else { return nil }
+            let name = KTextFold.fold(t.waitsOnDisplayName)
+            guard needle.isEmpty || name.contains(needle) else { return nil }
+            guard !DependencyGraph.wouldCycle(id, waitingOn: t.id, edges: edges) else { return nil }
+            return (t, name)
+        }
+        return named
+            .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.0.id.uuidString < $1.0.id.uuidString }
+            .prefix(limit).map(\.0)
     }
 
     private func edgeMap(_ tasks: [KTask]) -> [UUID: [UUID]] {
@@ -55,7 +77,7 @@ extension TaskStore {
     }
 
     private func acceptedWaitsOn(_ id: UUID, _ ids: [UUID]) -> (accepted: [UUID], allOK: Bool) {
-        let all = allTasks()
+        let all = allTasksIncludingSubtasks()
         let live = Set(all.map(\.id))
         var edges = edgeMap(all)
         edges[id] = []
@@ -71,6 +93,15 @@ extension TaskStore {
             edges[id] = accepted
         }
         return (accepted, allOK)
+    }
+}
+
+extension KTask {
+    /// How a dependency names this task: "Parent › Child" for a child task (its title alone
+    /// is ambiguous outside its parent's row), else the title.
+    public var waitsOnDisplayName: String {
+        guard let parent else { return title }
+        return parent.title + " › " + title
     }
 }
 

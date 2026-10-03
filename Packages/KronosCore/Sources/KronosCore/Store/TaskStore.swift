@@ -37,36 +37,51 @@ public enum StoreError: Error, LocalizedError {
 public final class TaskStore: TaskStoring {
     public let container: ModelContainer
     public let context: ModelContext
-    public let undoManager: UndoManager
 
-    public init(inMemory: Bool = false) throws {
-        let schema = Schema(versionedSchema: KronosSchemaV1.self)
+    public convenience init(inMemory: Bool = false) throws {
+        try self.init(storeURL: inMemory ? nil : KronosStore.storeURL())
+    }
+
+    /// Opens the store file at `storeURL` (nil: in memory). The app passes the one location
+    /// `KronosStore` decides; tests and tools open a copy or a second handle on the same file.
+    public init(storeURL: URL?) throws {
+        let schema = Schema(versionedSchema: KronosSchemaV2.self)
         let config: ModelConfiguration
-        if inMemory {
-            config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true,
+        if let storeURL {
+            config = ModelConfiguration(schema: schema, url: storeURL,
                                          cloudKitDatabase: KronosStore.cloudKitDatabaseSetting)
         } else {
-            config = ModelConfiguration(schema: schema, url: KronosStore.storeURL(),
+            config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true,
                                          cloudKitDatabase: KronosStore.cloudKitDatabaseSetting)
         }
         self.container = try ModelContainer(for: schema,
                                             migrationPlan: KronosMigrationPlan.self,
                                             configurations: [config])
         self.context = container.mainContext
-        let um = UndoManager()
-        um.groupsByEvent = false
-        self.undoManager = um
-        context.undoManager = um
     }
 
     // MARK: - Fetch helpers
 
-    /// Soft-deleted tasks are excluded from every fetch.
+    /// Every live row, subtasks included. Lookups and sweeps only — never a list.
     public var livePredicate: Predicate<KTask> {
         #Predicate<KTask> { $0.deletedAt == nil }
     }
 
+    /// The list predicate: live AND top-level. Subtasks are never rows of their own in a
+    /// list, count, Today, ORDO, triage, menu bar or MCP list; they appear under their parent.
+    public static var topLevelPredicate: Predicate<KTask> {
+        #Predicate<KTask> { $0.deletedAt == nil && $0.parentID == nil }
+    }
+
+    /// Live top-level tasks — what every list, count and scope reads.
     public func allTasks() -> [KTask] {
+        let d = FetchDescriptor<KTask>(predicate: Self.topLevelPredicate)
+        return (try? context.fetch(d)) ?? []
+    }
+
+    /// Live tasks INCLUDING subtasks: search, dependency edges, sweeps that must touch every
+    /// row. Never use it to build a list (a gate keeps its callers to an allowlist).
+    public func allTasksIncludingSubtasks() -> [KTask] {
         let d = FetchDescriptor<KTask>(predicate: livePredicate)
         return (try? context.fetch(d)) ?? []
     }
@@ -89,78 +104,60 @@ public final class TaskStore: TaskStoring {
     //
     // SwiftData's automatic UndoManager registration proved unreliable for
     // scalar writes (undo reports success, the row keeps the new value), so
-    // Kronos registers its own inverse closures over a full field snapshot.
-    // One closure == one undo step, exactly like one explicit group.
+    // Kronos registers its own inverse closures over a field snapshot (`TaskSnapshot`, see
+    // TaskStore+Mutations.swift). One closure == one undo step, exactly like one explicit group.
+    // The snapshot is diffed: a step restores only the fields its own mutation changed.
 
-    private struct TaskSnapshot {
-        var title: String, notes: String, firstMove: String?
-        var statusRaw: Int, priorityRaw: Int, depthRaw: Int, effortRaw: Int, dread: Bool
-        var energyKindRaw: Int?, estimateMinutes: Int?
-        var dueDay: Int?, originalDueDay: Int?, completedAt: Date?
-        var sortIndex: Double, ordoIndex: Double?
-        var deletedAt: Date?, needsTriage: Bool
-        var project: KProject?
-        /// The scalar mirrors `#Predicate` reads. They must be snapshotted
-        /// alongside `project`: restoring the relationship alone left a row
-        /// claiming, say, `isProjectArchived == true` after its project's
-        /// archiving had been undone, so filters kept hiding it.
-        var projectID: UUID?, areaID: UUID?, isProjectArchived: Bool
-        var recurrenceRule: String?, seriesID: UUID?
-        var waitsOnIDs: String
-        var labels: [KLabel]
-        var subtaskStates: [(id: UUID, title: String, isDone: Bool, sortIndex: Double)]
-
-        init(_ t: KTask) {
-            title = t.title; notes = t.notes; firstMove = t.firstMove
-            statusRaw = t.statusRaw; priorityRaw = t.priorityRaw
-            depthRaw = t.depthRaw; effortRaw = t.effortRaw; dread = t.dread
-            energyKindRaw = t.energyKindRaw; estimateMinutes = t.estimateMinutes
-            dueDay = t.dueDay; originalDueDay = t.originalDueDay
-            completedAt = t.completedAt
-            sortIndex = t.sortIndex; ordoIndex = t.ordoIndex
-            deletedAt = t.deletedAt; needsTriage = t.needsTriage
-            project = t.project
-            projectID = t.projectID; areaID = t.areaID
-            isProjectArchived = t.isProjectArchived
-            recurrenceRule = t.recurrenceRule; seriesID = t.seriesID
-            waitsOnIDs = t.waitsOnIDs
-            labels = t.labels ?? []
-            subtaskStates = (t.subtasks ?? []).map { ($0.id, $0.title, $0.isDone, $0.sortIndex) }
-        }
-
-        func apply(to t: KTask) {
-            t.title = title; t.notes = notes; t.firstMove = firstMove
-            t.statusRaw = statusRaw; t.priorityRaw = priorityRaw
-            t.depthRaw = depthRaw; t.effortRaw = effortRaw; t.dread = dread
-            t.energyKindRaw = energyKindRaw; t.estimateMinutes = estimateMinutes
-            t.dueDay = dueDay; t.originalDueDay = originalDueDay
-            t.completedAt = completedAt
-            t.sortIndex = sortIndex; t.ordoIndex = ordoIndex
-            t.deletedAt = deletedAt; t.needsTriage = needsTriage
-            t.project = project
-            t.projectID = projectID; t.areaID = areaID
-            t.isProjectArchived = isProjectArchived
-            t.recurrenceRule = recurrenceRule; t.seriesID = seriesID
-            t.waitsOnIDs = waitsOnIDs
-            t.labels = labels
-            for state in subtaskStates {
-                if let s = (t.subtasks ?? []).first(where: { $0.id == state.id }) {
-                    s.title = state.title; s.isDone = state.isDone; s.sortIndex = state.sortIndex
-                }
-            }
-        }
-    }
+    /// The undo stack never holds more than this many steps; the oldest fall off first.
+    public static let undoLimit = 200
 
     // internal, not private: the extensions in TaskStore+*.swift need these.
-    var undoStack: [(name: String, run: () -> Void)] = []
-    var redoStack: [(name: String, run: () -> Void)] = []
+    var undoStack: [UndoEntry] = [] {
+        didSet { trimUndoStack() }
+    }
+    var redoStack: [UndoEntry] = []
+    /// While above zero the cap is not applied: a group or a machine write inspects and
+    /// truncates the stack by index, and a trim in the middle would shift those indices.
+    var undoTrimSuspension = 0
     /// True while a machine write (MCP, import, night sweep) runs through `withoutUndo`:
     /// those must not announce a completion (no sound when Claude ticks a task).
     var isMachineWrite = false
+    var groupDepth = 0
 
+    /// The error of the last failed save; nil again after the next successful one.
+    public internal(set) var lastSaveError: Error?
+    // Save-failure bookkeeping (see TaskStore+Projects.swift). The overrides are the test seams:
+    // an injected failing save, the folder for emergency/pre-purge files, the clock mark store.
+    var saveFailureNotified = false
+    var lastEmergencyWrite: Date?
+    var saveOverride: (() throws -> Void)?
+    var backupsDirectoryOverride: URL?
+    var purgeClockMarkOverride: DayKeyValueStore?
+
+    func trimUndoStack() {
+        guard undoTrimSuspension == 0, undoStack.count > Self.undoLimit else { return }
+        undoStack.removeFirst(undoStack.count - Self.undoLimit)
+    }
+
+    /// Runs `body` with the undo cap suspended, then applies it once.
+    func withUndoTrimSuspended<T>(_ body: () -> T) -> T {
+        undoTrimSuspension += 1
+        defer { undoTrimSuspension -= 1; trimUndoStack() }
+        return body()
+    }
+
+    /// Save, and surface a failure instead of swallowing it: `lastSaveError`, one
+    /// `.kronosSaveFailed` per burst of failures, an emergency JSON export. The context
+    /// stays dirty, so the next save retries every pending change.
     func saveContext() {
         context.processPendingChanges()
-        if context.hasChanges { try? context.save() }
+        guard context.hasChanges else { return }
+        do {
+            if let saveOverride { try saveOverride() } else { try context.save() }
+            noteSaveSucceeded()
+        } catch {
+            noteSaveFailed(error)
+        }
     }
 
     public func undo() {
@@ -173,6 +170,14 @@ public final class TaskStore: TaskStoring {
         guard let step = redoStack.popLast() else { return }
         step.run()
         saveContext()
+    }
+
+    /// Drops every pending undo and redo step; the data is untouched. The live UI test calls it
+    /// between steps so a step that counts undo depth never starts at the cap (where a push
+    /// cannot change the depth). The app itself never calls it.
+    public func clearUndoHistory() {
+        undoStack.removeAll()
+        redoStack.removeAll()
     }
 
     public var canUndo: Bool { !undoStack.isEmpty }
@@ -198,8 +203,6 @@ public final class TaskStore: TaskStoring {
     // closure at undo time, so harvesting must happen there, not up front.
     // The composed REDO then replays them in forward order.
 
-    private var groupDepth = 0
-
     /// Collapse every mutation performed inside `body` into ONE undo step and
     /// ONE redo step, named `name`.
     ///
@@ -211,6 +214,9 @@ public final class TaskStore: TaskStoring {
         // A nested call is already inside a group; let the outermost collapse.
         guard groupDepth == 0 else { body(); return }
 
+        // The cap waits until the children are collapsed: `base` indexes into the stack.
+        undoTrimSuspension += 1
+        defer { undoTrimSuspension -= 1; trimUndoStack() }
         let base = undoStack.count
         let redoBefore = redoStack
         groupDepth += 1
@@ -225,8 +231,9 @@ public final class TaskStore: TaskStoring {
         }
         let children = Array(undoStack[base...])
         undoStack.removeLast(undoStack.count - base)
+        let touched = UndoEntry.union(children)
 
-        undoStack.append((name, { [weak self] in
+        undoStack.append(UndoEntry(name, touching: touched) { [weak self] in
             guard let self else { return }
             // Reverse order: the last mutation is undone first.
             var childRedos: [() -> Void] = []
@@ -242,13 +249,13 @@ public final class TaskStore: TaskStoring {
             }
             // childRedos is in undo order (reverse); replay forward.
             let forward = childRedos.reversed().map { $0 }
-            self.redoStack.append((name, { [weak self] in
+            self.redoStack.append(UndoEntry(name, touching: touched) { [weak self] in
                 guard let self else { return }
                 for redo in forward { redo() }
                 self.saveContext()
-            }))
+            })
             self.saveContext()
-        }))
+        })
         redoStack.removeAll()
         saveContext()
     }
@@ -278,16 +285,17 @@ public final class TaskStore: TaskStoring {
     /// A hidden row is invisible to every `allTasks()` reader, which is what
     /// "never existed" means to every UI surface.
     func pushSoftDeleteUndoStep(_ name: String, _ task: KTask) {
-        undoStack.append((name, { [weak self] in
+        let touched: Set<UUID> = [task.id]
+        undoStack.append(name, touching: touched) { [weak self] in
             guard let self else { return }
             task.deletedAt = Date()
             self.saveContext()
-            self.redoStack.append((name, { [weak self] in
+            self.redoStack.append(name, touching: touched) { [weak self] in
                 guard let self else { return }
                 task.deletedAt = nil
                 self.saveContext()
-            }))
-        }))
+            }
+        }
         redoStack.removeAll()
     }
 
@@ -300,18 +308,19 @@ public final class TaskStore: TaskStoring {
     func deleteUndoable<T: PersistentModel>(_ name: String,
                                             _ model: T,
                                             rebuild: @escaping () -> T) {
+        let touched = Self.undoTag(model)
         context.delete(model)
         saveContext()
-        undoStack.append((name, { [weak self] in
+        undoStack.append(UndoEntry(name, touching: touched) { [weak self] in
             guard let self else { return }
             let fresh = rebuild()
             self.context.insert(fresh)
             self.saveContext()
-            self.redoStack.append((name, { [weak self] in
+            self.redoStack.append(UndoEntry(name, touching: touched) { [weak self] in
                 guard let self else { return }
                 self.deleteUndoable(name, fresh, rebuild: rebuild)
-            }))
-        }))
+            })
+        })
         redoStack.removeAll()
     }
 
@@ -321,7 +330,7 @@ public final class TaskStore: TaskStoring {
     func pushCreateUndoStep<T: PersistentModel>(_ name: String,
                                                 _ model: T,
                                                 rebuild: @escaping () -> T) {
-        undoStack.append((name, { [weak self] in
+        undoStack.append(UndoEntry(name, touching: Self.undoTag(model)) { [weak self] in
             guard let self else { return }
             self.deleteUndoable(name, model, rebuild: rebuild)
             // deleteUndoable arms an undo step for the delete it just did;
@@ -329,13 +338,15 @@ public final class TaskStore: TaskStoring {
             if let step = self.undoStack.popLast() {
                 self.redoStack.append(step)
             }
-        }))
+        })
         redoStack.removeAll()
     }
 
-    /// Mutate a task inside an undoable step: captures the before-snapshot
-    /// and the after-snapshot, so undo restores "before" and redo replays
-    /// "after". Both directions are snapshot restores, never inverse logic.
+    /// Mutate a task inside an undoable step. Before and after are snapshotted and DIFFED: the
+    /// step remembers which fields this mutation changed, undo writes back only those fields
+    /// (so a machine write to another field between the edit and Cmd-Z survives), redo replays
+    /// only those too. A mutation that changes nothing pushes no step, leaves the redo stack
+    /// alone and does not bump `updatedAt`.
     ///
     /// This is the ONE place every mutation — undoable (`update`) and
     /// no-undo (`updateNoUndo`/MCP, `applyTriage`, `snooze`) alike — passes
@@ -349,16 +360,21 @@ public final class TaskStore: TaskStoring {
         let before = TaskSnapshot(t)
         mutate(t)
         applyAutomaticStatusRule(to: t, dueDayBefore: before.dueDay)
-        t.updatedAt = Date()
         let after = TaskSnapshot(t)
-        undoStack.append((name, { [weak self] in
+        let changed = after.changedFields(from: before)
+        // Fields outside the snapshot may still have been written: save, but no undo step.
+        guard !changed.isEmpty else { saveContext(); return }
+        t.updatedAt = Date()
+        undoStack.append(name, touching: [id]) { [weak self] in
             guard let self, let live = self.taskIncludingDeleted(id) else { return }
-            before.apply(to: live)
-            self.redoStack.append((name, { [weak self] in
+            before.apply(to: live, only: changed, resolveTask: { self.taskIncludingDeleted($0) })
+            live.updatedAt = Date()
+            self.redoStack.append(name, touching: [id]) { [weak self] in
                 guard let self, let live2 = self.taskIncludingDeleted(id) else { return }
-                after.apply(to: live2)
-            }))
-        }))
+                after.apply(to: live2, only: changed, resolveTask: { self.taskIncludingDeleted($0) })
+                live2.updatedAt = Date()
+            }
+        }
         redoStack.removeAll()
         saveContext()
     }
@@ -368,15 +384,15 @@ public final class TaskStore: TaskStoring {
     /// closed (done/canceled) statuses never auto-change (only a manual status pick moves a
     /// task in or out of `.waiting`, and completion/cancellation owns itself). Someday is
     /// never a manual switch any more (`InspectorStatusSection`'s toggle now reads/writes
-    /// `.waiting`), so this is the ONLY writer of `.someday` for an existing task — matching
-    /// `ListScopeDefaults.apply` (QuickAdd/ListScopeDefaults.swift), which already applies
-    /// the identical rule at CREATE time.
+    /// `.waiting`), so this is the ONLY writer of `.someday` for an existing task. A task
+    /// CREATED without a date is different: it stays an open `.todo` in the Inbox
+    /// (`ListScopeDefaults.apply`); only clearing a date later moves it to Someday.
     ///
     /// Fires only when THIS mutation actually changed the due day — renaming an undated
     /// todo task, or any edit that leaves `dueDay` untouched, must never move its status.
     /// No migration: an existing task's status is left alone until its own due day next
     /// changes (brief: "NO migration of existing tasks at launch").
-    private func applyAutomaticStatusRule(to t: KTask, dueDayBefore: Int?) {
+    func applyAutomaticStatusRule(to t: KTask, dueDayBefore: Int?) {
         guard t.dueDay != dueDayBefore else { return }
         guard KStatus.open.contains(t.status), t.status != .waiting else { return }
         if t.dueDay != nil {
@@ -411,7 +427,7 @@ public final class TaskStore: TaskStoring {
         case .ordo:
             return allTasks().compactMap(\.ordoIndex)
         case .subtasks(let t):
-            return (t.subtasks ?? []).map(\.sortIndex)
+            return (t.children ?? []).map(\.sortIndex)
         case .projects(let area):
             return (area?.projects ?? []).map(\.sortIndex)
         case .areas:
@@ -438,26 +454,4 @@ public final class TaskStore: TaskStoring {
         default: return (scopeIndices(scope).min() ?? 1024) - 1024
         }
     }
-
-    /// The index that puts `moving` directly before `target` in an ordered
-    /// list, or at the end when `target` is nil — the mean of the target and
-    /// the row above it, §5.2's between-index rule.
-    ///
-    /// `rows` must already be in display order. The moving row is excluded
-    /// from both the neighbour search and the append maximum: its own index
-    /// is about to change, so using it as one half of the mean would place
-    /// the row on top of itself.
-    func betweenIndex(for moving: UUID, before target: UUID?,
-                      in rows: [(id: UUID, idx: Double)]) -> Double {
-        guard let target, target != moving,
-              let i = rows.firstIndex(where: { $0.id == target }) else {
-            return (rows.filter { $0.id != moving }.map(\.idx).max() ?? -1024) + 1024
-        }
-        let targetIdx = rows[i].idx
-        guard let above = rows[..<i].last(where: { $0.id != moving }) else {
-            return targetIdx - 1024
-        }
-        return (above.idx + targetIdx) / 2
-    }
-
 }

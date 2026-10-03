@@ -19,44 +19,95 @@ enum QuickAddCreate {
     /// date × scope matrix, with a hand-tabled test there; explicit text (a parsed date) always
     /// overrides the scope's own date default. `scopeKind(for:)` below maps the app's own
     /// `ListScope` onto Core's app-agnostic mirror of it.
+    ///
+    /// `pills` are the committed attributes of an entry field (destination, label, priority,
+    /// effort, date): defaults for EVERY task line of the text, overridden per line by a token
+    /// typed in that line. A destination that does not exist yet (`isNew`) is created once,
+    /// inside the same undo step, and reused by the lines that name it.
+    ///
+    /// A line that reads "every week" / "svaki tjedan" repeats: its first due day is the date
+    /// typed in the line, or today (the next named weekday for "every Monday"). `links` are the
+    /// context chips of the quick add panel (a web page, a mail, files, a note): written onto the
+    /// FIRST task, inside the same undo step.
     @discardableResult
     static func create(from text: String, model: AppModel, fallbackProject: KProject? = nil,
-                        scope: ListScope? = nil, isWaiting: Bool = false) -> [KTask] {
+                        scope: ListScope? = nil, isWaiting: Bool = false,
+                        pills: [EntryPill] = [], links: [ContextLink] = []) -> [KTask] {
         let today = Day.today(calendar: KronosLocale.calendar)
-        let all = model.store.allProjects()
-        let names = all.map(\.name)
-        let parser = QuickAddParser()
+        let store = model.store
+        let catalog = EntryCatalog.make(store: store)
+        var projects = store.allProjects()
         var made: [KTask] = []
-        model.store.groupedUndo(String(localized: "undo.quickadd")) {
+        var used: [EntryRecents.Key] = []
+
+        func existingOrNewProject(_ d: EntryDestination) -> KProject? {
+            if let id = d.id, let p = projects.first(where: { $0.id == id }) { return p }
+            let key = KTextFold.fold(d.name)
+            if let p = projects.first(where: { KTextFold.fold($0.name) == key }) { return p }
+            guard d.isNew else { return nil }
+            let p = store.createProject(name: d.name)
+            projects.append(p)
+            return p
+        }
+
+        store.groupedUndo(String(localized: "undo.quickadd")) {
             for item in TaskOutline.parse(text) {
-                let result = parser.parse(item.line, projects: names, today: today)
+                let result = EntryDraft.resolve(text: item.line, pills: pills, directory: catalog.directory, today: today,
+                                                readsRepeat: true)
                 guard !result.title.isEmpty else { continue }
-                let project = result.projectName.flatMap { name in all.first { $0.name == name } } ?? fallbackProject
+                var project: KProject?
+                var areaID: UUID?
+                if let dest = result.destination {
+                    switch dest.kind {
+                    case .project: project = existingOrNewProject(dest)
+                    case .area: areaID = dest.id
+                    }
+                } else {
+                    project = fallbackProject
+                }
+                let repeatPhrase = result.repeatPhrase
+                let explicitDue = result.dueDay ?? repeatPhrase?.firstDue(today: today, calendar: KronosLocale.calendar)
                 let defaults = ListScopeDefaults.apply(scope: scopeKind(for: scope),
-                                                        explicitDueDay: result.dueDay, today: today,
+                                                        explicitDueDay: explicitDue, today: today,
                                                         isWaiting: isWaiting)
-                let task = model.store.create(title: result.title, notes: "", project: project,
-                                               status: defaults.status, priority: result.priority,
-                                               dueDay: defaults.dueDay)
-                if let areaID = defaults.areaID, project == nil {
-                    model.store.update(task.id) { $0.areaID = areaID }
+                let task = store.create(title: result.title, notes: "", project: project,
+                                        status: defaults.status, priority: result.priority,
+                                        dueDay: defaults.dueDay)
+                if let areaID = areaID ?? (project == nil ? defaults.areaID : nil) {
+                    store.update(task.id) { $0.areaID = areaID }
                 }
                 if let labelName = result.labelName {
-                    let label = model.store.label(named: labelName)
-                    model.store.update(task.id) { $0.labels?.append(label) }
+                    let label = store.label(named: labelName)
+                    store.update(task.id) { $0.labels?.append(label) }
+                    used.append(.label(labelName))
                 }
-                if let effort = result.effort { model.store.setEffort(task.id, effort) }
-                if !item.subtasks.isEmpty { model.store.addSubtasks(item.subtasks, to: task.id) }
+                if let effort = result.effort { store.setEffort(task.id, effort) }
+                if let repeatPhrase, let first = task.dueDay {
+                    store.setRecurrence(task.id, repeatPhrase.rule(firstDue: first, calendar: KronosLocale.calendar).wireFormat)
+                }
+                if made.isEmpty {
+                    // Never an empty reference (a chip that can never open).
+                    let usable = links.filter { !$0.reference.isEmpty }
+                    if !usable.isEmpty {
+                        store.update(task.id) { t in t.notes = usable.reduce(t.notes) { $1.appending(to: $0) } }
+                    }
+                }
+                if !item.subtasks.isEmpty { store.addSubtasks(item.subtasks, to: task.id) }
+                if let p = project, result.destination != nil { used.append(.project(p.id)) }
+                if let a = areaID, result.destination != nil { used.append(.area(a)) }
                 made.append(task)
             }
         }
-        if !made.isEmpty { model.didMutate() }
+        if !made.isEmpty {
+            EntryRecents().record(used)
+            model.didMutate()
+        }
         return made
     }
 
     /// `ListScope` (Kronos/Shared/UIContract.swift) -> Core's app-agnostic mirror of it, case
     /// for case.
-    private static func scopeKind(for scope: ListScope?) -> QuickAddScopeKind? {
+    static func scopeKind(for scope: ListScope?) -> QuickAddScopeKind? {
         switch scope {
         case .inbox: return .inbox
         case .today: return .today

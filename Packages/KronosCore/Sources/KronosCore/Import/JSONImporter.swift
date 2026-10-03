@@ -145,18 +145,23 @@ public final class JSONImporter {
             if let l = labelsByName[KLabel(name: name).mergeKey] { resolved.append(l) }
         }
         if !tagNames.isEmpty { t.labels = resolved }
-        // Subtasks: replace current set (import is authoritative).
-        if let subs = s.subtasks {
-            for old in t.subtasks ?? [] { store.context.delete(old) }
-            var newSubs: [KSubtask] = []
+        // Subtasks: replace the current set (import is authoritative). A step is a child task.
+        if let subs = s.subtasks, t.parentID == nil {
+            for old in t.children ?? [] { store.context.delete(old) }
+            var newSubs: [KTask] = []
             for (i, sub) in subs.enumerated() {
-                let k = KSubtask(title: sub.title, sortIndex: sub.sortIndex ?? Double(i))
-                k.isDone = sub.isDone ?? false
-                k.task = t
+                let k = KTask(title: sub.title, notes: "", project: t.project)
+                k.parent = t
+                k.parentID = t.id
+                store.inheritPlacement(k, from: t)
+                k.sortIndex = sub.sortIndex ?? Double(i)
+                k.status = (sub.isDone ?? false) ? .done : .todo
+                k.completedAt = (sub.isDone ?? false) ? (s.updatedAt ?? Date()) : nil
+                k.needsTriage = false
                 store.context.insert(k)
                 newSubs.append(k)
             }
-            t.subtasks = newSubs
+            t.children = newSubs
         }
     }
 }

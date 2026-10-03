@@ -186,11 +186,17 @@ public struct ExportedSubtask: Codable, Equatable {
     /// The subtask's attachment lines. Optional so a file written before subtasks had notes
     /// still imports (missing ⇒ "").
     public var notes: String?
+    /// O15: optional due day for subtasks (additive field).
+    public var dueDay: String?
+    /// O15: optional priority for subtasks (additive field).
+    public var priority: Int?
 
     public init(id: UUID, title: String, isDone: Bool, sortIndex: Double,
-                createdAt: Date, updatedAt: Date, notes: String? = nil) {
+                createdAt: Date, updatedAt: Date, notes: String? = nil,
+                dueDay: String? = nil, priority: Int? = nil) {
         self.id = id; self.title = title; self.isDone = isDone; self.sortIndex = sortIndex
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.notes = notes
+        self.dueDay = dueDay; self.priority = priority
     }
 }
 
@@ -231,12 +237,39 @@ public struct ExportedTask: Codable, Equatable {
     public var source: String?
     public var projectID: UUID?
     public var labelIDs: [UUID]
+    /// Previous format: steps inside their task. Current exports write steps as tasks with
+    /// `parentID`, so this is empty unless a store still holds unmigrated legacy rows; the
+    /// importer reads both.
     public var subtasks: [ExportedSubtask]
+    /// The parent task of a subtask (one level). Optional: absent for a top-level task and in
+    /// every file written before subtasks became tasks.
+    public var parentID: UUID?
     /// w22e: ids this task waits on. Optional so an older v1 file still imports (missing = none)
     /// and a task with no dependencies exports byte-identically to before.
     public var waitsOn: [UUID]?
+    /// The day the person means to do the task. Optional: absent when unplanned and in every file
+    /// written before planning existed, so an unplanned task exports exactly as it used to.
+    public var plannedDay: String?
+    /// How many days an unfinished deadline carried. Absent when zero.
+    public var carryCount: Int?
     public var createdAt: Date
     public var updatedAt: Date
+    // Schema V2 fields. Every one is optional and absent at its default, so a task that never
+    // used them exports exactly as before and an older file imports with the defaults.
+    /// Fields the last auto-triage filled (comma-joined), absent when none.
+    public var triageFilledFields: String?
+    /// Fields set explicitly that triage never overwrites (comma-joined), absent when none.
+    public var lockedFields: String?
+    /// Review state of an agent's proposal (1 pending, 2 approved, 3 rejected, 4 done by the
+    /// agent, awaiting a check), absent when 0.
+    public var review: Int?
+    public var contextJSON: String?
+    public var resultJSON: String?
+    public var agentID: UUID?
+    /// 1 = assigned to an agent, absent when 0 (the person).
+    public var assignee: Int?
+    /// Links, files and images, absent when none.
+    public var attachments: [ExportedAttachment]?
 
     public init(id: UUID, title: String, notes: String, firstMove: String?, status: Int,
                 priority: Int, depth: Int, effort: Int?, dread: Bool, energyKind: Int?,
@@ -247,8 +280,12 @@ public struct ExportedTask: Codable, Equatable {
                 recurrenceRule: String?, seriesID: UUID?, calendarEventID: String?,
                 externalID: String?, source: String?, projectID: UUID?, labelIDs: [UUID],
                 subtasks: [ExportedSubtask], createdAt: Date, updatedAt: Date,
-                waitsOn: [UUID]? = nil) {
+                waitsOn: [UUID]? = nil, parentID: UUID? = nil,
+                plannedDay: String? = nil, carryCount: Int? = nil) {
+        self.plannedDay = plannedDay
+        self.carryCount = carryCount
         self.waitsOn = waitsOn
+        self.parentID = parentID
         self.id = id; self.title = title; self.notes = notes; self.firstMove = firstMove
         self.status = status; self.priority = priority; self.depth = depth
         self.effort = effort; self.dread = dread; self.energyKind = energyKind
@@ -298,8 +335,36 @@ public struct ExportedTask: Codable, Equatable {
         labelIDs = try c.decodeIfPresent([UUID].self, forKey: .labelIDs) ?? []
         subtasks = try c.decodeIfPresent([ExportedSubtask].self, forKey: .subtasks) ?? []
         waitsOn = try c.decodeIfPresent([UUID].self, forKey: .waitsOn)
+        parentID = try c.decodeIfPresent(UUID.self, forKey: .parentID)
+        plannedDay = try c.decodeIfPresent(String.self, forKey: .plannedDay)
+        carryCount = try c.decodeIfPresent(Int.self, forKey: .carryCount)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        triageFilledFields = try c.decodeIfPresent(String.self, forKey: .triageFilledFields)
+        lockedFields = try c.decodeIfPresent(String.self, forKey: .lockedFields)
+        review = try c.decodeIfPresent(Int.self, forKey: .review)
+        contextJSON = try c.decodeIfPresent(String.self, forKey: .contextJSON)
+        resultJSON = try c.decodeIfPresent(String.self, forKey: .resultJSON)
+        agentID = try c.decodeIfPresent(UUID.self, forKey: .agentID)
+        assignee = try c.decodeIfPresent(Int.self, forKey: .assignee)
+        attachments = try c.decodeIfPresent([ExportedAttachment].self, forKey: .attachments)
+    }
+}
+
+/// A task's link, file or image (schema V2). File and image bytes travel base64-encoded.
+public struct ExportedAttachment: Codable, Equatable {
+    public var id: UUID
+    public var kind: Int
+    public var title: String
+    public var url: String?
+    public var data: Data?
+    public var byteCount: Int
+    public var createdAt: Date
+
+    public init(id: UUID, kind: Int, title: String, url: String?, data: Data?,
+                byteCount: Int, createdAt: Date) {
+        self.id = id; self.kind = kind; self.title = title; self.url = url
+        self.data = data; self.byteCount = byteCount; self.createdAt = createdAt
     }
 }
 
@@ -314,13 +379,59 @@ public enum KronosExportCodec {
     public static func makeEncoder() -> JSONEncoder {
         let enc = JSONEncoder()
         enc.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
-        enc.dateEncodingStrategy = .iso8601
+        enc.dateEncodingStrategy = .custom { date, encoder in
+            var c = encoder.singleValueContainer()
+            try c.encode(ExportDate.string(from: date))
+        }
         return enc
     }
 
     public static func makeDecoder() -> JSONDecoder {
         let dec = JSONDecoder()
-        dec.dateDecodingStrategy = .iso8601
+        dec.dateDecodingStrategy = .custom { decoder in
+            let c = try decoder.singleValueContainer()
+            let text = try c.decode(String.self)
+            guard let date = ExportDate.date(from: text) else {
+                throw DecodingError.dataCorruptedError(in: c, debugDescription: "Not an ISO 8601 date: \(text)")
+            }
+            return date
+        }
         return dec
+    }
+}
+
+/// Dates in export and backup files: ISO 8601 UTC with milliseconds (`2026-10-02T09:15:30.123Z`),
+/// so a round trip keeps the order of rows created within the same second. Reading accepts both
+/// that form and the older whole-second form (`...30Z`), and numeric offsets.
+public enum ExportDate {
+    /// The fraction is cut off and re-added as integer milliseconds: the stock format styles floor a
+    /// value such as `...20.123` (stored as `...20.12299`) to `.122`, which is a 1 ms drift per round trip.
+    public static func string(from date: Date) -> String {
+        let ms = Int64((date.timeIntervalSince1970 * 1000).rounded())
+        let seconds = Int64((Double(ms) / 1000).rounded(.down))
+        let millis = ms - seconds * 1000
+        let whole = Date(timeIntervalSince1970: Double(seconds)).formatted(Date.ISO8601FormatStyle())
+        let fraction = String(format: ".%03d", Int(millis))
+        guard whole.hasSuffix("Z") else { return whole + fraction }
+        return String(whole.dropLast()) + fraction + "Z"
+    }
+
+    public static func date(from text: String) -> Date? {
+        var whole = text
+        var fraction = 0.0
+        if let r = whole.range(of: #"\.\d+"#, options: .regularExpression) {
+            fraction = Double("0" + whole[r]) ?? 0
+            whole.removeSubrange(r)
+        }
+        guard let base = parseWhole(whole) else { return nil }
+        return base.addingTimeInterval(fraction)
+    }
+
+    private static func parseWhole(_ text: String) -> Date? {
+        if let d = try? Date.ISO8601FormatStyle().parse(text) { return d }
+        // Numeric offsets (+02:00) and any other valid internet date-time the format style rejects.
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: text)
     }
 }

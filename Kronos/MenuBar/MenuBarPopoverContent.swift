@@ -26,6 +26,8 @@ private enum MenuBarZone: Hashable { case now, capture }
 /// `AppShellView`'s root — see Accent.swift).
 struct PopoverContent: View {
     let model: AppModel
+    /// The quiet boundary lines (shared with the status item, which ticks it every minute).
+    var quiet = MenuBarQuiet()
     var focusCaptureOnAppear: Bool = false
     /// Snapshot-only override for the BLOCK section (nil in the real app). `model.coach`'s
     /// block state only ever populates from a live `EventKitCalendar` via
@@ -38,7 +40,6 @@ struct PopoverContent: View {
     var previewBlockSuggestion: BlockSuggestion?? = nil
 
     @State private var justCompleted: (taskID: UUID, wasSubtask: Bool)?
-    @State private var skippedThisSession: Set<UUID> = []
     @State private var captureText = ""
     @FocusState private var focusedField: MenuBarFocusField?
     /// The event currently offered for linking — set by the strip's per-chip "Link" action
@@ -56,27 +57,20 @@ struct PopoverContent: View {
     /// same pattern this view already uses for `resolved`/`nextRows` reading `model` live.
     private var blockTasks: TimeBlocksModel { TimeBlocksModel(model: model) }
 
-   private var resolved: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)? {
-       let _ = model.version
-       if let blockID = blockTasks.blockFocusTaskID, let task = model.store.task(blockID) {
-            return (task.id, task.title, FirstMoveLogic.text(for: task), model.ordoFocus.remaining, task.project)
-       }
-       if let pinID = model.pinnedFocusTaskID, let task = model.store.task(pinID) {
-            return (task.id, task.title, FirstMoveLogic.text(for: task), model.ordoFocus.remaining, task.project)
-       }
-       let focus = model.ordoFocus
-       guard let id = focus.taskID else { return nil }
-       if let task = model.store.task(id) {
-            return (id, focus.title, FirstMoveLogic.text(for: task), focus.remaining, task.project)
-       }
-        return (id, focus.title, focus.firstMove, focus.remaining, nil)
-   }
+    private var resolved: (id: UUID, title: String, firstMove: String?, remaining: Int, project: KProject?)? {
+        let _ = model.version
+        guard let id = MenuBarFocusResolver.taskID(model: model) else { return nil }
+        guard let task = model.store.task(id) else { return (id, model.ordoFocus.title, model.ordoFocus.firstMove, model.ordoFocus.remaining, nil) }
+        return (task.id, task.title, FirstMoveLogic.text(for: task), model.ordoFocus.remaining, task.project)
+    }
 
     /// Block precedence also lists the block's tasks first in the popover, not just the top
     /// focus row — `MenuBarBlockFocus.reordered` (hand-tested) puts them ahead of the normal
     /// open-list order, focus row excluded either way.
     private var nextRows: [KTask] {
-        let rows = MenuBarNextRows.rows(model: model, scope: model.scope, focusTaskID: resolved?.id, excluding: skippedThisSession)
+        let rows = MenuBarFocusResolver.eligible(
+            MenuBarNextRows.rows(model: model, scope: model.scope, focusTaskID: resolved?.id, excluding: []),
+            model: model)
         guard blockTasks.blockFocusTaskID != nil else { return rows }
         let orderedIDs = MenuBarBlockFocus.reordered(listIDs: rows.map(\.id), blockTaskIDs: blockTasks.focusTaskIDs, focusID: resolved?.id)
         let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
@@ -88,8 +82,8 @@ struct PopoverContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             KSegmented(selection: $zone, segments: [
-                KSegment(value: MenuBarZone.now, icon: "circle-dot", label: String(localized: "menubar.zone.now")),
-                KSegment(value: MenuBarZone.capture, icon: "pencil", label: String(localized: "menubar.zone.capture"))
+                KSegment(value: MenuBarZone.now, icon: "circle-dot", text: String(localized: "menubar.zone.now")),
+                KSegment(value: MenuBarZone.capture, icon: "pencil", text: String(localized: "menubar.zone.capture"))
             ])
             .accessibilityLabel(String(localized: "menubar.zone.title"))
 
@@ -115,7 +109,10 @@ struct PopoverContent: View {
         .onAppear {
             // Never touches EventKit when a snapshot fixture is supplied: no real calendar
             // access, no consent prompt, ever, from an automated run.
-            if previewBlockSuggestion == nil { Task { await model.coach.refreshBlocks() } }
+            if previewBlockSuggestion == nil {
+                Task { await model.coach.refreshBlocks(); quiet.tick(model: model) }
+            }
+            quiet.tick(model: model)
             if focusCaptureOnAppear {
                 zone = .capture
                 focusedField = .capture
@@ -135,7 +132,16 @@ struct PopoverContent: View {
     private var nowZone: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             KOrdoPopoverG(task: resolved, isPinned: isPinned, onComplete: complete, onUnpin: unpin,
-                          onNotNow: resolved != nil ? notNow : nil, onSnooze: resolved != nil ? snooze : nil)
+                          actions: focusActions, leftOff: leftOffText)
+            if let line = quiet.popoverText {
+                Text(line)
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(line)
+                    .uiTestAnchor("menubar.quietline")
+                    .onAppear { quiet.markLongShown() }
+            }
             if let justCompleted {
                 KUndoPill(message: String(format: String(localized: "undo.completed.name"),
                                           model.store.task(justCompleted.taskID)?.title ?? ""),
@@ -143,6 +149,9 @@ struct PopoverContent: View {
                           onExpire: { self.justCompleted = nil })
             }
             MenuBarNextSection(rows: nextRows, onSelect: pin)
+            if resolved != nil {
+                MenuBarTellOrdo(model: model, queue: [resolved?.id].compactMap { $0 }.compactMap { model.store.task($0) } + nextRows)
+            }
         }
     }
 
@@ -170,7 +179,7 @@ struct PopoverContent: View {
     /// when present so tapping a LATER unmatched chip's Link still opens that one.
     private var defaultUnmatchedEvent: KCalendarEvent? {
         guard previewBlockSuggestion == nil else { return nil }
-        let now = Date()
+        let now = quiet.now
         let lead = TimeInterval(max(0, model.coach.settings.blockLeadMinutes) * 60)
         return model.coach.todaysBlocks
             .filter { $0.projectID == nil && $0.event.start <= now.addingTimeInterval(lead) && $0.event.end > now }
@@ -198,15 +207,18 @@ struct PopoverContent: View {
     }
 
     private var footerRow: some View {
-        HStack(spacing: Space.x4) {
+        HStack(spacing: Space.x1) {
             Button(String(localized: "menubar.footer.quickadd"), action: openQuickAdd)
-                .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary).fixedSize()
+                .kButton(.ghost, size: .compact).fixedSize()
             Button(String(localized: "menubar.footer.open"), action: openKronosWindow)
-                .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary).fixedSize()
+                .kButton(.ghost, size: .compact).fixedSize()
             Button(String(localized: "menubar.footer.settings"), action: openSettings)
-                .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary).fixedSize()
+                .kButton(.ghost, size: .compact).fixedSize()
             Spacer(minLength: 0)
         }
+        // The ghost buttons carry their own inset; pull the first one back so its text lines up
+        // with the content above.
+        .padding(.leading, -Space.x3)
     }
 
     private func projectName(_ id: UUID) -> String? { model.store.allProjects().first { $0.id == id }?.name }
@@ -233,24 +245,29 @@ struct PopoverContent: View {
         model.pinnedFocusTaskID = nil
     }
 
-    /// Skip to the next task WITHOUT completing and without shame copy — a session-local
-    /// set, never a store write: pinning the next row is enough to move on, and the skipped
-    /// task simply reappears next time the popover opens fresh.
-    private func notNow() {
-        guard let id = resolved?.id else { return }
-        skippedThisSession.insert(id)
-        if let next = nextRows.first(where: { $0.id != id }) ?? nextRows.first {
-            model.pinnedFocusTaskID = next.id
-        } else if model.pinnedFocusTaskID == id {
-            model.pinnedFocusTaskID = nil
-        }
+    /// Start / Not now / Tomorrow through the shared actions: Start begins the task (in progress, pinned),
+    /// Not now sets it aside for today and moves the pin to the next eligible row, Tomorrow snoozes it.
+    private var focusActions: PopoverFocusActions? {
+        guard let id = resolved?.id, let task = model.store.task(id) else { return nil }
+        let started = task.status == .inProgress && model.pinnedFocusTaskID == id
+        return PopoverFocusActions(
+            showsStart: !started,
+            onStart: { FocusStart.begin(task, model: model, followFirstMove: true) },
+            onNotNow: {
+                let next = nextRows.first { $0.id != id }
+                FocusStart.notNow(task, nextRowID: next?.id, model: model)
+            },
+            onTomorrow: {
+                model.store.snooze(id)
+                if model.pinnedFocusTaskID == id { model.pinnedFocusTaskID = nil }
+                model.didMutate()
+                UndoToastCenter.shared.show(String(localized: "nowcard.undo.tomorrow"))
+            })
     }
 
-    private func snooze() {
-        guard let id = resolved?.id else { return }
-        model.store.snooze(id)
-        if model.pinnedFocusTaskID == id { model.pinnedFocusTaskID = nil }
-        model.didMutate()
+    private var leftOffText: String? {
+        guard let id = resolved?.id, let task = model.store.task(id) else { return nil }
+        return LeftOffLine.text(for: task, hero: resolved?.firstMove ?? task.title)
     }
 
     private func pin(_ task: KTask) {

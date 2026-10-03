@@ -48,14 +48,17 @@ enum ViewOptionsMapper {
         descriptors.map { KSortRule(field: sortField($0.key), ascending: $0.ascending) }
     }
 
-    /// `[KSortRule]` -> `[KSortDescriptor]`. "Manual" is exclusive (spec): if the caller
-    /// picked Manual, every other rule is dropped, matching the popover's own behaviour
-    /// where choosing Manual removes the other rows.
+    /// `[KSortRule]` -> `[KSortDescriptor]`, one to one and in order. Whether Manual stays or goes
+    /// next to other rows is `ViewOptions.resolveSort`'s call (it needs the previous list).
     static func descriptors(from rules: [KSortRule]) -> [KSortDescriptor] {
-        if let manual = rules.first(where: { sortKey($0.field) == .manual }) {
-            return [KSortDescriptor(key: .manual, ascending: manual.ascending)]
-        }
-        return rules.map { KSortDescriptor(key: sortKey($0.field), ascending: $0.ascending) }
+        rules.map { KSortDescriptor(key: sortKey($0.field), ascending: $0.ascending) }
+    }
+
+    /// `opts` after the sort editor produced `rules`: the one call behind the popover's sort section.
+    /// The editor lists a manual order as a row, so an added criterion arrives next to it; Core decides
+    /// which one wins (`ViewOptions.replacingSort`).
+    static func sortEdit(_ rules: [KSortRule], on opts: ViewOptions) -> ViewOptions {
+        opts.replacingSort(with: descriptors(from: rules))
     }
 
     // MARK: - Filter fields
@@ -247,6 +250,8 @@ enum ViewOptionsMapper {
     }
 
     // MARK: - Chip labels (KActiveRulesBar)
+    // The bar's trailing button now reads "Clear all" (`viewoptions.clearall`). The old key "viewoptions.reset"
+    // ("Reset") has no other use; the strings leaf deletes it, because only it may delete catalog keys.
 
     /// One chip per sort rule, e.g. "Priority ↓".
     static func sortChipText(_ d: KSortDescriptor) -> String {

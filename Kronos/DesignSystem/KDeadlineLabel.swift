@@ -23,21 +23,12 @@ public struct KDeadlineLabel: View {
                 .lineLimit(1)
                 .fixedSize()
             if let carryDays, carryDays > 0 {
-                Text("\(carryDays)d")
-                    .font(Typo.count)
-                    .foregroundStyle(Tok.textSecondary)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, Space.x1 + 2)
-                    .frame(height: 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
-                    )
-                    .kBorder(Tok.hairline, radius: Radius.chip)
+                // A passive value, so the shared passive pill (KTag), not a bespoke plate.
+                KTag("\(carryDays)d", tone: Tok.textSecondary)
                     // GAP (reported): deadline.carried.accessibility ("Carried over") has
                     // no day count — appending the number rather than dropping it or
                     // inventing a pluralized translation.
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(String(localized: "deadline.carried.accessibility")) \(carryDays)")
             }
         }

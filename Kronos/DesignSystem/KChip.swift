@@ -1,6 +1,9 @@
 // Kronos/DesignSystem/KChip.swift
-// Filter/sort chip with an optional leading glyph slot and optional trailing chevron
-// (menu) or clear (✕). Usage:
+// The INTERACTIVE pill: it does something on click (opens a menu, removes a rule, edits a slot).
+// 24 pt (`Metrics.chipHeight`, its own hit target), `Radius.chip`, hairline border, the ✕
+// inside the border. A pill that only shows a value is a KTag. The app has exactly these two
+// pill shapes; the capsule is reserved for the undo pill.
+// Optional leading glyph slot and optional trailing chevron (menu) or clear (✕). Usage:
 //   KChip("Status is Todo", trailing: .clear) { onRemove() }
 //   KChip("Priority", trailing: .chevron) { openMenu() }
 //   KChip("Acme", leading: { KProjectGlyph(color: .orange, emoji: "🌵", size: Metrics.iconS) })
@@ -13,17 +16,25 @@ public struct KChip<Leading: View>: View {
     var trailing: Trailing
     let onTap: () -> Void
     var onTrailingTap: (() -> Void)?
+    /// Live-UI-test anchor of the ✕ button (nil outside a test run's needs).
+    var trailingAnchorID: String?
     @ViewBuilder let leading: () -> Leading
     @State private var isHovering = false
     @FocusState private var isFocused: Bool
 
     public init(_ text: String, trailing: Trailing = .none, onTap: @escaping () -> Void = {},
-                onTrailingTap: (() -> Void)? = nil, @ViewBuilder leading: @escaping () -> Leading) {
+                onTrailingTap: (() -> Void)? = nil, trailingAnchorID: String? = nil,
+                @ViewBuilder leading: @escaping () -> Leading) {
         self.text = text
         self.trailing = trailing
         self.onTap = onTap
         self.onTrailingTap = onTrailingTap
+        self.trailingAnchorID = trailingAnchorID
         self.leading = leading
+    }
+
+    @ViewBuilder private func anchored<V: View>(_ v: V) -> some View {
+        if let id = trailingAnchorID { v.uiTestAnchor(id) } else { v }
     }
 
     public var body: some View {
@@ -47,7 +58,7 @@ public struct KChip<Leading: View>: View {
                 // text/glyph took a click.
                 .padding(.leading, Space.x2)
                 .padding(.trailing, trailing == .clear ? Space.x1 : Space.x2)
-                .frame(height: 24)
+                .frame(height: Metrics.chipHeight)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -56,13 +67,13 @@ public struct KChip<Leading: View>: View {
             .accessibilityLabel(text)
             .accessibilityAddTraits(.isButton)
             if trailing == .clear {
-                Button(action: { (onTrailingTap ?? onTap)() }) {
+                anchored(Button(action: { (onTrailingTap ?? onTap)() }) {
                     Icon("x", size: Metrics.iconXS)
                         .foregroundStyle(isHovering ? Tok.textPrimary : Tok.textTertiary)
-                        .frame(width: Metrics.minHit, height: 24)
+                        .frame(width: Metrics.minHit, height: Metrics.chipHeight)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain))
                 .padding(.trailing, Space.x2)
                 .accessibilityLabel(String(format: String(localized: "a11y.chip.remove"), text))
                 .accessibilityAddTraits(.isButton)
@@ -83,6 +94,6 @@ public extension KChip where Leading == EmptyView {
     /// existed: `KChip("text", trailing: .clear) { onRemove() }` still resolves here.
     init(_ text: String, trailing: Trailing = .none, onTap: @escaping () -> Void = {},
          onTrailingTap: (() -> Void)? = nil) {
-        self.init(text, trailing: trailing, onTap: onTap, onTrailingTap: onTrailingTap) { EmptyView() }
+        self.init(text, trailing: trailing, onTap: onTap, onTrailingTap: onTrailingTap, trailingAnchorID: nil) { EmptyView() }
     }
 }

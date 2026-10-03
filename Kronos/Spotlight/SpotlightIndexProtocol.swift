@@ -64,6 +64,8 @@ private extension SearchableFacts {
         attrs.title = title
         attrs.contentDescription = [firstMove, subtitle, deadlineText]
             .compactMap { $0 }.joined(separator: " · ")
+        attrs.keywords = keywords.isEmpty ? nil : keywords
+        attrs.contentURL = contentURL.flatMap { URL(string: $0) }
         let item = CSSearchableItem(uniqueIdentifier: id, domainIdentifier: domainIdentifier,
                                     attributeSet: attrs)
         item.expirationDate = .distantFuture

@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import KronosCore
 
-/// Wave 18: a task and a subtask carry ANY number of attachments; each chip removes only
+/// release: a task and a subtask carry ANY number of attachments; each chip removes only
 /// itself; the junk a broken build wrote is cleaned. Expectations are literal strings.
 @MainActor
 struct ContextLinkMultiTests {

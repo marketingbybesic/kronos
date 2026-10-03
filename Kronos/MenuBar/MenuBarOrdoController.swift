@@ -19,6 +19,7 @@
 import AppKit
 import SwiftUI
 import KronosCore
+import KronosSnapshot
 
 @MainActor
 final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
@@ -38,6 +39,10 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
     /// A plain UserDefaults key, not `AppModel` state — Settings writes it directly and
     /// this controller only reads it, same pattern as every other cross-feature default in
     /// this app (`ImpulsEnergyMemory`, `HotkeyRegistry` overrides).
+    /// The quiet boundary lines (time left in a block, ...): one clock, ticked every 60 s.
+    let quiet = MenuBarQuiet()
+    private var minuteTimer: Timer?
+
     init(model: AppModel) { self.model = model }
 
     func install() {
@@ -46,6 +51,12 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
         item.button?.target = self
         item.button?.action = #selector(clicked(_:))
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        quiet.tick(model: model)
+        // A minute tick: the bar's time-left suffix and the popover's quiet line follow the clock
+        // even when nothing else changes (hyperfocus is exactly the "nothing changes" case).
+        minuteTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.minuteTick() }
+        }
         render()
         // "To the camera" needs the item's on-screen frame, which exists only after this returns.
         DispatchQueue.main.async { [weak self] in self?.render() }
@@ -89,16 +100,31 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
     /// automatic Ordo focus. `subtask` is that task's next OPEN subtask title, if any — what
     /// "Menu bar shows" composes with the task title per the Settings > Ordo choice.
     private func resolvedFocus() -> (id: UUID, title: String, firstMove: String?, subtask: String?)? {
-        if let blockID = TimeBlocksModel(model: model).blockFocusTaskID, let task = model.store.task(blockID) {
-            return (task.id, task.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
+        guard let id = Self.focusTaskID(model: model) else { return nil }
+        guard let task = model.store.task(id) else {
+            let focus = model.ordoFocus
+            return (id, focus.title, focus.firstMove, nil)
         }
-        if let pinID = model.pinnedFocusTaskID, let task = model.store.task(pinID) {
-            return (task.id, task.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
-        }
-        let focus = model.ordoFocus
-        guard let id = focus.taskID else { return nil }
-        guard let task = model.store.task(id) else { return (id, focus.title, focus.firstMove, nil) }
-        return (id, focus.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
+        return (task.id, task.title, FirstMoveLogic.moveText(for: task), task.nextOpenSubtask?.title)
+    }
+
+    /// The bar's task, ordered by the same `SnapshotHead.resolve` the Snapshot uses (time block, then
+    /// the pin, then the first eligible row of the shown list), so the bar and the Snapshot name one
+    /// task. The pin and the list head come from the shared `nextFromShownList` pick; the fallbacks
+    /// are the popover's (`MenuBarFocusResolver`): a mounted list with no eligible row means nothing is
+    /// next, no list on screen means the Today head.
+    static func focusTaskID(model: AppModel) -> UUID? {
+        let blockFocus = TimeBlocksModel(model: model).blockFocusTaskID.flatMap { model.store.task($0) != nil ? $0 : nil }
+        let picked = model.nextFromShownList
+        let pin = picked.flatMap { $0.id == model.pinnedFocusTaskID ? $0.id : nil }
+        if let head = SnapshotHead.resolve(blockFocus: blockFocus, pin: pin, shownHead: picked?.id) { return head.taskID }
+        if !model.shownListHead.ids.isEmpty { return nil }
+        return NextFallback.todayHead(store: model.store, today: Day.today(calendar: KronosLocale.calendar), limit: 1).first
+    }
+
+    private func minuteTick() {
+        quiet.tick(model: model)
+        render()
     }
 
     private func render() {
@@ -112,7 +138,7 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
             button.setAccessibilityLabel("Kronos — " + String(localized: "menubar.allclear"))
             return
         }
-        let (image, width) = fittedLabelImage(task: focus.firstMove ?? focus.title, subtask: focus.subtask)
+        let (image, width) = fittedLabelImage(task: focus.firstMove ?? focus.title, subtask: focus.subtask, suffix: quiet.barSuffix ?? "")
         button.image = image
         button.image?.isTemplate = true
         circleWidth = width
@@ -133,11 +159,11 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
 
     /// Largest title that fits `availablePoints()`, found on the REAL rendered image (a character
     /// count cannot know how wide "W" is against "i"). Binary search: at most 8 renders.
-    private func fittedLabelImage(task: String, subtask: String?) -> (NSImage, CGFloat) {
+    private func fittedLabelImage(task: String, subtask: String?, suffix: String = "") -> (NSImage, CGFloat) {
         let limit = availablePoints()
         func render(_ chars: Int) -> (NSImage, CGFloat) {
             makeLabelImage(title: MenuBarTitleComposer.compose(task: task, subtask: subtask,
-                                                               mode: MenuBarPrefs.titleMode, maxChars: chars))
+                                                               mode: MenuBarPrefs.titleMode, maxChars: chars) + suffix)
         }
         let full = task.count + (subtask?.count ?? 0) + 3
         var best = render(full)
@@ -191,7 +217,8 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
         }
         let localX = sender.convert(event.locationInWindow, from: nil).x
         let imageOrigin = max(0, (sender.bounds.width - (sender.image?.size.width ?? 0)) / 2)
-        if MenuBarHitRegion.region(forX: localX, circleWidth: circleWidth, imageOrigin: imageOrigin, slop: Space.x2) == .circle {
+        if MenuBarHitRegion.region(forX: localX, circleWidth: circleWidth, imageOrigin: imageOrigin, slop: Space.x2,
+                                   titleGap: Space.x1) == .circle {
             completeFromBar()
         } else {
             showPopover(focusCapture: false)
@@ -226,21 +253,58 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
             if focusCapture { NotificationCenter.default.post(name: .kronosMenuBarFocusCaptureField, object: nil) }
             return
         }
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: PopoverContent(model: model, focusCaptureOnAppear: focusCapture))
+        let popover = makePopover(focusCapture: focusCapture)
         self.popover = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         NotificationCenter.default.post(name: .kronosOrdoPopoverShown, object: nil)
     }
 
+    /// The popover exactly as the status item shows it. The system draws the frame and arrow: dark aqua
+    /// keeps them dark, so no grey material shows around the black content.
+    private func makePopover(focusCapture: Bool) -> NSPopover {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.appearance = NSAppearance(named: .darkAqua)
+        popover.delegate = self
+        popover.contentViewController = NSHostingController(rootView: PopoverContent(model: model, quiet: quiet, focusCaptureOnAppear: focusCapture))
+        return popover
+    }
+
+    #if !RELEASE
+    /// Live UI test seam: the real popover, shown from a view of the test window (a VM has no status
+    /// item button to anchor to). Returns its window.
+    func showPopoverForUITest(from anchor: NSView) -> NSWindow? {
+        let popover = makePopover(focusCapture: false)
+        self.popover = popover
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
+        return popover.contentViewController?.view.window
+    }
+
+    /// Closes that popover through NSPopover itself (closing only its window leaves the popover's
+    /// transient-dismissal machinery attached to the test window and swallows later clicks).
+    func closePopoverForUITest() { popover?.performClose(nil) }
+    #endif
+
     private func showMenu() {
         let menu = NSMenu()
-        menu.addItem(withKeyEquivalentAndAction(String(localized: "bar.menu.open"), #selector(openKronos)))
-        menu.addItem(withKeyEquivalentAndAction(String(localized: "menu.file.quickadd"), #selector(newTask)))
-        menu.addItem(.separator())
-        menu.addItem(withKeyEquivalentAndAction(String(localized: "menubar.menu.quit"), #selector(quit)))
+        for row in MenuBarMenuSpec.rows(hasFocus: resolvedFocus() != nil, quietLinesOn: MenuBarPrefs.quietLines) {
+            if row.item == .separator { menu.addItem(.separator()); continue }
+            let (key, action): (String, Selector) = {
+                switch row.item {
+                case .open: return ("bar.menu.open", #selector(openKronos))
+                case .quickAdd: return ("menu.file.quickadd", #selector(newTask))
+                case .pickOne: return ("menubar.menu.pickone", #selector(pickOne))
+                case .completeCurrent: return ("menu.extra.complete", #selector(completeCurrent))
+                case .quietLines: return ("menubar.quiet.toggle", #selector(toggleQuietLines))
+                case .settings: return ("menubar.menu.settings", #selector(openSettings))
+                case .quit, .separator: return ("menubar.menu.quit", #selector(quit))
+                }
+            }()
+            let item = withKeyEquivalentAndAction(String(localized: String.LocalizationValue(key)), action)
+            item.isEnabled = row.enabled
+            item.state = row.checked ? .on : .off
+            menu.addItem(item)
+        }
         guard let button = statusItem?.button else { return }
         statusItem?.menu = menu
         button.performClick(nil)
@@ -260,6 +324,25 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func newTask() { AppDelegate.shared?.quickAdd.toggle() }
+
+    /// Impuls ("Pick one"): bring the window forward and open the overlay.
+    @objc private func pickOne() {
+        openKronos()
+        model.isImpulsOpen = true
+    }
+
+    @objc private func completeCurrent() { completeFromBar() }
+
+    @objc private func openSettings() {
+        openKronos()
+        NotificationCenter.default.post(name: .kronosSettingsRequested, object: nil)
+    }
+
+    @objc private func toggleQuietLines() {
+        MenuBarPrefs.quietLines.toggle()
+        quiet.tick(model: model)
+        render()
+    }
 
     @objc private func quit() { NSApp.terminate(nil) }
 

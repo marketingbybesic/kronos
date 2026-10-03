@@ -101,6 +101,12 @@ public enum AIBudget {
 
     /// Connect timeout, in seconds, for every call.
     public static let connectSeconds: Double = 3
+
+    /// Wall-clock cap for a whole triage or re-triage call, across every model in the chain.
+    /// Each hop alone may take up to 45 s, so two hops plus the on-device model used to keep a
+    /// card waiting for about 90 s. The neighbour vote is already on screen; after this long
+    /// the router stops asking and returns it.
+    public static let triageChainSeconds: Double = 15
 }
 
 // MARK: - AIRequest
@@ -400,13 +406,13 @@ public protocol AIRouting: Sendable {
                     energy: KEnergyLevel,
                     language: String) async throws -> ImpulsRanking
 
-    /// RESERVED, NO UI IN ALPHA (rev 3). ORDO became automatic — the menu bar
-    /// shows the first row of the open list under its own filter and sort, so
-    /// there is no hand-curated queue for a chat command to reorder. The
-    /// declaration stays so the shape is settled if the surface returns; no
-    /// alpha caller invokes it.
-    ///
-    /// Reorder the ORDO queue from a natural-language instruction.
+    /// True when a configured model can answer inside the 4 s Impuls window. A screen checks this
+    /// before it schedules the mentor-line call, so a slow model is never asked at all. Routers
+    /// that do not know their models answer true.
+    var supportsImpulsLine: Bool { get }
+
+    /// Reorder the ORDO queue from a natural-language instruction. The "Tell Up next" field
+    /// reaches this through `AIRouter.resortOrdo`, which shows the result as a preview only.
     /// Budget 25 s, 4000 max tokens; the user sees an inline progress row.
     ///
     /// The returned `order` must be an exact permutation of `1...N` — a reply
@@ -451,4 +457,8 @@ public protocol AIRouting: Sendable {
     func breakdown(title: String,
                   notes: String,
                   existingSubtasks: [String]) async -> BreakdownResult
+}
+
+public extension AIRouting {
+    var supportsImpulsLine: Bool { true }
 }

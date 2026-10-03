@@ -28,6 +28,22 @@ public enum NeighbourTriage {
     ///   behaves exactly as it always did.
     public static func infer(title: String, notes: String, context: TriageContext,
                              today: Int) -> TriageResult {
+        inferWithVotes(title: title, notes: notes, context: context, today: today).result
+    }
+
+    /// The fields a neighbour vote may legitimately write. A deterministic result still carries
+    /// neutral placeholder values for depth, estimate and energy kind (the DTO has no "unknown"),
+    /// so the caller that applies it to a task passes this set as `only:`: a field the vote did
+    /// not actually decide is left empty instead of being filled with a guess. Estimate and
+    /// energy kind are never voted on, so they are never part of the set; depth only when
+    /// neighbours agreed on a real value; labels are never inferred.
+    public static func fillableFields(title: String, notes: String, context: TriageContext,
+                                      today: Int) -> Set<TriageFieldKind> {
+        inferWithVotes(title: title, notes: notes, context: context, today: today).fillable
+    }
+
+    private static func inferWithVotes(title: String, notes: String, context: TriageContext,
+                                       today: Int) -> (result: TriageResult, fillable: Set<TriageFieldKind>) {
         let language = detectLanguage(title)
         let firstMove = DeterministicFirstMove.generate(title: title, firstMoveURL: nil,
                                                          hasOpenSubtask: false,
@@ -36,7 +52,9 @@ public enum NeighbourTriage {
 
         let votedPriority = vote(context.examples, weight: weight(for:in:), value: \.priority)
         let votedEffort = vote(context.examples, weight: weight(for:in:), value: \.effort)
-        let votedDepth = vote(context.examples, weight: weight(for:in:), value: \.depth)
+        // An untriaged neighbour (depth unknown) is no vote for "shallow".
+        let depthExamples = context.examples.filter { $0.depth != .unknown }
+        let votedDepth = vote(depthExamples, weight: weight(for:in:), value: \.depth)
         let votedProject = voteProject(context.examples)
 
         let due = explicitDate(in: title + " " + notes, today: today)
@@ -60,7 +78,14 @@ public enum NeighbourTriage {
 
         let depth: TriageResult.Depth = (votedDepth ?? .shallow) == .deep ? .deep : .shallow
 
-        return TriageResult(
+        var fillable: Set<TriageFieldKind> = [.firstMove]
+        if votedProject != nil { fillable.insert(.project) }
+        if (votedPriority ?? .none) != .none { fillable.insert(.priority) }
+        if let votedEffort, votedEffort != .none { fillable.insert(.effort) }
+        if votedDepth != nil { fillable.insert(.depth) }
+        if due != nil { fillable.insert(.due) }
+
+        let result = TriageResult(
             project: votedProject,
             priority: (votedPriority ?? .none).rawValue,
             due: due,
@@ -74,6 +99,7 @@ public enum NeighbourTriage {
             effort: votedEffort,
             reason: reasonLine,
             version: 0)
+        return (result, fillable)
     }
 
     // MARK: - Weighted vote

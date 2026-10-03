@@ -1,8 +1,9 @@
 // Kronos/Detail/InspectorWaitsOnRow.swift
 // "Waits on": the tasks this one cannot start before. Same borderless KPropertyRow shape as
 // Labels: chips for what it waits on (tap removes), a "+" that opens a small searchable picker.
-// The picker lists open tasks only, never the task itself, never one already chosen, and never
-// one that would close a loop (TaskStore.wouldCreateCycle). Blocked is derived in Core, so this
+// The picker lists open tasks and child tasks ("Parent › Child"), never the task itself, never
+// one already chosen, never one that would close a loop (TaskStore.waitsOnCandidates). Blocked
+// is derived in Core, so this
 // row only edits the list; the "Blocked" chip lives beside Waiting in InspectorStatusSection.
 import SwiftUI
 import KronosCore
@@ -13,6 +14,9 @@ struct InspectorWaitsOnRow: View {
     @State private var isAdding = false
     @State private var query = ""
     @State private var isAddHovering = false
+    /// What the task waited on when the picker opened: the base of the conflict-safe save, so an
+    /// id another device added or removed meanwhile is merged in instead of being undone.
+    @State private var pickerBase: [UUID] = []
 
     var body: some View {
         let _ = model.version
@@ -21,12 +25,13 @@ struct InspectorWaitsOnRow: View {
             // with them instead of drifting to the row's far edge.
             InspectorFlowLayout(spacing: Space.x1) {
                 ForEach(chosen, id: \.id) { other in
-                    KChip(other.title, trailing: .clear, onTap: { remove(other.id) })
+                    KChip(other.waitsOnDisplayName, trailing: .clear, onTap: { remove(other.id) })
                         .frame(maxWidth: 180, alignment: .leading)
+                        .uiTestAnchor("inspector.waitson.chip." + other.waitsOnDisplayName)
                 }
                 // Frame + contentShape INSIDE the label (a plain-style button is pressable only on
                 // its opaque pixels), ink aligned to the shared value x like the Labels "+".
-                Button { isAdding = true } label: {
+                Button { pickerBase = task.waitsOn; isAdding = true } label: {
                     Icon("plus", size: Metrics.iconS)
                         .foregroundStyle(isAddHovering ? Tok.textPrimary : Tok.textTertiary)
                         .frame(width: Metrics.minHit, height: Metrics.minHit, alignment: .leading)
@@ -49,17 +54,10 @@ struct InspectorWaitsOnRow: View {
         task.waitsOn.compactMap { model.store.task($0) }
     }
 
-    /// Candidates: open, not itself, not chosen, no cycle, matching the search. Capped so a
-    /// 2,000-task store never builds 2,000 rows.
+    /// Candidates: open tasks and child tasks, not itself, not chosen, no cycle, matching the
+    /// search (TaskStore.waitsOnCandidates). Capped so a 2,000-task store never builds 2,000 rows.
     private var candidates: [KTask] {
-        let have = Set(task.waitsOn)
-        let needle = KTextFold.fold(query.trimmingCharacters(in: .whitespacesAndNewlines))
-        return model.store.allTasks()
-            .filter { $0.id != task.id && KStatus.open.contains($0.status) && !have.contains($0.id) }
-            .filter { needle.isEmpty || KTextFold.fold($0.title).contains(needle) }
-            .filter { !model.store.wouldCreateCycle(task.id, waitingOn: $0.id) }
-            .sorted { KTextFold.fold($0.title) < KTextFold.fold($1.title) }
-            .prefix(8).map { $0 }
+        model.store.waitsOnCandidates(for: task.id, query: query, limit: 8)
     }
 
     // MARK: Picker
@@ -78,7 +76,7 @@ struct InspectorWaitsOnRow: View {
             } else {
                 ForEach(list, id: \.id) { other in
                     Button { add(other.id) } label: {
-                        Text(other.title)
+                        Text(other.waitsOnDisplayName)
                             .font(Typo.row)
                             .foregroundStyle(Tok.textPrimary)
                             .lineLimit(1)
@@ -98,14 +96,16 @@ struct InspectorWaitsOnRow: View {
     // MARK: Edits
 
     private func add(_ id: UUID) {
-        model.store.setWaitsOn(task.id, task.waitsOn + [id])
+        model.store.setWaitsOn(task.id, pickerBase + [id], editBase: pickerBase)
         model.didMutate()
         query = ""
         isAdding = false
     }
 
+    /// A chip removes from the list it was drawn from (the stored list at this render).
     private func remove(_ id: UUID) {
-        model.store.setWaitsOn(task.id, task.waitsOn.filter { $0 != id })
+        let base = task.waitsOn
+        model.store.setWaitsOn(task.id, base.filter { $0 != id }, editBase: base)
         model.didMutate()
     }
 }

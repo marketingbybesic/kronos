@@ -56,13 +56,13 @@ extension TaskStore {
         return (try? context.fetch(d))?.first
     }
 
-    /// The max (or min) `sortIndex` among LIVE tasks — same value
+    /// The max (or min) `sortIndex` among LIVE top-level tasks (subtasks order among siblings) — same value
     /// `scopeIndices(.tasksGlobal).max()`/`.min()` computed, but via a sorted fetch with
     /// `fetchLimit = 1` instead of decoding every row to find the extreme. `nil` when the
     /// scope is empty, matching `[Double]().max()`/`.min()`.
     func taskExtremeSortIndex(max: Bool) -> Double? {
         countFetch("taskExtremeSortIndex(max:)")
-        var d = FetchDescriptor<KTask>(predicate: livePredicate,
+        var d = FetchDescriptor<KTask>(predicate: Self.topLevelPredicate,
                                        sortBy: [SortDescriptor(\.sortIndex, order: max ? .reverse : .forward)])
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first?.sortIndex
@@ -74,7 +74,7 @@ extension TaskStore {
     /// matching `[Double]().max()`/`.min()`.
     func taskExtremeOrdoIndex(max: Bool) -> Double? {
         countFetch("taskExtremeOrdoIndex(max:)")
-        var d = FetchDescriptor<KTask>(predicate: #Predicate<KTask> { $0.deletedAt == nil && $0.ordoIndex != nil },
+        var d = FetchDescriptor<KTask>(predicate: #Predicate<KTask> { $0.deletedAt == nil && $0.parentID == nil && $0.ordoIndex != nil },
                                        sortBy: [SortDescriptor(\.ordoIndex, order: max ? .reverse : .forward)])
         d.fetchLimit = 1
         return (try? context.fetch(d))?.first?.ordoIndex

@@ -26,7 +26,7 @@ struct KronosApp: App {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 Button(String(localized: "welcome.menu.show")) {
-                    WelcomeWindowController.show()
+                    OnboardingIntroController.showFromHelp()
                 }
                 Button(String(localized: "welcome.menu.github")) {
                     guard ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] == nil,
@@ -153,8 +153,6 @@ private struct KronosCommands: Commands {
             .hotkey("window.triage")
 
             Button(String(localized: "menu.task.capture")) {
-                // Inside an add field the same chord inserts the subtask marker instead.
-                if SubtaskMarkerShortcut.insertIntoFocusedField() { return }
                 model.isCaptureOpen = true
             }
             .hotkey("window.capture")
@@ -174,6 +172,8 @@ private struct KronosCommands: Commands {
             }
             .hotkey("window.timeblocks")
         }
+
+        NestingCommands(model: model)
 
         CommandMenu(String(localized: "menu.go.title")) {
             ForEach(Array(ListScope.fixed.enumerated()), id: \.offset) { index, scope in

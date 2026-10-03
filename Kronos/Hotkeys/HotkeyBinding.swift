@@ -57,7 +57,7 @@ public struct HotkeyBinding: Codable, Hashable, Sendable {
     }
 
     static let displayNames: [String: String] = [
-        "space": "Space", "return": "⏎", "escape": "⎋", "delete": "⌫",
+        "space": "Space", "return": "⏎", "escape": "esc", "delete": "⌫",
         "up": "↑", "down": "↓", "left": "←", "right": "→", "backslash": "\\", "tab": "⇥",
     ]
 
@@ -68,7 +68,7 @@ public struct HotkeyBinding: Codable, Hashable, Sendable {
     /// SwiftUI) and `displayKeys` (needs it for what to print in Settings/the keymap sheet).
     static let layoutDependentKeys: [String: UInt16] = Dictionary(
         uniqueKeysWithValues: VirtualKeyCodes.letterAndDigitKeys
-            .filter { $0.value == "backslash" }
+            .filter { ["backslash", "[", "]"].contains($0.value) }
             .map { (keyCode, key) in (key, UInt16(keyCode)) })
 }
 
@@ -86,6 +86,6 @@ public enum VirtualKeyCodes {
         11: "b", 12: "q", 13: "w", 14: "e", 15: "r", 16: "y", 17: "t",
         18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 25: "9", 26: "7", 28: "8", 29: "0",
         31: "o", 32: "u", 34: "i", 35: "p", 37: "l", 38: "j", 40: "k", 45: "n", 46: "m",
-        49: "space", 42: "backslash",
+        49: "space", 42: "backslash", 30: "]", 33: "[",
     ]
 }

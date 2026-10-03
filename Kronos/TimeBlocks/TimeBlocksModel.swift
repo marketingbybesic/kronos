@@ -33,6 +33,9 @@ struct TimeBlockEntry: Equatable, Identifiable {
 @Observable
 final class TimeBlocksModel {
     private unowned let model: AppModel
+    /// Every "now" of this model comes from here (the app passes the system clock; a test moves
+    /// a fixture clock by hand), so the ended prompt can be proven without waiting for the wall clock.
+    private let clock: KronosClock
 
     private(set) var blocks: [TimeBlockEntry] = []
     var currentIndex: Int?
@@ -43,16 +46,18 @@ final class TimeBlocksModel {
     /// fresh `Date()` so a frozen `previewNow` (gate shots) and a live reload (real launch,
     /// re-run every minute per CoachModel's own cadence) behave identically: "ended" always
     /// means "as of the moment we last looked," never a clock read mid-render.
-    private var lastKnownNow: Date = Date()
+    private var lastKnownNow: Date
 
     /// Snapshot-only seam: when set, `reload(now:)` reads these blocks instead of
     /// `model.coach.todaysBlocks` — the harness's CoachModel has no real calendar to seed
     /// `todaysBlocks` from, the same wiring gap `CoachBanner.previewSuggestion` also has.
     private var previewBlocks: [TimeBlockEntry]?
 
-    init(model: AppModel) {
+    init(model: AppModel, clock: KronosClock = SystemClock()) {
         self.model = model
-        reload(now: Date())
+        self.clock = clock
+        self.lastKnownNow = clock.now
+        reload()
     }
 
     /// Called only by `TimeBlocksScreen`'s preview path (`TimeBlocksSnapshots`). Overwrites the
@@ -98,6 +103,13 @@ final class TimeBlocksModel {
         return KTaskSorter.sorted(result, by: KSortDescriptor.default)
     }
 
+    /// Open tasks linked directly to this block's calendar event, in the default order. A task that
+    /// only matches the block's project does not count: a start notification needs a link somebody
+    /// made on purpose.
+    func linkedTasks(for entry: TimeBlockEntry) -> [KTask] {
+        tasks(for: entry).filter { TaskCalendarLink.find(in: $0.notes)?.eventID == entry.event.id }
+    }
+
     /// The menu bar's one question ("does block precedence apply, and to which task?"),
     /// answered here once so `MenuBarOrdoController`/`PopoverContent` (Kronos/MenuBar/**)
     /// never re-derive it — `MenuBarBlockFocus` (Foundation-only, hand-tested) is the actual
@@ -128,7 +140,8 @@ final class TimeBlocksModel {
     /// yet answered, one linked open task — must keep driving the bar. This is what
     /// `TimeBlocksPrefs.manualEventID` itself is for: `reload` here only reads it, it never
     /// second-guesses it.
-    func reload(now: Date = Date()) {
+    func reload(now: Date? = nil) {
+        let now = now ?? clock.now
         lastKnownNow = now
         let keepEventID = current?.event.id
         blocks = previewBlocks ?? model.coach.todaysBlocks.map { TimeBlockEntry(event: $0.event, projectID: $0.projectID) }
@@ -193,5 +206,38 @@ final class TimeBlocksModel {
     func stay() {
         staidThroughEventID = current?.event.id
         rememberManualPick()
+    }
+
+    /// The minute tick: re-reads the blocks against the clock and nothing else. The ended prompt
+    /// appears from `showsEndedPrompt` alone; this writes nothing to the store.
+    func tick() {
+        reload()
+    }
+
+    /// Open tasks tied to the ended block by their own calendar link (not by project): these are
+    /// the ones "Move rest to next block" can move. A project-matched task belongs to its project,
+    /// not to the block, and stays where it is.
+    var restLinkedToCurrent: [KTask] {
+        guard let current else { return [] }
+        return tasks(for: current).filter { TaskCalendarLink.find(in: $0.notes)?.eventID == current.event.id }
+    }
+
+    /// "Move rest to next block": re-links every open task of the ended block to the next block, as
+    /// one undo step, and moves on-screen to that block. Returns how many tasks moved.
+    @discardableResult
+    func moveRestToNext() -> Int {
+        guard let next, current != nil else { return 0 }
+        let rest = restLinkedToCurrent
+        guard !rest.isEmpty else { return 0 }
+        let link = TaskCalendarLink(eventID: next.event.id, title: next.event.title,
+                                    start: next.event.start, end: next.event.end)
+        model.store.groupedUndo("Move to next block") {
+            for task in rest {
+                model.store.update(task.id) { $0.notes = link.appending(to: $0.notes) }
+            }
+        }
+        model.didMutate()
+        switchToNext()
+        return rest.count
     }
 }

@@ -1,4 +1,4 @@
-// MCP bearer token storage, routed through KronosCore's `SecretStoring` seam so this is the
+// MCP bearer token storage (`MCPTokenStore`, renamed from MCPKeychain: it is a 0600 file), routed through KronosCore's `SecretStoring` seam so this is the
 // ONLY place MCP touches the Keychain at all, and so a test can inject `FakeSecretStore` and
 // assert exactly when a read happens.
 //
@@ -17,7 +17,7 @@
 import Foundation
 import KronosCore
 
-public enum MCPKeychain {
+public enum MCPTokenStore {
     /// The legacy Keychain service name an older build wrote the token under directly
     /// (before this file routed through `SecretStoring`). Kept as a named constant —
     /// never read or deleted by this type — because `scripts/mcp-live-selftest-cases.swift`
@@ -80,3 +80,7 @@ public enum MCPKeychain {
             .replacingOccurrences(of: "=", with: "")
     }
 }
+
+/// The old name, kept so callers outside the MCP folder (settings status, self-tests) keep compiling.
+/// New code uses `MCPTokenStore`: the token is a user-only file, not a Keychain item.
+public typealias MCPKeychain = MCPTokenStore

@@ -18,7 +18,12 @@ struct SettingsMCPTab: View {
     @State private var connectSummary: String?
     private let isHermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
 
-    private enum SnippetKind: Hashable { case claudeCode, codex, hermes, desktop }
+    private enum SnippetKind: Hashable {
+        case claudeCode, codex, desktop
+        #if !KRONOS_PUBLIC
+        case hermes
+        #endif
+    }
 
     var body: some View {
         SettingsSection(title: String(localized: "settings.tab.mcp")) {
@@ -38,30 +43,6 @@ struct SettingsMCPTab: View {
             }
 
             KHairline().padding(.vertical, Space.x1)
-
-            VStack(alignment: .leading, spacing: Space.x2) {
-                Text(String(localized: "settings.mcp.snippet.title"))
-                    .font(Typo.metaStrong)
-                    .foregroundStyle(Tok.textSecondary)
-                Text(String(localized: "settings.mcp.snippet.bridge"))
-                    .font(Typo.meta)
-                    .foregroundStyle(Tok.textTertiary)
-                KPanel(padding: Space.x3) {
-                    Text(bridgePath)
-                        .font(Typo.mono)
-                        .foregroundStyle(Tok.textPrimary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                snippetBlock(String(localized: "settings.mcp.snippet.claudecode"),
-                             MCPSettingsSnippet.bridgeClaudeCode(bridge: bridgePath, name: serverName), .claudeCode)
-                snippetBlock(String(localized: "settings.mcp.snippet.codex"),
-                             MCPSettingsSnippet.bridgeCodexTOML(bridge: bridgePath, name: serverName), .codex)
-                snippetBlock(String(localized: "settings.mcp.snippet.hermes"),
-                             MCPSettingsSnippet.bridgeHermesYAML(bridge: bridgePath, name: serverName), .hermes)
-                snippetBlock(String(localized: "settings.mcp.snippet.desktop"),
-                             MCPSettingsSnippet.bridgeDesktopJSON(bridge: bridgePath, name: serverName), .desktop)
-            }
 
             SettingsTrailingRow {
                 Button(connecting ? String(localized: "settings.mcp.connecting") : String(localized: "settings.mcp.connectall")) {
@@ -103,6 +84,34 @@ struct SettingsMCPTab: View {
                         .uiTestAnchor("settings.mcp.token.regen")
                 }
                 .padding(.top, Space.x1)
+            }
+        }
+
+        SettingsDisclosure(id: "manual.mcp",
+                           title: String(localized: "settings.mcp.manual.title")) {
+            SettingsSection(title: String(localized: "settings.mcp.snippet.title")) {
+                VStack(alignment: .leading, spacing: Space.x2) {
+                    Text(String(localized: "settings.mcp.snippet.bridge"))
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                    KPanel(padding: Space.x3) {
+                        Text(bridgePath)
+                            .font(Typo.mono)
+                            .foregroundStyle(Tok.textPrimary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    snippetBlock(String(localized: "settings.mcp.snippet.claudecode"),
+                                 MCPSettingsSnippet.bridgeClaudeCode(bridge: bridgePath, name: serverName), .claudeCode)
+                    snippetBlock(String(localized: "settings.mcp.snippet.codex"),
+                                 MCPSettingsSnippet.bridgeCodexTOML(bridge: bridgePath, name: serverName), .codex)
+                    #if !KRONOS_PUBLIC
+                    snippetBlock(String(localized: "settings.mcp.snippet.hermes"),
+                                 MCPSettingsSnippet.bridgeHermesYAML(bridge: bridgePath, name: serverName), .hermes)
+                    #endif
+                    snippetBlock(String(localized: "settings.mcp.snippet.desktop"),
+                                 MCPSettingsSnippet.bridgeDesktopJSON(bridge: bridgePath, name: serverName), .desktop)
+                }
             }
         }
     }
@@ -217,9 +226,9 @@ struct SettingsMCPTab: View {
 
     private func regenerateToken() {
         guard !isHermetic else { return }
-        // Through MCPKeychain (the one place that writes this entry); the bridge re-reads the
+        // Through MCPTokenStore (the one place that writes this entry); the bridge re-reads the
         // token file on every request and retries once on 401, so connected tools keep working.
-        MCPKeychain.generateAndStoreToken()
+        MCPTokenStore.generateAndStoreToken()
         // A server already running captured the OLD token at init; restart it.
         status.tokenDidRegenerate()
     }

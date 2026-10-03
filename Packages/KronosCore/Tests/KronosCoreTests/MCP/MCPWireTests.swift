@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import KronosCore
 
-/// Wave 22b wire/protocol behaviour: encoding, id precision, version echo, 202s, Origin, endpoint file.
+/// release wire/protocol behaviour: encoding, id precision, version echo, 202s, Origin, endpoint file.
 @MainActor
 struct MCPWireTests {
     private func dispatcher() throws -> MCPDispatcher {

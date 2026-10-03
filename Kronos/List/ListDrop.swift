@@ -23,7 +23,7 @@ import KronosCore
 /// Where an attachment drop lands: the task itself, or one of its subtasks.
 enum AttachmentTarget {
     case task(UUID)
-    case subtask(KSubtask)
+    case subtask(KTask)
 }
 
 /// One drop target: attach as `.kContextLinkDrop(taskID:model:)` on a row, the Now card or the
@@ -58,7 +58,8 @@ struct ContextLinkDropModifier: ViewModifier {
     static func accept(_ providers: [NSItemProvider], target: AttachmentTarget, model: AppModel) -> Bool {
         let pasteboard = NSPasteboard(name: .drag)
         DropTypesLog.append(pasteboard)
-        guard MailDropPasteboard.subtaskID(from: pasteboard) == nil else { return false }
+        guard MailDropPasteboard.subtaskID(from: pasteboard) == nil,
+              pasteboard.string(forType: .string)?.hasPrefix(DropZonePayloadReader.taskPrefix) != true else { return false }
         if let links = links(fromDragPasteboard: pasteboard) {
             write(links, to: target, model: model)
             return true
@@ -94,13 +95,16 @@ struct ContextLinkDropModifier: ViewModifier {
     static func write(_ links: [ContextLink], to target: AttachmentTarget, model: AppModel) {
         let usable = links.filter { !$0.reference.isEmpty }
         guard !usable.isEmpty else { return }
+        let title: String
         switch target {
         case .task(let id):
+            title = model.store.task(id)?.title ?? ""
             model.store.update(id) { t in t.notes = usable.reduce(t.notes) { $1.appending(to: $0) } }
         case .subtask(let s):
+            title = s.title
             model.store.updateSubtaskNotes(s.id, notes: usable.reduce(s.notes) { $1.appending(to: $0) })
         }
-        model.didMutate()
+        model.commit(String(format: String(localized: "undo.linked.name"), title))
     }
 
     /// Loads whichever representations `provider` actually offers, builds a `DropItem`, runs
@@ -249,9 +253,9 @@ extension FileDropPasteboard.Fields {
 /// `<store folder>/drop-types.log`, so a source that offers something unexpected (a future
 /// Mail) is diagnosable from a single try. Capped: past 64 KB the file starts over.
 enum DropTypesLog {
-    static func append(_ pasteboard: NSPasteboard) {
+    static func append(_ pasteboard: NSPasteboard, event: String = "drop") {
         let url = KronosStore.containerDirectory().appendingPathComponent("drop-types.log")
-        let line = ISO8601DateFormatter().string(from: Date()) + " " + MailDropPasteboard.typesSummary(pasteboard) + "\n"
+        let line = ISO8601DateFormatter().string(from: Date()) + " " + event + " " + MailDropPasteboard.typesSummary(pasteboard) + "\n"
         let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
         if size > 64_000 || !FileManager.default.fileExists(atPath: url.path) {
             try? Data(line.utf8).write(to: url)

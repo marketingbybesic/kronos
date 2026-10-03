@@ -13,6 +13,8 @@ struct SettingsShortcutsTab: View {
     @State private var query: String = ""
     @State private var overrideVersion = 0
     @State private var confirmingReset = false
+    /// How many shortcuts the last "Use Control shortcuts" press moved; nil until pressed.
+    @State private var controlSchemeMoved: Int?
     private let installedBundleIDs = HotkeyConflictChecker.installedBundleIDs()
     private let systemDefaults = SymbolicHotkeyReader.enabledDefaults()
 
@@ -30,6 +32,8 @@ struct SettingsShortcutsTab: View {
                 .padding(.top, Space.x1)
         }
 
+        controlSchemeSection
+
         ForEach(HotkeyRegistry.grouped(), id: \.scope) { group in
             let rows = group.entries.filter(matchesQuery)
             if !rows.isEmpty {
@@ -38,19 +42,22 @@ struct SettingsShortcutsTab: View {
                     // the list" has Snooze/Pin/Show-all alongside Space/H/0-4 — so a reader
                     // needs telling the bare ones are fixed ON PURPOSE, not just not-yet-built.
                     // One caption per scope that has any fixed row at all, rather than a
-                    // per-row note.
+                    // per-row note. It sits under the rows it describes, not above the
+                    // rebindable ones.
+                    ForEach(rows) { entry in
+                        shortcutRow(entry)
+                    }
                     if rows.contains(where: { !$0.isRebindable }) {
                         Text(String(localized: "settings.shortcuts.fixed"))
                             .font(Typo.meta)
                             .foregroundStyle(Tok.textTertiary)
-                            .padding(.bottom, Space.x1)
-                    }
-                    ForEach(rows) { entry in
-                        shortcutRow(entry)
+                            .padding(.top, Space.x1)
                     }
                 }
             }
         }
+
+        ShareMenuShortcutSection()
 
         if confirmingReset {
             HStack {
@@ -61,11 +68,13 @@ struct SettingsShortcutsTab: View {
                 Button(String(localized: "settings.shortcuts.reset")) {
                     HotkeyRegistry.resetToDefaults()
                     resetNamedGlobalShortcutsToDefaults()
+                    controlSchemeMoved = nil
                     overrideVersion += 1
                     confirmingReset = false
                 }
                 .kButton(.secondary, size: .compact)
                 .fixedSize()
+                .uiTestAnchor("settings.shortcuts.reset.confirm")
                 Button(String(localized: "common.cancel")) { confirmingReset = false }
                     .kButton(.ghost, size: .compact)
                     .fixedSize()
@@ -76,6 +85,35 @@ struct SettingsShortcutsTab: View {
                     .kButton(.ghost, size: .compact)
                     .fixedSize()
                     .uiTestAnchor("settings.shortcuts.reset")
+            }
+        }
+    }
+
+    /// Moves every window shortcut that uses Command to Control where that chord is free (the
+    /// registry decides which and writes ordinary overrides, so Reset to defaults undoes it).
+    private var controlSchemeSection: some View {
+        SettingsSection(title: String(localized: "settings.shortcuts.controlscheme.title")) {
+            Text(String(localized: "settings.shortcuts.controlscheme.help"))
+                .font(Typo.row)
+                .foregroundStyle(Tok.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            SettingsTrailingRow {
+                Button(String(localized: "settings.shortcuts.controlscheme")) {
+                    let moved = HotkeyRegistry.applyControlScheme(taken: HotkeyRegistry.systemTakenBindings())
+                    controlSchemeMoved = moved.count
+                    overrideVersion += 1
+                }
+                .kButton(.secondary, size: .compact)
+                .fixedSize()
+                .uiTestAnchor("settings.shortcuts.controlscheme")
+            }
+            if let moved = controlSchemeMoved {
+                Text(moved > 0 ? String(format: String(localized: "settings.shortcuts.controlscheme.done"), moved)
+                               : String(localized: "settings.shortcuts.controlscheme.none"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .uiTestAnchor("settings.shortcuts.controlscheme.result")
             }
         }
     }
@@ -140,6 +178,7 @@ struct SettingsShortcutsTab: View {
                 Spacer(minLength: Space.x4)
                 if let name = Self.namedGlobalShortcuts[entry.id] {
                     KeyboardShortcuts.Recorder(for: name)
+                        .accessibilityLabel(String(format: String(localized: "a11y.shortcut.recorder.label"), title(for: entry)))
                         .id(overrideVersion)
                 } else if entry.isRebindable {
                     // Every other rebindable entry (window scope) has no `KeyboardShortcuts.Name`,
@@ -149,7 +188,8 @@ struct SettingsShortcutsTab: View {
                     // equivalent internally for its own Name).
                     HotkeyRecorderField(id: entry.id, binding: binding,
                                         isOverridden: binding != entry.defaultBinding,
-                                        allowsBareKey: entry.scope == .list) { recorded in
+                                        allowsBareKey: entry.scope == .list,
+                                        actionName: title(for: entry)) { recorded in
                         HotkeyRegistry.setOverride(recorded, for: entry.id)
                         overrideVersion += 1
                     } onResetToDefault: {
@@ -204,5 +244,41 @@ struct SettingsShortcutsTab: View {
         case 3: KKeyHint(keys[0], keys[1], keys[2])
         default: KKeyHint(keys[0], keys[1], keys[2], keys[3])
         }
+    }
+}
+
+/// "Add to Share menu": imports the bundled Shortcuts file that sends shared text or a link to
+/// `kronos://add`. Opening it hands the file to the Shortcuts app, which asks the user to confirm.
+private struct ShareMenuShortcutSection: View {
+    @State private var missing = false
+
+    var body: some View {
+        SettingsSection(title: String(localized: "settings.shortcuts.share.title")) {
+            Text(String(localized: "settings.shortcuts.share.body"))
+                .font(Typo.row)
+                .foregroundStyle(Tok.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            SettingsTrailingRow {
+                Button(String(localized: "settings.shortcuts.share.button")) { install() }
+                    .kButton(.secondary, size: .compact)
+                    .fixedSize()
+                    .uiTestAnchor("settings.shortcuts.share.install")
+            }
+            Text(missing ? String(localized: "settings.shortcuts.share.missing")
+                         : String(localized: "settings.shortcuts.share.hint"))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .uiTestAnchor("settings.shortcuts.share")
+    }
+
+    private func install() {
+        guard let url = Bundle.main.url(forResource: "Add to Kronos", withExtension: "shortcut") else {
+            missing = true
+            return
+        }
+        missing = false
+        NSWorkspace.shared.open(url)
     }
 }

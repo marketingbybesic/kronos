@@ -8,6 +8,8 @@
 //   KRONOS_SNAPSHOT_SELECT=first                                      optional: select first task
 //   KRONOS_SNAPSHOT_CHROMA=focus|full|calm                            optional: colour mode
 //   KRONOS_SNAPSHOT_SIDEBAR=icons                                     optional: icons-only rail
+//   KRONOS_SNAPSHOT_ACCENT=<hex, no #>                                optional: user accent for screens outside the shell
+//   KRONOS_SNAPSHOT_AXDUMP=<absolute out.json>                        optional: also write the accessibility tree (KAXDump)
 //   KRONOS_SNAPSHOT_PREFS=density=compact,text=S,carriers-none,colourby-priority   optional
 //       comma list of appearance prefs applied to the hermetic
 //       AppearancePrefs/ProjectPalettePrefs stores + DSScale BEFORE the view is built:
@@ -47,6 +49,9 @@ enum SnapshotHarness {
 
     /// Called from the app delegate INSTEAD of normal launch when `isRequested`.
     static func run(store: TaskStore) {
+        // The accessibility walker (KRONOS_SNAPSHOT_AXDUMP) is this same executable started as a
+        // child: it renders nothing, reads its parent's tree, writes the dump and exits here.
+        KAXDump.walkIfChild()
         let env = ProcessInfo.processInfo.environment
         guard let spec = env["KRONOS_SNAPSHOT"] else { return }
         let parts = spec.split(separator: ":", maxSplits: 2).map(String.init)
@@ -83,10 +88,11 @@ enum SnapshotHarness {
             "settings": AnyView(SettingsScreen(model: model)),
             "palette": AnyView(CommandPaletteView(model: model)),
         ]
-        // Registries are built lazily per leaf: a builder must NOT mutate the store or the model
+        // Registries are built lazily per group: a builder must NOT mutate the store or the model
         // at construction time (two leaves leaked state into every screen that way) — do it in
         // the returned view's `.onAppear`.
         for extra in [SidebarSnapshots.screens(model: model), ListSnapshots.screens(model: model),
+                      ListSelectionSnapshots.screens(model: model),
                       DetailSnapshots.screens(model: model), MenuBarSnapshots.screens(model: model),
                       ImpulsSnapshots.screens(model: model), PaletteSnapshots.screens(model: model),
                       SettingsSnapshots.screens(model: model), CaptureSnapshots.screens(model: model),
@@ -105,7 +111,7 @@ enum SnapshotHarness {
 
         // Reactive: a fixture may set `model.chromaMode` in its own `.onAppear`; a value captured
         // here once would freeze the mode before that runs.
-        let root = SnapshotChromaRoot(model: model) { view }
+        let root = SnapshotChromaRoot(model: model, accentHex: env["KRONOS_SNAPSHOT_ACCENT"]) { view }
             .frame(width: size.width, height: size.height)
             .background(Color.black).preferredColorScheme(.dark)
         let hosting = NSHostingView(rootView: root)
@@ -141,6 +147,9 @@ enum SnapshotHarness {
         guard let png = scaled.representation(using: .png, properties: [:]) else { fail("png encode") }
         do { try png.write(to: URL(fileURLWithPath: path)) } catch { fail("write \(path): \(error)") }
         print("SNAPSHOT OK \(path) \(Int(px.width))x\(Int(px.height))")
+        // With KRONOS_SNAPSHOT_AXDUMP set, the window stays up while a child process walks its
+        // accessibility tree; the run exits with the walker's status.
+        if KAXDump.start(window: hosting.window, onExit: { status in exit(status) }) { return }
         exit(0)
     }
 
@@ -191,7 +200,12 @@ enum SnapshotHarness {
 /// Re-reads the observable model on every render so the colour mode follows the fixture.
 private struct SnapshotChromaRoot<Content: View>: View {
     let model: AppModel
+    /// KRONOS_SNAPSHOT_ACCENT (hex, no leading #): the accent a screen without the app shell would not have. Nil = white.
+    var accentHex: String?
     @ViewBuilder let content: () -> Content
-    var body: some View { content().environment(\.chromaMode, model.chromaMode) }
+    var body: some View {
+        content().environment(\.chromaMode, model.chromaMode)
+            .environment(\.kAccent, accentHex.map { Accent.resolve($0, mode: model.chromaMode) } ?? Tok.textPrimary)
+    }
 }
 #endif

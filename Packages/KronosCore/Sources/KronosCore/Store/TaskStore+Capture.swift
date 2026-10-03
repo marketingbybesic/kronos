@@ -31,16 +31,14 @@ extension TaskStore {
                 let resolvedProject = proposal.projectName.flatMap { name in
                     existingProjects.first { KTextFold.fold($0.name) == KTextFold.fold(name) }
                 } ?? defaultProject
-                // Wave 15, 21b: a proposal with no due day used to hardcode `.todo`, which is
-                // exactly the "open undated todo" bypass the migration exists to clean up after
-                // — every OTHER creation path with an optional date (ListScopeDefaults.apply,
-                // used by QuickAdd and MCP create_task) already sends an undated task straight
-                // to `.someday`. Capture had its own copy of the same decision instead of
-                // sharing it; mirror it here rather than adding a second funnel.
+                // The same status rule as every other creation path (quick add, MCP create_task):
+                // an undated task is an open todo in the Inbox, not a private copy of the rule.
+                let defaults = ListScopeDefaults.apply(scope: nil, explicitDueDay: proposal.dueDay,
+                                                       today: Day.today())
                 let task = create(title: proposal.title, notes: proposal.notes ?? "",
                                   project: resolvedProject,
-                                  status: proposal.dueDay != nil ? .todo : .someday,
-                                  priority: proposal.priority, dueDay: proposal.dueDay)
+                                  status: defaults.status,
+                                  priority: proposal.priority, dueDay: defaults.dueDay)
                 task.effort = proposal.effort
                 task.firstMove = proposal.firstMove
                 for name in proposal.labelNames {

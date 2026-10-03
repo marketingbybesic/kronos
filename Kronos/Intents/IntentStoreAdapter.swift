@@ -20,21 +20,39 @@ struct TaskStoringIntentAdapter: IntentTaskStore {
             IntentTaskFacts(id: t.id, title: t.title,
                             isOpen: KStatus.open.contains(t.status),
                             priority: t.priorityRaw, dueDay: t.dueDay,
-                            ordoIndex: t.ordoIndex, projectName: t.project?.name)
+                            ordoIndex: t.ordoIndex, projectName: t.project?.name,
+                            notes: t.notes)
         }
     }
 
+    /// The text goes through the same grammar as every other add field (`EntryText.plan`:
+    /// outline subtasks, multi-word `#project` or `#area`, `@label`, priority, effort, dates).
+    /// `projectName` (an intent parameter) is matched with the same matcher and is only a
+    /// default: a `#token` in the text wins. Returns the first created task.
     func intentCreateTask(title: String, projectName: String?, priorityRaw: Int, dueDay: Int?) -> UUID {
         let today = Day.today(calendar: KronosLocale.calendar)
-        let parsed = QuickAddParser().parse(title, projects: store.allProjects().map(\.name), today: today)
-        let project = parsed.projectName.flatMap { name in store.allProjects().first { $0.name == name } }
-        let priority = parsed.priority != .none ? parsed.priority : (KPriority(rawValue: priorityRaw) ?? .none)
-        let due = parsed.dueDay ?? dueDay
-        let task = store.create(title: parsed.title.isEmpty ? title : parsed.title, notes: "",
-                                project: project, status: .todo, priority: priority, dueDay: due)
-        if let effort = parsed.effort { store.setEffort(task.id, effort) }
-        if let labelName = parsed.labelName { store.addLabel(store.label(named: labelName), to: task.id) }
-        return task.id
+        let plans = EntryText.intentPlans(text: title, projectName: projectName, priorityRaw: priorityRaw,
+                                          dueDay: dueDay, directory: store.entryDirectory(), today: today)
+        let made = store.createTasks(from: plans, undoName: String(localized: "undo.quickadd"))
+        return made.first?.id ?? UUID()
+    }
+
+    /// The title fields as above, plus notes and a web link written onto the new task inside the SAME undo
+    /// step (one Cmd-Z removes the whole task). The link becomes a link:// line in the notes, the form the
+    /// inspector's Links section reads.
+    func intentCreateTask(_ request: IntentNewTask) -> UUID {
+        var id = UUID()
+        store.groupedUndo(String(localized: "undo.quickadd")) {
+            id = intentCreateTask(title: request.title, projectName: request.projectName,
+                                  priorityRaw: request.priorityRaw, dueDay: request.dueDay)
+            guard request.notes != nil || request.link != nil, store.task(id) != nil else { return }
+            var text = request.notes ?? ""
+            if let raw = request.link, let web = LinkInput.pastedURL(raw) {
+                text = ContextLink(kind: .web, reference: web.reference, displayName: web.label).appending(to: text)
+            }
+            store.update(id) { $0.notes = text }
+        }
+        return id
     }
 
     func intentComplete(_ id: UUID) { store.complete(id) }

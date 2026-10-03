@@ -49,12 +49,33 @@ let app = hostApp()
 let bid = app.flatMap(bundleID)
 let secrets = secretsDir(bid)
 
-func readToken() -> String? {
-    guard let d = try? Data(contentsOf: secrets.appendingPathComponent("mcp_token")),
+/// `Claude Code` becomes `claude-code`: the file name an agent's token lives under.
+func agentSlug(_ raw: String) -> String? {
+    var out = ""
+    for ch in raw.lowercased() {
+        if (ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9") { out.append(ch) }
+        else if !out.isEmpty, out.last != "-" { out.append("-") }
+    }
+    out = String(out.prefix(32))
+    while out.last == "-" { out.removeLast() }
+    return out.isEmpty ? nil : out
+}
+
+func readTokenFile(_ url: URL) -> String? {
+    guard let d = try? Data(contentsOf: url),
           let s = String(data: d, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
           !s.isEmpty else { return nil }
     return s
 }
+
+/// The calling agent's own token (`secrets/agents/<slug>.token`) when it has one, else the shared token.
+func readTokenWithSource() -> (token: String, source: String)? {
+    if let name = clientName, let slug = agentSlug(name),
+       let t = readTokenFile(secrets.appendingPathComponent("agents/\(slug).token")) { return (t, "agent") }
+    return readTokenFile(secrets.appendingPathComponent("mcp_token")).map { ($0, "shared") }
+}
+
+func readToken() -> String? { readTokenWithSource()?.token }
 
 /// nil when the file is absent or malformed; `alive` says whether its pid still runs.
 func readEndpoint() -> (Endpoint, alive: Bool)? {
@@ -72,6 +93,36 @@ func readEndpoint() -> (Endpoint, alive: Bool)? {
 
 let args = Array(CommandLine.arguments.dropFirst())
 if args.contains("--version") { print("kronos-mcp \(version)"); exit(0) }
+
+/// The agent behind this bridge: `--agent <name>` wins, otherwise the `clientInfo.name` the
+/// client sends in `initialize`. Forwarded to the app as `X-Kronos-Client` so a task an agent
+/// writes says which agent wrote it.
+var clientName: String? = {
+    guard let i = args.firstIndex(of: "--agent"), i + 1 < args.count else { return nil }
+    let name = args[i + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+    return name.isEmpty ? nil : name
+}()
+let nameIsFixed = clientName != nil
+
+/// What a header may carry: printable ASCII only, so a hostile name cannot split the request.
+func headerSafe(_ s: String) -> String {
+    String(s.unicodeScalars.filter { $0.value >= 0x20 && $0.value < 0x7f }.prefix(40))
+}
+
+if args.contains("--whoami") {
+    // Answers without launching the app: `ssh <mac> kronos-mcp --agent hermes --whoami` is how
+    // a remote agent checks that the whole path (ssh, bridge, app) is wired.
+    print("kronos-mcp \(version)")
+    print("agent: \(clientName.map(headerSafe) ?? "none (taken from the client's initialize)")")
+    print("app: \(app?.path ?? "not found")")
+    switch readEndpoint() {
+    case .some(let (e, alive)): print("endpoint: \(alive ? "running" : "stale") port=\(e.port)")
+    case .none: print("endpoint: absent")
+    }
+    print("token present: \(readToken() == nil ? "no" : "yes")")
+    print("token source: \(readTokenWithSource()?.source ?? "none")")
+    exit(0)
+}
 if args.contains("--doctor") {
     print("app: \(app?.path ?? "not found (run the helper from inside Kronos.app)")")
     print("bundle id: \(bid ?? "unknown")")
@@ -81,6 +132,7 @@ if args.contains("--doctor") {
     case .none: print("endpoint: absent")
     }
     print("token present: \(readToken() == nil ? "no" : "yes")")
+    print("token source: \(readTokenWithSource()?.source ?? "none")")
     exit(0)
 }
 
@@ -127,6 +179,7 @@ func post(_ e: Endpoint, token: String, body: Data, timeout: TimeInterval) -> Ou
     r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
     r.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+    if let name = clientName.map(headerSafe), !name.isEmpty { r.setValue(name, forHTTPHeaderField: "X-Kronos-Client") }
     let sem = DispatchSemaphore(value: 0)
     var out = Outcome.failed("no response")
     URLSession(configuration: .ephemeral).dataTask(with: r) { data, resp, err in
@@ -161,6 +214,11 @@ func handle(_ line: String) {
     }
     let id = msg["id"]
     let method = msg["method"] as? String
+    if method == "initialize", !nameIsFixed,
+       let info = (msg["params"] as? [String: Any])?["clientInfo"] as? [String: Any],
+       let name = info["name"] as? String, !name.isEmpty {
+        clientName = name
+    }
     let isCall = method == "tools/call"
     let timeout: TimeInterval = isCall ? 300 : 30
 
@@ -213,6 +271,76 @@ func emit(_ data: Data, _ type: String) {
         log("non-JSON body dropped")
     }
 }
+
+// MARK: - events (session-start digest)
+
+/// `kronos-mcp events --agent <name> [--format md|json] [--ack] [--since N]`: what the person did
+/// with this agent's tasks since it last asked. Meant for a SessionStart hook, so it never launches
+/// the app: with Kronos not running it prints nothing and exits 0. Nothing to report prints nothing.
+func runEvents() -> Never {
+    guard clientName != nil else {
+        log("events needs --agent <name>"); exit(2)
+    }
+    func value(_ flag: String) -> String? {
+        guard let i = args.firstIndex(of: flag), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+    let format = value("--format") ?? "md"
+    guard ["md", "json"].contains(format) else { log("--format must be md or json"); exit(2) }
+    let ack = args.contains("--ack")
+    guard let (endpoint, alive) = readEndpoint(), alive else {
+        log("Kronos is not running; nothing to report")
+        exit(0)
+    }
+    guard let token = readToken() else { log(disabledMessage); exit(1) }
+
+    func call(_ tool: String, _ arguments: [String: Any]) -> [String: Any]? {
+        let rpc: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                  "params": ["name": tool, "arguments": arguments]]
+        guard let body = try? JSONSerialization.data(withJSONObject: rpc) else { return nil }
+        switch post(endpoint, token: token, body: body, timeout: 30) {
+        case .ok(200, let data, _):
+            guard let top = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result = top["result"] as? [String: Any] else { log("unexpected answer from Kronos"); exit(1) }
+            let structured = result["structuredContent"] as? [String: Any] ?? [:]
+            if (result["isError"] as? Bool) == true {
+                log("\(structured["error"] as? String ?? "ERROR"): \(structured["message"] as? String ?? "")")
+                exit(1)
+            }
+            return structured
+        case .ok(401, _, _): log("the access token was rejected; reconnect from Settings > MCP"); exit(1)
+        case .ok(let code, _, _): log("HTTP \(code)"); exit(1)
+        case .refused, .timedOut: log("Kronos did not answer"); exit(1)
+        case .failed(let m): log(m); exit(1)
+        }
+    }
+
+    var since = value("--since")
+    var digests: [String] = []
+    var lastJSON: [String: Any] = [:]
+    var cursor = ""
+    for _ in 0..<5 {
+        var arguments: [String: Any] = ["format": "md", "limit": 200]
+        if let since { arguments["since"] = since }
+        guard let page = call("events_poll", arguments) else { exit(1) }
+        lastJSON = page
+        cursor = page["cursor"] as? String ?? cursor
+        if let d = page["digest"] as? String, !d.isEmpty { digests.append(d) }
+        if (page["more"] as? Bool) != true { break }
+        since = cursor
+    }
+    if format == "json" {
+        if !digests.isEmpty || !((lastJSON["events"] as? [Any])?.isEmpty ?? true),
+           let d = try? JSONSerialization.data(withJSONObject: lastJSON, options: [.sortedKeys]),
+           let s = String(data: d, encoding: .utf8) { print(s) }
+    } else if !digests.isEmpty {
+        print(digests.joined(separator: "\n\n"))
+    }
+    if ack, !digests.isEmpty, !cursor.isEmpty { _ = call("events_ack", ["upTo": cursor]) }
+    exit(0)
+}
+
+if args.first == "events" { runEvents() }
 
 // Sequential on purpose (one request at a time; clients that pipeline get ordered
 // replies, upgrade to a serial queue per id only if a slow tool call blocks others).

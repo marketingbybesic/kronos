@@ -82,7 +82,19 @@ public final class DayChangeCoordinator {
     /// today without posting — there is no "previous day" to compare to yet.
     public func start() {
         defaults.setInteger(clock.today(), forKey: Self.lastHandledDayKey)
+        recordClockMark()
         scheduleNextMidnight()
+    }
+
+    /// Remember the latest `now` ever seen, never lowering it. `TaskStore.purgeDeletedOlderThan`
+    /// reads it back and does nothing while the clock is behind it: a clock set back (a dead
+    /// CMOS battery, a manual change) must not run a 30-day purge on a wrong date. This runs on
+    /// every trigger, so the mark advances whenever the app is awake.
+    private func recordClockMark() {
+        let seconds = Int(clock.now.timeIntervalSince1970)
+        if seconds > defaults.integer(forKey: TaskStore.purgeClockMarkKey) {
+            defaults.setInteger(seconds, forKey: TaskStore.purgeClockMarkKey)
+        }
     }
 
     /// Re-evaluate now. Idempotent: calling this ten times in the same
@@ -94,6 +106,7 @@ public final class DayChangeCoordinator {
     /// clock move or a westward timezone crossing must still count as a
     /// change, not be ignored because "today" went down.
     public func checkForDayChange() {
+        recordClockMark()
         let today = clock.today()
         let previous = lastHandledDay
         guard previous != today else { return }

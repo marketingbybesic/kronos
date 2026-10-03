@@ -12,18 +12,11 @@ import KronosCore
 extension TaskListScreen {
     // MARK: - Rebindable list keys
 
-    /// The character a rebindable list action is bound to NOW (the printed cap, so it follows
-    /// the keyboard layout like Settings shows it), lowercased; "" when unbound.
-    static func listKey(_ id: String) -> String {
-        HotkeyRegistry.current(for: id)?.displayKeys.last?.lowercased() ?? ""
-    }
-
-    /// Characters the list claims: the fixed priority digits (+ "o") and whatever the three
-    /// rebindable actions are bound to. A hardcoded "h/f/e" set made a rebind silently dead.
+    /// Characters the list claims: the fixed priority keys and whatever every grammar action is
+    /// bound to NOW (ListKeyGrammar.swift), both cases. A hardcoded set made a rebind silently dead.
     var listCharacterSet: CharacterSet {
         _ = hotkeyRevision
-        let dynamic = ["list.snooze", "list.focuspin", "list.expandall"].map(Self.listKey).joined()
-        return CharacterSet(charactersIn: "o01234" + dynamic + dynamic.uppercased())
+        return CharacterSet(charactersIn: ListKeyGrammar.claimedCharacters(bindings: Self.grammarBindings()))
     }
 
     // MARK: - Now card
@@ -54,23 +47,48 @@ extension TaskListScreen {
                         .textCase(.uppercase)
                 }
                 .foregroundStyle(Tok.textTertiary)
+                .kHitTarget()
             }
             .buttonStyle(.plain)
             .padding(.bottom, isNowCardCollapsed ? 0 : Space.x2)
             if !isNowCardCollapsed {
-                // Rev18 5A: breathe when overdue or high-priority so the First Move reads as
-                // urgent without colour. Reduce Motion is handled inside KNowCard itself.
-                let isAttention = (task.priority == .high || task.priority == .urgent)
-                    || (task.dueDay.map { $0 < Day.today() } ?? false)
-                // Same sentence as the inspector and the menu bar (Detail/FirstMoveText.swift).
-                KNowCard(firstMove: FirstMoveLogic.text(for: task), title: task.title,
+                // Same sentence as the inspector and the menu bar (Detail/FirstMoveText.swift). No
+                // breathing ring: urgency is carried by the sentence and the deadline, not by motion.
+                let move = FirstMoveLogic.text(for: task)
+                KNowCard(firstMove: move, title: task.title,
                          projectIcon: task.project?.icon, projectColorHex: task.project?.colorHex, projectName: task.project?.name,
-                         attention: isAttention,
                          attributes: { nowCardAttributes(task) },
                          onComplete: { ListCompletion.toggle(task, store: model.store, model: model) })
+                    .extras(
+                        leftOff: {
+                            if let line = LeftOffLine.text(for: task, hero: move ?? task.title) { LeftOffLine(text: line) }
+                        },
+                        actions: { nowCardActions(task, ctx) })
                     .kContextLinkDrop(taskID: task.id, model: model)
+                    // A Large task with no steps gets them silently, so step 1 is the first move.
+                    .task(id: task.id) {
+                        if ImpulsAutoBreakdown.runIfNeeded(task, store: model.store) { model.didMutate() }   // refresh-only: silent machine write, no pill by design
+                    }
             }
         }
+    }
+
+    /// Start / Not now / Tomorrow for the focus task (the same row the menu-bar popover shows).
+    @ViewBuilder
+    func nowCardActions(_ task: KTask, _ ctx: ListContext) -> some View {
+        let started = task.status == .inProgress && model.pinnedFocusTaskID == task.id
+        FocusActionsRow(
+            showsStart: !started,
+            onStart: { FocusStart.begin(task, model: model, followFirstMove: true) },
+            onNotNow: {
+                let next = ctx.rows.first { $0.id != task.id && NextEligibility.isEligible($0, store: model.store) }
+                FocusStart.notNow(task, nextRowID: next?.id, model: model)
+            },
+            onTomorrow: {
+                model.store.snooze(task.id)
+                if model.pinnedFocusTaskID == task.id { model.pinnedFocusTaskID = nil }
+                model.commit(String(localized: "nowcard.undo.tomorrow"))
+            })
     }
 
     @ViewBuilder

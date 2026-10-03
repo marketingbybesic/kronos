@@ -10,6 +10,7 @@ import KronosCore
 
 struct TimeBlocksScreen: View {
     let model: AppModel
+    @Environment(\.kAccent) private var accent
     /// Snapshot-only override, same seam `CoachBanner.previewSuggestion` uses and for the same
     /// reason: `CoachModel`'s calendar provider is fixed inside `AppModel` (Kronos/Shared/**),
     /// so a harness process has no real calendar to seed `model.coach.todaysBlocks` from. The
@@ -20,15 +21,26 @@ struct TimeBlocksScreen: View {
     /// Snapshot-only: freezes "now" so the ended-prompt and current-block math are deterministic
     /// in a gate shot instead of racing the real clock.
     var previewNow: Date?
+    /// The one source of "now" for this screen and its model; the app passes the system clock.
+    var clock: KronosClock = SystemClock()
 
     @State private var blocksModel: TimeBlocksModel?
     @FocusState private var isFocused: Bool
+
+    /// Re-reads the blocks every 60 s (and on a model change), so "Block ended" appears when the
+    /// block really ends even if nothing else happens. A frozen preview never ticks.
+    private static let tickInterval: TimeInterval = 60
 
     var body: some View {
         ZStack {
             Tok.bg
             if let blocksModel {
-                content(blocksModel)
+                TimelineView(.periodic(from: clock.now, by: Self.tickInterval)) { context in
+                    content(blocksModel)
+                        .onChange(of: context.date) { _, _ in
+                            if previewNow == nil { blocksModel.tick() }
+                        }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -37,11 +49,11 @@ struct TimeBlocksScreen: View {
         .focused($isFocused)
         .onAppear {
             isFocused = true
-            let m = TimeBlocksModel(model: model)
-            if let previewBlocks { m.setPreview(blocks: previewBlocks, now: previewNow ?? Date()) }
+            let m = TimeBlocksModel(model: model, clock: clock)
+            if let previewBlocks { m.setPreview(blocks: previewBlocks, now: previewNow ?? clock.now) }
             blocksModel = m
         }
-        .onChange(of: model.version) { _, _ in blocksModel?.reload(now: previewNow ?? Date()) }
+        .onChange(of: model.version) { _, _ in blocksModel?.reload(now: previewNow) }
         .onKeyPress(.leftArrow) { blocksModel?.goPrevious(); return .handled }
         .onKeyPress(.rightArrow) { blocksModel?.goNext(); return .handled }
         .onKeyPress(.return) {
@@ -77,42 +89,28 @@ struct TimeBlocksScreen: View {
 
     // MARK: Day strip — the whole day's blocks at a glance, current one highlighted. Only
     // shown with more than one block (a single-block day has nothing to compare it against).
+    // One selected-state look for tabs: KSegmented in its fill style, one segment per block
+    // ("14:00 Globex call"); more than four blocks scroll sideways instead of squeezing.
 
     private func dayStrip(_ blocksModel: TimeBlocksModel) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Space.x2) {
-                ForEach(Array(blocksModel.blocks.enumerated()), id: \.element.id) { index, entry in
-                    dayStripChip(entry, isCurrent: index == blocksModel.currentIndex) {
-                        blocksModel.jump(to: index)
-                    }
-                }
-            }
-            .padding(.horizontal, Space.x6)
+        let selection = Binding<Int>(get: { blocksModel.currentIndex ?? 0 },
+                                     set: { blocksModel.jump(to: $0) })
+        let segments = Array(blocksModel.blocks.enumerated()).map { index, entry in
+            KSegment(value: index, text: Self.timeFormatter.string(from: entry.event.start) + " " + entry.event.title)
         }
+        let strip = KSegmented(selection: selection, segments: segments, style: .fill)
+            .uiTestAnchor("timeblocks.daystrip")
+        return Group {
+            if segments.count > 4 {
+                ScrollView(.horizontal, showsIndicators: false) { strip.frame(minWidth: CGFloat(segments.count) * 150) }
+            } else {
+                strip
+            }
+        }
+        .padding(.horizontal, Space.x6)
         .padding(.bottom, Space.x4)
     }
 
-    private func dayStripChip(_ entry: TimeBlockEntry, isCurrent: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(entry.event.title)
-                    .font(Typo.metaStrong)
-                    .foregroundStyle(isCurrent ? Tok.textPrimary : Tok.textSecondary)
-                    .lineLimit(1)
-                Text(Self.timeFormatter.string(from: entry.event.start))
-                    .font(Typo.count)
-                    .foregroundStyle(Tok.textTertiary)
-            }
-            .padding(.horizontal, Space.x3)
-            .padding(.vertical, Space.x2)
-            .frame(minWidth: 96, alignment: .leading)
-            .background(isCurrent ? Tok.controlFill : Color.clear)
-            .kBorder(isCurrent ? Tok.borderActive : Tok.borderControl, radius: Radius.control)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .uiTestAnchor("timeblocks.daystrip." + entry.event.title)
-    }
 
     // MARK: Header — ‹ block title + range › (arrows either side of the title)
 
@@ -123,11 +121,15 @@ struct TimeBlocksScreen: View {
             }
             Spacer(minLength: 0)
             VStack(spacing: Space.x1) {
-                Text(blocksModel.current?.event.title ?? String(localized: "timeblocks.title"))
-                    .font(Typo.title)
-                    .tracking(Tracking.tight)
-                    .foregroundStyle(Tok.textPrimary)
-                    .lineLimit(1)
+                HStack(spacing: Space.x2) {
+                    KViewMark(icon: "calendar",
+                              tint: SelectionHue.resolve(projectHex: nil, neutral: model.chromaMode.isNeutralSelection).color(accent: accent))
+                    Text(blocksModel.current?.event.title ?? String(localized: "timeblocks.title"))
+                        .font(Typo.title)
+                        .tracking(Tracking.tight)
+                        .foregroundStyle(Tok.textPrimary)
+                        .lineLimit(1)
+                }
                 if let entry = blocksModel.current {
                     Text(rangeText(entry))
                         .font(Typo.count)
@@ -178,16 +180,24 @@ struct TimeBlocksScreen: View {
             Text(promptText(blocksModel))
                 .font(Typo.row)
                 .foregroundStyle(Tok.textSecondary)
-                .lineLimit(1)
+                .lineLimit(2)
             Spacer(minLength: Space.x3)
             Button(String(localized: "coach.block.stay")) { blocksModel.stay() }
                 .kButton(.ghost, size: .compact)
+            if blocksModel.next != nil, !blocksModel.restLinkedToCurrent.isEmpty {
+                Button(String(localized: "timeblocks.moverest")) {
+                    let moved = blocksModel.moveRestToNext()
+                    if moved > 0 { UndoToastCenter.shared.show(String(format: String(localized: "timeblocks.moverest.done"), moved)) }
+                }
+                .kButton(.ghost, size: .compact)
+                .uiTestAnchor("timeblocks.moverest")
+            }
             Button(String(localized: "coach.block.switch")) { blocksModel.switchToNext() }
                 .kButton(.secondary, size: .compact)
                 .disabled(blocksModel.next == nil)
         }
         .padding(.horizontal, Space.x3)
-        .frame(height: Metrics.controlRegular)
+        .frame(minHeight: Metrics.controlRegular)
         .kBorder(Tok.borderControl, radius: Radius.control)
         .clipShape(RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
         .padding(.horizontal, Space.x6)

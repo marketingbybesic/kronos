@@ -36,16 +36,26 @@ enum ImpulsQuery {
                             tasks: [KTask],
                             today: Int,
                             count: Int,
-                            forceDeep: Bool = false) -> [Candidate] {
+                            forceDeep: Bool = false,
+                            dreadServing: DreadServing? = nil) -> [Candidate] {
         let wantsDeep = forceDeep || energy == .high
-        var pool = engine.candidates(energy: energy, count: count + excludedIDs.count,
-                                      maxDeep: wantsDeep, today: today, tasks: tasks)
-            .filter { !excludedIDs.contains($0.taskID) }
+        // An agent proposal waiting for review is never offered, whichever engine ranks: the
+        // concrete engine skips it already, an injected one might not.
+        let pending = Set(tasks.lazy.filter { $0.reviewRaw == NextEligibility.reviewPending }.map(\.id))
+        let skipped = excludedIDs.union(pending)
+        func ranked(maxDeep: Bool) -> [Candidate] {
+            let want = count + skipped.count
+            // The dread memory only exists on the concrete engine; a test double ranks without it.
+            let all = (engine as? RankingEngine)
+                .map { $0.candidates(energy: energy, count: want, maxDeep: maxDeep, today: today,
+                                     tasks: tasks, dreadServing: dreadServing) }
+                ?? engine.candidates(energy: energy, count: want, maxDeep: maxDeep, today: today, tasks: tasks)
+            return all.filter { !skipped.contains($0.taskID) }
+        }
+        var pool = ranked(maxDeep: wantsDeep)
         if pool.isEmpty && !wantsDeep {
             // Cascade: nothing shallow-eligible left, but deep tasks may still exist.
-            pool = engine.candidates(energy: energy, count: count + excludedIDs.count,
-                                      maxDeep: true, today: today, tasks: tasks)
-                .filter { !excludedIDs.contains($0.taskID) }
+            pool = ranked(maxDeep: true)
         }
         return Array(pool.prefix(count))
     }
@@ -79,14 +89,13 @@ enum ImpulsQuery {
         }
     }
 
-    /// One of RankingEngine's five fixed shapes -> its catalog translation, or nil for
+    /// One of RankingEngine's fixed shapes -> its catalog translation, or nil for
     /// "Good energy match" (routes to the generic energy fallback, same as before this fix)
     /// or any string Core did not actually produce (never mistranslate a shape that does not
     /// exist).
     private static func localizedCandidateReason(_ reason: String) -> String? {
         switch reason {
         case "Nothing shallow left": return String(localized: "impuls.candidate.nothingshallow")
-        case "Shallow, but you have been avoiding it": return String(localized: "impuls.candidate.dreadshallow")
         case "Shallow and quick": return String(localized: "impuls.candidate.shallowquick")
         case "Next by priority": return ""   // default ranking says nothing: the card hides the line
         case "Good energy match": return nil
@@ -94,53 +103,31 @@ enum ImpulsQuery {
         }
     }
 
-    /// First move: stored value wins; otherwise Core's deterministic generator, which
-    /// always yields a lint-passing move (spec §2.3) and never leaves the card without one.
-    static func firstMove(for task: KTask, language: Lang) -> String {
-        // A stored generic placeholder (written by triage in the TITLE's language) counts as
-        // empty here so the headline is regenerated in the app language (audit D25).
-        if let stored = task.firstMove, !stored.isEmpty, !DeterministicFirstMove.isGenericTemplate(stored) { return stored }
-        let hasOpenSubtask = task.nextOpenSubtask != nil
-        return DeterministicFirstMove.generate(title: task.title,
-                                                firstMoveURL: task.firstMoveURL,
-                                                hasOpenSubtask: hasOpenSubtask,
-                                                notesNonEmpty: !task.notes.isEmpty,
-                                                dread: task.dread,
-                                                language: language,
-                                                titleLanguageWins: false)
-    }
-}
-
-extension KTask {
-    /// Triage may fill `firstMoveURL` from notes (spec §2.4); the field is not yet on
-    /// `KTask`'s contract, so this reads nil until Core adds it — never invented here.
-    var firstMoveURL: String? { nil }
-}
-
-/// Persists the last chosen energy for today. A UserDefaults key, hermetic under
-/// `KRONOS_SNAPSHOT` like every other UI-state write in the app (AppModel.persist() uses the
-/// identical guard) so a snapshot run never touches the real preferences domain. Keyed by day
-/// number, not just "last energy", so a value from yesterday never silently answers today's
-/// question.
-enum ImpulsEnergyMemory {
-    private static let dayKey = "kronos.impuls.energy.day"
-    private static let levelKey = "kronos.impuls.energy.level"
-
-    private static var isHermetic: Bool { ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil }
-
-    static func rememberToday(_ energy: KEnergyLevel) {
-        guard !isHermetic else { return }
-        let d = UserDefaults.standard
-        d.set(Day.today(calendar: KronosLocale.calendar), forKey: dayKey)
-        d.set(energy.rawValue, forKey: levelKey)
+    /// What a card shows as its first move. Same precedence as the inspector, the Now card and the
+    /// menu bar: an open step, then an attachment, then a stored (non-generic) move; only when none
+    /// exists does Core's deterministic generator speak. A generic result makes the title the hero.
+    static func hero(for task: KTask, language: Lang) -> ImpulsDefaults.Hero {
+        let move: String
+        switch FirstMoveLogic.display(for: task) {
+        case .fromSubtask(let title): move = title
+        case .fromAttachment(let suggestion): move = suggestion.localized
+        case .editable(let text, _):
+            move = text ?? DeterministicFirstMove.generate(title: task.title, firstMoveURL: nil,
+                                                           hasOpenSubtask: false,
+                                                           notesNonEmpty: !task.notes.isEmpty,
+                                                           dread: task.dread, language: language,
+                                                           titleLanguageWins: false)
+        }
+        return ImpulsDefaults.hero(move: move, moveIsGeneric: DeterministicFirstMove.isGenericTemplate(move), title: task.title)
     }
 
-    /// nil when nothing was remembered yet, or the stored day is not today.
-    static func todayEnergy() -> KEnergyLevel? {
-        guard !isHermetic else { return nil }
-        let d = UserDefaults.standard
-        guard d.object(forKey: dayKey) != nil, d.integer(forKey: dayKey) == Day.today(calendar: KronosLocale.calendar),
-              d.object(forKey: levelKey) != nil else { return nil }
-        return KEnergyLevel(rawValue: d.integer(forKey: levelKey))
+    /// The link Start opens when the first move came from an attachment: an email, else a file or
+    /// folder, else a note or web page (the order FirstMoveLogic uses). nil for any other first move.
+    static func firstMoveLink(for task: KTask) -> ContextLink? {
+        guard case .fromAttachment = FirstMoveLogic.display(for: task) else { return nil }
+        let links = ContextLink.findAll(in: task.notes)
+        return links.first { $0.kind == .email }
+            ?? links.first { $0.kind == .file || $0.kind == .folder }
+            ?? links.first { $0.kind == .appleNote || $0.kind == .web }
     }
 }

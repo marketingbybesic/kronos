@@ -16,14 +16,15 @@
 import SwiftUI
 import Observation
 
-/// What may carry the user's colour in Focus mode (feature I). All four default ON, matching
-/// today's shipped behaviour (a task's own project glyph, the Now card, sidebar project rows,
-/// and the menu-bar title dot already show colour before this setting existed).
+/// What may carry the user's colour in Focus mode (feature I). All four default OFF: Focus is the
+/// all-neutral mode, so colour on the focus task's glyph, the Now card, its sidebar project row
+/// or the menu-bar title dot is something the user turns on in Settings > Appearance. A choice
+/// already saved keeps its stored values.
 struct ColourCarriers: Codable, Equatable {
-    var focusRowGlyph: Bool = true
-    var nowCard: Bool = true
-    var sidebarProject: Bool = true
-    var menuBarTitle: Bool = true
+    var focusRowGlyph: Bool = false
+    var nowCard: Bool = false
+    var sidebarProject: Bool = false
+    var menuBarTitle: Bool = false
 }
 
 /// What a row's glyph is coloured by, when colour is shown at all (feature I "colour by").
