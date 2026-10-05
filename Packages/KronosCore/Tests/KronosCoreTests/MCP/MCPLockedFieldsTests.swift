@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -81,3 +82,5 @@ import Foundation
         #expect(store.lockedFields(of: id) == [.priority, .firstMove])
     }
 }
+
+#endif

@@ -56,11 +56,27 @@ enum DropZonePayloadReader {
         "com.apple.notes.note", "com.apple.notes.richtext", "com.apple.notes", "com.apple.notes.noteitem",
     ]
 
+    /// The private type a task row's drag carries its own `kronos-task:<uuid>` marker under. Plain
+    /// text is free for what a terminal or an agent should read; the marker lives here, first.
+    static let dragItemTypeID = "app.kronos.drag-item"
+    static let dragItemType = NSPasteboard.PasteboardType(dragItemTypeID)
+
+    /// The task id of a Kronos task-row drag: the private type first, then the legacy plain-text
+    /// marker (older clipboards, Services, scripted pasteboards).
+    static func draggedTaskID(from pasteboard: NSPasteboard) -> UUID? {
+        if let data = pasteboard.data(forType: dragItemType), let text = String(data: data, encoding: .utf8),
+           text.hasPrefix(taskPrefix), let id = UUID(uuidString: String(text.dropFirst(taskPrefix.count))) { return id }
+        if let text = pasteboard.string(forType: .string),
+           text.hasPrefix(taskPrefix), let id = UUID(uuidString: String(text.dropFirst(taskPrefix.count))) { return id }
+        return nil
+    }
+
     static func read(_ pasteboard: NSPasteboard) -> DropPayload {
-        if let text = pasteboard.string(forType: .string) {
-            if text.hasPrefix(taskPrefix), let id = UUID(uuidString: String(text.dropFirst(taskPrefix.count))) { return .task(id) }
-            if text.hasPrefix(subtaskPrefix), let id = UUID(uuidString: String(text.dropFirst(subtaskPrefix.count))) { return .subtask(id) }
-        }
+        if let id = draggedTaskID(from: pasteboard) { return .task(id) }
+        if let data = pasteboard.data(forType: dragItemType), let text = String(data: data, encoding: .utf8),
+           text.hasPrefix(subtaskPrefix), let id = UUID(uuidString: String(text.dropFirst(subtaskPrefix.count))) { return .subtask(id) }
+        if let text = pasteboard.string(forType: .string),
+           text.hasPrefix(subtaskPrefix), let id = UUID(uuidString: String(text.dropFirst(subtaskPrefix.count))) { return .subtask(id) }
 
         // Mail: one `message:` URL per message.
         let mail = MailDropPasteboard.messages(from: pasteboard)
@@ -161,18 +177,39 @@ extension TaskStore {
 
 // MARK: - Drag out
 
-/// What a row puts on the drag pasteboard. The first representation is the text Kronos's own drop
-/// targets read (`kronos-task:<uuid>` / `kronos-subtask:<uuid>`: that stays first and unchanged, so
-/// in-app moves, nesting and the attach guards behave as before). Behind it come the title as rich
-/// text with the Kronos link on it, and the `kronos://open?id=` URL, for TextEdit, Notes, Mail and
-/// anything else a row is dragged into.
+/// What a row puts on the drag pasteboard. A task row registers its own marker (`kronos-task:<uuid>`)
+/// FIRST under the private `app.kronos.drag-item` type, so Kronos's drop targets (moves, nesting,
+/// the attach guards) read it from there. Plain text, the one thing a terminal or an agent prompt
+/// reads, then carries the task as a readable dossier (`TaskDragText`) ending in its Kronos link.
+/// Behind them come the title as rich text with the link on it and the `kronos://open?id=` URL, for
+/// TextEdit, Notes, Mail and anything else a row is dragged into. A subtask row (and a task asked
+/// for without a dossier) keeps the old shape: its marker is the plain text. A subtask row given a dossier
+/// registers its own `kronos-subtask:` marker under the private type, like a task row.
 enum DragOut {
     static let linkURLType = "public.url"
     static let richTextType = "public.rtf"
+    static let plainTextType = "public.utf8-plain-text"
 
-    static func provider(id: UUID, title: String, isChild: Bool) -> NSItemProvider {
+    /// A top-level task row's drag, dossier included. Call when the drag starts.
+    @MainActor static func provider(task: KTask) -> NSItemProvider {
+        provider(id: task.id, title: task.title, isChild: false,
+                 dossier: TaskDragText.render(TaskDragText.Input(task: task)))
+    }
+
+    static func provider(id: UUID, title: String, isChild: Bool, dossier: String? = nil) -> NSItemProvider {
         let internalText = isChild ? DropZonePayloadReader.subtaskDragString(id) : DropZonePayloadReader.taskDragString(id)
-        let provider = NSItemProvider(object: internalText as NSString)
+        let provider: NSItemProvider
+        if let dossier {
+            provider = NSItemProvider()
+            provider.registerDataRepresentation(forTypeIdentifier: DropZonePayloadReader.dragItemTypeID, visibility: .all) { done in
+                done(Data(internalText.utf8), nil); return nil
+            }
+            provider.registerDataRepresentation(forTypeIdentifier: plainTextType, visibility: .all) { done in
+                done(Data(dossier.utf8), nil); return nil
+            }
+        } else {
+            provider = NSItemProvider(object: internalText as NSString)
+        }
         let link = TaskLink.string(for: id)
         if let rtf = richText(title: title, link: link) {
             provider.registerDataRepresentation(forTypeIdentifier: richTextType, visibility: .all) { done in

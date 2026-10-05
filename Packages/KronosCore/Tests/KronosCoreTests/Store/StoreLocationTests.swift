@@ -34,6 +34,7 @@ struct StoreLocationTests {
 
     /// On the Mac the live location is still Application Support (never the group container),
     /// unless the hermetic override is set.
+    #if os(macOS)
     @Test func macLocationIsNeverTheGroupContainer() {
         // Other suites set KRONOS_STORE_DIR while they run, so either answer but the group one
         // is legitimate here.
@@ -44,6 +45,7 @@ struct StoreLocationTests {
         }
         #expect(KronosStore.storeURL(in: loc.directory).lastPathComponent == "Kronos.store")
     }
+    #endif
 
     /// A store opened at an explicit URL writes there and nowhere else, and a second handle on
     /// the same file reads what the first saved.

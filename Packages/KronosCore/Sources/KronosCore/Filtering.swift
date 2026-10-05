@@ -326,3 +326,61 @@ extension KSavedView {
         set { sortJSON = KSavedView.encodeSort(newValue) }
     }
 }
+
+// MARK: - Views that belong to one project
+//
+// A saved view made inside a project is a filter that pins exactly that project. Nothing is stored
+// besides the filter (no column on `KSavedView`, no schema change): "belongs to project P" is read off
+// the filter, so export, import, seed and sync carry it unchanged.
+
+extension KFilter {
+    /// This filter narrowed to exactly one project: any other project choice, "no project" and the
+    /// inversion of the project field are replaced. Every other field is kept.
+    public func pinned(to projectID: UUID) -> KFilter {
+        var f = self
+        f.projectIDs = [projectID]
+        f.noProject = false
+        f.setNegated(.project, false)
+        return f
+    }
+
+    /// The one project this filter is pinned to, or nil when it names none, several, "no project" or
+    /// the inverse of a project.
+    public var pinnedProjectID: UUID? {
+        guard projectIDs.count == 1, !noProject, !isNegated(.project) else { return nil }
+        return projectIDs[0]
+    }
+}
+
+extension KSavedView {
+    /// The project this view belongs to (shown under it in the sidebar), read off its filter.
+    public var homeProjectID: UUID? { filter.pinnedProjectID }
+
+    /// How many of `tasks` the view lists, open ones only unless the view itself asks for a status:
+    /// the number beside it in the sidebar.
+    public func memberCount(in tasks: [KTask], today: Int) -> Int {
+        let f = filter
+        return tasks.filter { f.matches($0, today: today) && (!f.statuses.isEmpty || KStatus.open.contains($0.status)) }.count
+    }
+}
+
+extension ViewOptions {
+    /// These options with the filter pinned to `projectID`.
+    public func pinned(to projectID: UUID) -> ViewOptions {
+        var copy = self
+        copy.filter = filter.pinned(to: projectID)
+        return copy
+    }
+
+    /// Clear all for a list that belongs to a project: every sort and filter goes except the pin.
+    /// With no pin it is exactly `cleared()`.
+    public func cleared(keepingPin pin: UUID?) -> ViewOptions {
+        let base = cleared()
+        return pin.map(base.pinned(to:)) ?? base
+    }
+
+    /// True when Clear all would change something: a sort, or a filter beyond the pin.
+    public func hasRulesToClear(keepingPin pin: UUID?) -> Bool {
+        self != cleared(keepingPin: pin)
+    }
+}

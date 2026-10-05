@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -211,3 +212,5 @@ struct MCPHTTPParserTests {
         #expect(rejects > 0 && waits > 0)
     }
 }
+
+#endif

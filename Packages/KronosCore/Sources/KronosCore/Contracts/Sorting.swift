@@ -154,6 +154,12 @@ public enum KTaskSorter {
         }
     }
 
+    /// True when `task` has no value for `key` (the rows the sorter always puts last). Priority is
+    /// never absent: "none" is a real, comparable priority.
+    public static func isAbsent(_ task: KTask, _ key: KSortKey) -> Bool {
+        value(task, key).isAbsent
+    }
+
     /// Sort `tasks` by `descriptors`, applied in order.
     ///
     /// - Nil / none values sort LAST for every key, in both directions.
@@ -189,5 +195,170 @@ public enum KTaskSorter {
             if a.sortIndex != b.sortIndex { return a.sortIndex < b.sortIndex }
             return a.id.uuidString < b.id.uuidString
         }
+    }
+}
+
+// MARK: - Missing-value group
+
+/// A list sorted by an attribute shows the tasks that LACK it as their own group at the bottom
+/// (the sorter already puts them last), and offers to suggest the value for them.
+public enum SortGrouping {
+
+    /// The field triage fills for a sort key, nil for a key whose absence is not something to fill
+    /// (manual, title, status, dates of creation; priority is never absent).
+    public static func fillKind(for key: KSortKey) -> TriageFieldKind? {
+        switch key {
+        case .deadline: return .due
+        case .effort: return .effort
+        case .estimateMinutes: return .estimateMinutes
+        case .depth: return .depth
+        case .project: return .project
+        case .label: return .labels
+        default: return nil
+        }
+    }
+
+    /// The key whose missing tasks get their own group: the FIRST sort key, when it is one with a
+    /// fill field. Nil for a manual order or a key without one.
+    public static func missingKey(for sort: [KSortDescriptor]) -> KSortKey? {
+        guard let first = sort.first, fillKind(for: first.key) != nil else { return nil }
+        return first.key
+    }
+
+    /// `rows` (already sorted) split into the rows that have a value for `key` and those that lack
+    /// it. Each part keeps the order it had.
+    public static func split(rows: [KTask], key: KSortKey) -> (present: [KTask], missing: [KTask]) {
+        var present: [KTask] = [], missing: [KTask] = []
+        for row in rows {
+            if KTaskSorter.isAbsent(row, key) { missing.append(row) } else { present.append(row) }
+        }
+        return (present, missing)
+    }
+}
+
+/// One proposed value for one task. Nothing is written until the person accepts it.
+public struct MissingSuggestion: Equatable, Sendable {
+    public enum Value: Equatable, Sendable {
+        case due(day: Int)
+        case effort(KEffort)
+        case estimateMinutes(Int)
+        case project(name: String)
+    }
+    public let taskID: UUID
+    public let kind: TriageFieldKind
+    public let value: Value
+    /// The triage result this was read from; accepting applies it with `only: [kind]`.
+    public let result: TriageResult
+    /// The model that answered, nil when the neighbour vote did.
+    public let modelID: String?
+
+    public var isNeighbourSourced: Bool { modelID == nil }
+}
+
+/// The suggestion engine behind "Suggest" in the missing group: the existing triage pipeline run
+/// for one field of many tasks. The neighbour vote answers first and works with AI off; when a
+/// router is given its answer replaces the vote. A value is proposed only when the pipeline really
+/// decided it (a vote placeholder is never a suggestion), and never for a locked field.
+public enum MissingSuggest {
+
+    /// What the engine needs from one task (a task is a reference type: this crosses tasks safely).
+    public struct Subject: Sendable {
+        public let id: UUID
+        public let title: String
+        public let notes: String
+        public let locked: Set<TriageFieldKind>
+        public init(id: UUID, title: String, notes: String, locked: Set<TriageFieldKind>) {
+            self.id = id; self.title = title; self.notes = notes; self.locked = locked
+        }
+    }
+
+    /// At most this many tasks are asked about at once, and in one batch.
+    public static let batchLimit = 20
+    private static let parallel = 3
+
+    public static func suggest(for subjects: [Subject],
+                               kind: TriageFieldKind,
+                               examples: [(id: UUID, source: TriageExampleSource)],
+                               projectNames: [String],
+                               labelNames: [String],
+                               today: Int,
+                               router: (any AIRouting)?,
+                               modelID: String?) async -> [MissingSuggestion] {
+        let wanted = subjects.filter { !$0.locked.contains(kind) }.prefix(batchLimit)
+        var out: [UUID: MissingSuggestion] = [:]
+        var index = wanted.startIndex
+        while index < wanted.endIndex {
+            let end = wanted.index(index, offsetBy: parallel, limitedBy: wanted.endIndex) ?? wanted.endIndex
+            let chunk = Array(wanted[index..<end])
+            await withTaskGroup(of: MissingSuggestion?.self) { group in
+                for subject in chunk {
+                    group.addTask {
+                        await one(subject, kind: kind, examples: examples, projectNames: projectNames,
+                                  labelNames: labelNames, today: today, router: router, modelID: modelID)
+                    }
+                }
+                for await s in group { if let s { out[s.taskID] = s } }
+            }
+            index = end
+        }
+        return wanted.compactMap { out[$0.id] }
+    }
+
+    private static func one(_ subject: Subject, kind: TriageFieldKind,
+                            examples: [(id: UUID, source: TriageExampleSource)],
+                            projectNames: [String], labelNames: [String], today: Int,
+                            router: (any AIRouting)?, modelID: String?) async -> MissingSuggestion? {
+        let context = TriageContextBuilder.build(for: subject.title, notes: subject.notes,
+                                                 from: examples.filter { $0.id != subject.id }.map(\.source))
+        var result = NeighbourTriage.infer(title: subject.title, notes: subject.notes, context: context, today: today)
+        let neighbourFields = NeighbourTriage.fillableFields(title: subject.title, notes: subject.notes,
+                                                             context: context, today: today)
+        var answeredBy: String? = nil
+        if let router,
+           let ai = try? await router.triage(title: subject.title, notes: subject.notes, projectNames: projectNames,
+                                             labelNames: labelNames, today: today,
+                                             lockedFields: Set(subject.locked.map(\.rawValue)), context: context),
+           !ai.isDeterministic {
+            result = ai
+            answeredBy = modelID ?? "ai"
+        }
+        // A vote carries neutral placeholders for what it did not decide: only a decided field counts.
+        if answeredBy == nil, !neighbourFields.contains(kind) { return nil }
+        guard let value = value(of: kind, in: result) else { return nil }
+        return MissingSuggestion(taskID: subject.id, kind: kind, value: value, result: result, modelID: answeredBy)
+    }
+
+    private static func value(of kind: TriageFieldKind, in result: TriageResult) -> MissingSuggestion.Value? {
+        switch kind {
+        case .due:
+            guard let iso = result.due, let day = Day.parseISO(iso) else { return nil }
+            return .due(day: day)
+        case .effort:
+            guard let e = result.effort, e != .none else { return nil }
+            return .effort(e)
+        case .estimateMinutes:
+            return result.estimateMinutes > 0 ? .estimateMinutes(result.estimateMinutes) : nil
+        case .project:
+            guard let name = result.project, !name.isEmpty else { return nil }
+            return .project(name: name)
+        default:
+            return nil
+        }
+    }
+
+    /// Writes the accepted suggestions in ONE undo step: each through `applyTriage` limited to its own
+    /// field, fill-only, locked fields untouched. Returns the ids that were actually filled.
+    @MainActor @discardableResult
+    public static func apply(_ suggestions: [MissingSuggestion], to store: any TaskStoring) -> [UUID] {
+        var filled: [UUID] = []
+        store.groupedUndo("Sort") {
+            for s in suggestions {
+                let written = store.applyTriage(s.result, to: s.taskID, fillOnly: true, only: [s.kind])
+                guard !written.isEmpty else { continue }
+                store.recordTriageFill(task: s.taskID, fields: written, model: s.modelID ?? "neighbours")
+                filled.append(s.taskID)
+            }
+        }
+        return filled
     }
 }

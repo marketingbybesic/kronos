@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -37,3 +38,5 @@ import Foundation
         }
     }
 }
+
+#endif

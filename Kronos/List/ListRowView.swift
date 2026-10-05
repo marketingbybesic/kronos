@@ -159,19 +159,39 @@ struct ListRowView: View {
                     }
                 }
                 titleView
+                blockedGlyph
             }
         } trailing: {
             trailingSlots
         }
         // Dragging works in every sort mode (nest and move-under do not depend on the order); the list's
         // one AppKit drop destination (DropOverlayView) decides what a drop means, see DropZoneController.
-        .onDrag { DragOut.provider(id: task.id, title: task.title, isChild: false) }
+        .onDrag { DragOut.provider(task: task) }
         .reportsDropRow(id: task.id)
         .contentShape(Rectangle())   // whole row answers a right click, selected or not
         .kTaskContextMenu(task, model: model, onSelect: onSelect, pickDue: { showDeadlinePopover = true })
         .followsExpandAll($subtasksExpanded, hasSubtasks: !task.orderedChildren.isEmpty)
         .onHover { isHovering = $0 }
         .animation(Motion.curve(Motion.fast), value: isHovering)
+    }
+
+    /// A lock after the title while the task still waits on open tasks; the tooltip names the one
+    /// it waits on, or counts them. Gone as soon as the last open blocker is done or removed.
+    @ViewBuilder private var blockedGlyph: some View {
+        let _ = model.version   // blockers are other tasks: re-read after any store change
+        let blockers = KStatus.open.contains(task.status) ? model.store.openBlockers(of: task.id) : []
+        if !blockers.isEmpty {
+            let text = blockers.count == 1
+                ? String(format: String(localized: "list.row.blocked.one"), blockers[0].waitsOnDisplayName)
+                : String(format: String(localized: "list.row.blocked.many"), blockers.count)
+            Image(systemName: "lock.fill")
+                .font(.system(size: Metrics.iconXS, weight: .medium))
+                .foregroundStyle(Tok.textSecondary)
+                .fixedSize()
+                .help(text)
+                .accessibilityLabel(text)
+                .uiTestAnchor("row.blocked." + task.title)
+        }
     }
 
     // MARK: - Trailing slots (fixed order: priority · effort · deadline · project · subtasks ·

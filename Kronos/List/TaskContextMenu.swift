@@ -36,10 +36,23 @@ enum TaskMenu {
         let isChild = task.isSubtask
         let targets = task.parent.map { moveTargets(parent: $0, model: model) } ?? []
         let availability = TaskMenuAvailability(hasLabels: !model.store.labels().isEmpty, hasMoveTargets: !targets.isEmpty)
-        return TaskMenuSpec.items(isChild: isChild, withLink: true, availability: availability).map { item in
+        var nodes = TaskMenuSpec.items(isChild: isChild, withLink: true, availability: availability).map { item in
             node(for: item, task: task, model: model, targets: targets, pickDue: pickDue, onSelect: onSelect)
         }
+        // A template is a whole task with its steps, so only top-level rows offer it. It sits
+        // right before the divider that precedes Delete (after Copy / Copy link).
+        if !isChild {
+            let at = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+            nodes.insert(.action(saveTemplateNodeID, String(localized: "ctx.task.savetemplate"),
+                                 help: String(localized: "ctx.task.savetemplate.help")) {
+                TemplateActions.save(taskID: task.id, model: model)
+            }, at: at)
+        }
+        return nodes
     }
+
+    /// Node id of "Save as Template".
+    static let saveTemplateNodeID = "savetemplate"
 
     /// Node id of the "Avoiding it" toggle.
     static let dreadNodeID = TaskMenuItem.dread.rawValue

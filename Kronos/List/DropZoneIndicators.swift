@@ -10,10 +10,23 @@ enum DropSpace {
     static let name = "kronos.droplist"
 }
 
-struct DropRowFramesKey: PreferenceKey {
-    static let defaultValue: [DropRowFrame] = []
-    static func reduce(value: inout [DropRowFrame], nextValue: () -> [DropRowFrame]) {
-        value.append(contentsOf: nextValue())
+/// How a row hands its frame to the list's drop engine: straight to the controller, in the same main-actor turn the
+/// frame changed. (A preference value takes two more layout passes to arrive, and a drag started in that gap
+/// was judged against rows where they used to be.)
+struct DropRowSink {
+    let report: @MainActor (DropRowFrame) -> Void
+    let reportIfAbsent: @MainActor (DropRowFrame) -> Void
+    let remove: @MainActor (UUID) -> Void
+}
+
+private struct DropRowSinkKey: EnvironmentKey {
+    static let defaultValue: DropRowSink? = nil
+}
+
+extension EnvironmentValues {
+    var dropRowSink: DropRowSink? {
+        get { self[DropRowSinkKey.self] }
+        set { self[DropRowSinkKey.self] = newValue }
     }
 }
 
@@ -21,10 +34,31 @@ extension View {
     /// Reports this row's frame (task row: `parentID` nil; step row: its task's id) to the list's
     /// drop engine.
     func reportsDropRow(id: UUID, parentID: UUID? = nil) -> some View {
-        background(GeometryReader { geo in
-            Color.clear.preference(key: DropRowFramesKey.self,
-                                   value: [DropRowFrame(id: id, parentID: parentID, frame: geo.frame(in: .named(DropSpace.name)))])
-        })
+        modifier(ReportsDropRow(id: id, parentID: parentID))
+    }
+}
+
+/// Measures the row with `onGeometryChange`, which re-reads the frame whenever the row MOVES in the list's
+/// space. A GeometryReader inside a lazy scroll content is not re-run when only content above the row grows
+/// (the inline new-task row's project pill appears after the first layout): the engine then judged every row
+/// 40 pt above where it was drawn until a later relayout, so the first drop after launch landed one row off.
+/// The reader below only gives the first frame when the change callback has not delivered one.
+private struct ReportsDropRow: ViewModifier {
+    let id: UUID
+    let parentID: UUID?
+    @Environment(\.dropRowSink) private var sink
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(DropSpace.name)) } action: { frame in
+                MainActor.assumeIsolated { sink?.report(DropRowFrame(id: id, parentID: parentID, frame: frame)) }
+            }
+            .background(GeometryReader { geo in
+                Color.clear.onAppear {
+                    sink?.reportIfAbsent(DropRowFrame(id: id, parentID: parentID, frame: geo.frame(in: .named(DropSpace.name))))
+                }
+            })
+            .onDisappear { sink?.remove(id) }
     }
 }
 

@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -193,3 +194,5 @@ import Foundation
         #expect(try rig.call("events_ack", [:], as: a).message.contains("upTo"))
     }
 }
+
+#endif

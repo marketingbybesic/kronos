@@ -67,6 +67,11 @@ extension AgentHub {
             var l = life[id] ?? Life(agentID: agentID)
             let result = AgentTaskResult.decode(t.resultJSON)
             var base: [String: AgentJSON] = ["title": .string(t.title)]
+            // The person's verdict and word travel with the event (Accept, Reject, send back).
+            if result?.by == "me", let v = result?.verdict {
+                base["verdict"] = .string(v)
+                if let c = result?.verdictComment { base["comment"] = .string(c) }
+            }
             func emit(_ verb: String, _ extra: [String: AgentJSON] = [:], at: Date? = nil) {
                 append(actor: "me", verb: verb, taskID: id, agentID: agentID,
                        payload: base.merging(extra) { $1 }, at: at)

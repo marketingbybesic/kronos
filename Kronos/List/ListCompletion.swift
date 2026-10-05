@@ -20,16 +20,27 @@ enum ListCompletion {
             store.reopen(task.id)
             model.commit(String(format: String(localized: "undo.uncompleted.name"), task.title))
         } else {
-            // Computed BEFORE the write: once the row is done it may leave the list, and the
-            // selection (and keyboard focus) must land on a neighbour, not on nothing (audit D11).
-            let next = model.selectedTaskID == task.id ? neighbourToSelect(after: task.id, model: model) : nil
-            store.complete(task.id)
-            ListLinger.hold(task.id, in: model.scope, model: model)
-            if let next { model.selectedTaskID = next }
-            model.didMutate()   // pill: showCompletionPill below (Done. Next, with Start)
-            if next != nil { NotificationCenter.default.post(name: Notification.Name("kronosFocusListRequested"), object: nil) }
-            showCompletionPill(for: task, model: model)
+            // A task that still waits on open tasks is not completed here: the shell shows the
+            // "Finish <B> first" card and the chosen write comes back through `finish`.
+            // `store.complete` itself stays unconditional (MCP, URL scheme, Intents).
+            if model.interceptBlockedCompletion(of: task, finish: { write in finishCompletion(task, model: model, write: write) }) {
+                return
+            }
+            finishCompletion(task, model: model) { store.complete(task.id) }
         }
+    }
+
+    /// Runs `write` (which completes `task`) and what a completion from the list earns.
+    private static func finishCompletion(_ task: KTask, model: AppModel, write: () -> Void) {
+        // Computed BEFORE the write: once the row is done it may leave the list, and the
+        // selection (and keyboard focus) must land on a neighbour, not on nothing (audit D11).
+        let next = model.selectedTaskID == task.id ? neighbourToSelect(after: task.id, model: model) : nil
+        write()
+        ListLinger.hold(task.id, in: model.scope, model: model)
+        if let next { model.selectedTaskID = next }
+        model.didMutate()   // pill: showCompletionPill below (Done. Next, with Start)
+        if next != nil { NotificationCenter.default.post(name: Notification.Name("kronosFocusListRequested"), object: nil) }
+        showCompletionPill(for: task, model: model)
     }
 
     /// "Done. Next: <first move>" with Start as the primary action when the shown list has an

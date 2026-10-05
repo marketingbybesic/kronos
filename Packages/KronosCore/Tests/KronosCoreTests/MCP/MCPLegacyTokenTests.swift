@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 import SwiftData
@@ -116,3 +117,5 @@ import SwiftData
         #expect(rig.store.allTasks().isEmpty)
     }
 }
+
+#endif

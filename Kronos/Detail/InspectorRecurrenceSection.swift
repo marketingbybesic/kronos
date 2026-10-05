@@ -32,14 +32,12 @@ struct InspectorRecurrenceSection: View {
             .contentShape(Rectangle())
             .onTapGesture { isPresented = true }
             .popover(isPresented: $isPresented) {
-                InspectorRecurrenceEditor(rule: rule, locale: KronosLocale.languageCode) { newRule in
+                InspectorRecurrencePopover(rule: rule, locale: KronosLocale.languageCode) { newRule in
                     model.store.setRecurrence(task.id, newRule?.wireFormat)
                     model.didMutate()
                 }
-                .padding(Space.x4)
-                .frame(width: 280)
-                .background(Tok.overlay)
             }
+            .uiTestAnchor("inspector.recurrence")
     }
 
     private var rule: RecurrenceRule? {
@@ -177,7 +175,9 @@ struct InspectorRecurrenceEditor: View {
             Text(String(localized: "detail.recurrence.anchor.due")).tag(RecurrenceAnchor.fromDueDay)
             Text(String(localized: "detail.recurrence.anchor.completion")).tag(RecurrenceAnchor.fromCompletionDay)
         }
-        .pickerStyle(.segmented)
+        // Radio rows, not a segmented control: the two labels side by side need ~274 pt and overflowed the
+        // popover's padding box (content ran to within 7 pt of the edge); stacked they always fit.
+        .pickerStyle(.radioGroup)
         .labelsHidden()
         .onChange(of: anchor) { _, _ in push() }
     }

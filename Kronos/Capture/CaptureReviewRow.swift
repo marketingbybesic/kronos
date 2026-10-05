@@ -100,6 +100,7 @@ struct CaptureReviewRow: View {
             subtaskSection
             notesSection
         }
+        .uiTestAnchor("capture.review.row.\(row.proposal.title)")
         .onChange(of: row.proposal.title) { _, newValue in
             if titleText != newValue { titleText = newValue }
         }
@@ -359,6 +360,7 @@ struct CaptureReviewRow: View {
                     .accessibilityLabel(String(localized: "common.delete"))
                 }
                 .frame(minHeight: Metrics.controlCompact)
+                .uiTestAnchor("capture.review.sub.\(title)")
             }
             if !isSubtasksExpanded, row.subtasks.count > Self.visibleSubtaskLimit {
                 let remaining = row.subtasks.count - Self.visibleSubtaskLimit

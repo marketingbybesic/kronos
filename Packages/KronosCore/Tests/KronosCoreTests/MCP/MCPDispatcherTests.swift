@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -77,10 +78,19 @@ struct MCPDispatcherTests {
         expectHandled(.eventsPoll)
         expectHandled(.eventsAck, ["upTo": "0"])
         expectHandled(.next)
+        expectHandled(.listLabels)
+        expectHandled(.createLabel, ["name": "Errand"])
+        expectHandled(.updateLabel, ["id": UUID().uuidString, "name": "Renamed"])
+        expectHandled(.createProject, ["name": "Launch"])
+        expectHandled(.updateProject, ["id": UUID().uuidString, "name": "Renamed"])
+        expectHandled(.createArea, ["name": "Work"])
+        expectHandled(.updateArea, ["id": UUID().uuidString, "name": "Renamed"])
+        expectHandled(.deleteArea, ["id": UUID().uuidString, "confirm": true])
+        expectHandled(.moveTask, ["id": task.id.uuidString, "project": NSNull()])
 
-        #expect(ran == 25)
+        #expect(ran == 34)
         #expect(ran == MCPTool.allCases.count)
-        #expect(Set(MCPTool.allCases.map(\.name)).count == 25)
+        #expect(Set(MCPTool.allCases.map(\.name)).count == 34)
     }
 
     // MARK: - Required: rejectsMissingOrWrongBearer
@@ -223,7 +233,7 @@ struct MCPDispatcherTests {
         let response = d.handle(request)!
         let obj = try JSONSerialization.jsonObject(with: response.result!) as! [String: Any]
         let tools = obj["tools"] as! [[String: Any]]
-        #expect(tools.count == 25)
+        #expect(tools.count == 34)
         #expect(tools.count == MCPTool.allCases.count)
         for t in tools {
             #expect(t["inputSchema"] is [String: Any])
@@ -301,3 +311,5 @@ struct MCPDispatcherTests {
         #expect(json.contains("Authorization"))
     }
 }
+
+#endif

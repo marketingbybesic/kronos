@@ -132,4 +132,23 @@ struct TemplateTests {
         let named = try #require(store.makeTemplate(from: t.id, name: "  Release  "))
         #expect(named.name == "Release")
     }
+
+    /// The menu flow: save a task as a template, then make a task from it (twice). Each result is a
+    /// separate task carrying the template's notes and steps, and the source is untouched.
+    @Test func saveThenCreateMakesIndependentCopies() throws {
+        let store = try TaskStore(inMemory: true)
+        let src = store.create(title: "Plan trip", notes: "pack light", dueDay: Day.today() + 3)
+        store.addSubtask(src.id, title: "tickets")
+        store.addSubtask(src.id, title: "hotel")
+        let tpl = try #require(store.makeTemplate(from: src.id))
+        let a = store.createFromTemplate(tpl, status: .todo, dueDay: nil)
+        let b = store.createFromTemplate(tpl, status: .todo, dueDay: Day.today())
+        #expect(Set([src.id, a.id, b.id]).count == 3)
+        for t in [a, b] {
+            #expect(t.title == "Plan trip" && t.notes == "pack light")
+            #expect(t.orderedSubtasks.map(\.title) == ["tickets", "hotel"])
+        }
+        #expect(a.dueDay == nil && b.dueDay == Day.today())
+        #expect(src.dueDay == Day.today() + 3 && src.orderedSubtasks.count == 2)
+    }
 }

@@ -1190,6 +1190,204 @@
         }
       }
     },
+    "blocked.all": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete all"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi sve"
+          }
+        }
+      }
+    },
+    "blocked.both": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete both"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završi oba"
+          }
+        }
+      }
+    },
+    "blocked.cancel": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odustani"
+          }
+        }
+      }
+    },
+    "blocked.open": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open “%@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori „%@”"
+          }
+        }
+      }
+    },
+    "blocked.remove": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove dependency"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni ovisnost"
+          }
+        }
+      }
+    },
+    "blocked.sub.many": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is waiting on these."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadatak „%@” čeka na ove zadatke."
+          }
+        }
+      }
+    },
+    "blocked.sub.one": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” is waiting on it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadatak „%@” čeka na to."
+          }
+        }
+      }
+    },
+    "blocked.title": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish “%@” first"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prvo završi „%@”"
+          }
+        }
+      }
+    },
+    "blocked.title.n.few": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish %lld tasks first"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prvo završi %lld zadatka"
+          }
+        }
+      }
+    },
+    "blocked.title.n.many": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish %lld tasks first"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prvo završi %lld zadataka"
+          }
+        }
+      }
+    },
+    "blocked.title.n.one": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish %lld task first"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prvo završi %lld zadatak"
+          }
+        }
+      }
+    },
     "capture.action.back": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -1658,6 +1856,24 @@
         }
       }
     },
+    "capture.paste.hint": {
+      "comment": "Capture paste step: one-line grammar hint under the text area.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each line is a task. Indent a line, or start it with - or >, to make it a subtask of the line above. A blank line starts a new task."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Svaki redak je zadatak. Uvuci redak ili ga počni s - ili > da postane podzadatak retka iznad. Prazan redak počinje novi zadatak."
+          }
+        }
+      }
+    },
     "capture.paste.placeholder.examples": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -1672,168 +1888,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "npr. \"Sastanak Acme: poslati ponudu\" · ono što ti padne na pamet · zadatak s uvučenim redcima ispod njega za podzadatke"
-          }
-        }
-      }
-    },
-    "capture.reminders.complete": {
-      "comment": "Capture, From Reminders option.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Also mark them complete in Reminders"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Označi ih dovršenima i u Podsjetnicima"
-          }
-        }
-      }
-    },
-    "capture.reminders.complete.help": {
-      "comment": "Capture, From Reminders option (help tag).",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "After the tasks are created, the same reminders are completed in the Reminders app."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nakon stvaranja zadataka isti se podsjetnici dovršavaju u aplikaciji Podsjetnici."
-          }
-        }
-      }
-    },
-    "capture.reminders.denied": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kronos needs permission to read Reminders."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kronos treba dopuštenje za čitanje Podsjetnika."
-          }
-        }
-      }
-    },
-    "capture.reminders.denied.action": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open System Settings"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otvori Postavke sustava"
-          }
-        }
-      }
-    },
-    "capture.reminders.empty": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No open reminders found."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nema otvorenih podsjetnika."
-          }
-        }
-      }
-    },
-    "capture.reminders.from": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "From Reminders…"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iz Podsjetnika…"
-          }
-        }
-      }
-    },
-    "capture.reminders.loading": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reading your reminders…"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Čitam tvoje podsjetnike…"
-          }
-        }
-      }
-    },
-    "capture.reminders.nonew": {
-      "comment": "Capture, From Reminders feedback.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Every open reminder is already in Kronos."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Svi otvoreni podsjetnici već su u Kronosu."
-          }
-        }
-      }
-    },
-    "capture.reminders.status": {
-      "comment": "Spec 3.1 App-level, sidebar, views.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "From Reminders."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Iz Podsjetnika."
           }
         }
       }
@@ -2270,6 +2324,24 @@
         }
       }
     },
+    "capture.status.prose": {
+      "comment": "Capture review status: pasted text is running prose and AI is not available.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This looks like a paragraph. Turn on AI to split it into tasks."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovo izgleda kao odlomak. Uključi AI da ga razdvoji na zadatke."
+          }
+        }
+      }
+    },
     "capture.status.reason.empty": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -2356,6 +2428,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "nepoznat razlog"
+          }
+        }
+      }
+    },
+    "capture.status.skipped": {
+      "comment": "Capture review status: lines that did not become tasks (too short, ticked). %@ is a quoted list.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskočeno: %@"
           }
         }
       }
@@ -3220,6 +3310,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Preneseno"
+          }
+        }
+      }
+    },
+    "deadline.month.next": {
+      "comment": "Deadline popover: next month button (VoiceOver label).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next month"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sljedeći mjesec"
+          }
+        }
+      }
+    },
+    "deadline.month.previous": {
+      "comment": "Deadline popover: previous month button (VoiceOver label).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous month"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prethodni mjesec"
           }
         }
       }
@@ -6626,6 +6752,60 @@
         }
       }
     },
+    "list.bulk.blocked.few": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld blocked tasks skipped"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskočena %lld blokirana zadatka"
+          }
+        }
+      }
+    },
+    "list.bulk.blocked.many": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld blocked tasks skipped"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskočeno %lld blokiranih zadataka"
+          }
+        }
+      }
+    },
+    "list.bulk.blocked.one": {
+      "comment": "Blocked completion card (finish blockers first) and the bulk skip pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld blocked task skipped"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskočen %lld blokiran zadatak"
+          }
+        }
+      }
+    },
     "list.bulk.close": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -7580,6 +7760,258 @@
         }
       }
     },
+    "list.missing.asking": {
+      "comment": "Missing group: while the suggestion is being worked out.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asking…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pitam…"
+          }
+        }
+      }
+    },
+    "list.missing.dismiss": {
+      "comment": "Missing group: throw the suggestions away without writing.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odbaci"
+          }
+        }
+      }
+    },
+    "list.missing.fill": {
+      "comment": "Missing group: write every suggestion; %1$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popuni %1$lld"
+          }
+        }
+      }
+    },
+    "list.missing.fill.one": {
+      "comment": "Missing group: write one suggestion.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popuni"
+          }
+        }
+      }
+    },
+    "list.missing.filled": {
+      "comment": "Undo pill after filling suggestions; %1$lld = how many tasks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggestions filled: %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popunjeno prijedloga: %1$lld"
+          }
+        }
+      }
+    },
+    "list.missing.header.deadline": {
+      "comment": "List sorted by deadline: header of the group of tasks without one; %1$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No deadline (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez roka (%1$lld)"
+          }
+        }
+      }
+    },
+    "list.missing.header.effort": {
+      "comment": "List sorted by effort: header of the group of tasks without one; %1$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No effort (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez napora (%1$lld)"
+          }
+        }
+      }
+    },
+    "list.missing.header.estimate": {
+      "comment": "List sorted by estimate: header of the group of tasks without one; %1$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No estimate (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez procjene (%1$lld)"
+          }
+        }
+      }
+    },
+    "list.missing.header.generic": {
+      "comment": "Header of the missing group for any other sort key; %1$@ = field name, %2$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No value for %1$@ (%2$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema vrijednosti: %1$@ (%2$lld)"
+          }
+        }
+      }
+    },
+    "list.missing.header.project": {
+      "comment": "List sorted by project: header of the group of tasks without one; %1$lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No project (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez projekta (%1$lld)"
+          }
+        }
+      }
+    },
+    "list.missing.minutes": {
+      "comment": "A suggested estimate in minutes; %1$lld = minutes.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld min"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld min"
+          }
+        }
+      }
+    },
+    "list.missing.none": {
+      "comment": "Missing group: nothing could be suggested for these tasks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to suggest"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema prijedloga"
+          }
+        }
+      }
+    },
+    "list.missing.suggest": {
+      "comment": "Missing group: ask for a suggested value for these tasks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest with AI"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predloži pomoću AI-ja"
+          }
+        }
+      }
+    },
+    "list.missing.suggest.help": {
+      "comment": "Missing group: what Suggest does.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looks at your similar tasks and suggests a value. Nothing changes until you tap Fill."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gleda slične zadatke i predlaže vrijednost. Ništa se ne mijenja dok ne odabereš Popuni."
+          }
+        }
+      }
+    },
     "list.nest.err.gone": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8026,6 +8458,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "„%1$@” čeka. Vraća se u Danas za tri dana."
+          }
+        }
+      }
+    },
+    "list.row.blocked.many": {
+      "comment": "Tooltip of the lock on a list row that waits on several open tasks. %lld = how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting on %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na više zadataka (%lld)"
+          }
+        }
+      }
+    },
+    "list.row.blocked.one": {
+      "comment": "Tooltip of the lock on a list row that waits on one open task. %@ = that task's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting on %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na „%@”"
           }
         }
       }
@@ -18930,6 +19398,24 @@
         }
       }
     },
+    "viewoptions.filter.choose": {
+      "comment": "Filter row added but without a value yet.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberi…"
+          }
+        }
+      }
+    },
     "viewoptions.filter.invert.hint": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -18966,6 +19452,24 @@
         }
       }
     },
+    "viewoptions.filter.text.placeholder": {
+      "comment": "Placeholder of the typed value of a Text filter row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type to filter"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upiši pojam"
+          }
+        }
+      }
+    },
     "viewoptions.filter.title": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -18980,6 +19484,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Filtar"
+          }
+        }
+      }
+    },
+    "list.pill.viewdeleted": {
+      "comment": "Undo pill after deleting a saved view from the sidebar.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted view “%1$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaz „%1$@” obrisan"
+          }
+        }
+      }
+    },
+    "viewoptions.pinned.help": {
+      "comment": "Tooltip on the locked project row of a view that belongs to a project.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This view belongs to this project, so the project cannot be removed here."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovaj prikaz pripada projektu, pa se projekt ovdje ne može ukloniti."
+          }
+        }
+      }
+    },
+    "viewoptions.pinned.missing": {
+      "comment": "Shown in the locked project row when the project no longer exists.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project no longer available"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projekt više nije dostupan"
+          }
+        }
+      }
+    },
+    "viewoptions.saveview.inproject": {
+      "comment": "Caption in the save view popover when saving from inside a project.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved in the project %1$@ and listed under it in the sidebar."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprema se u projekt %1$@ i prikazuje se ispod njega u bočnoj traci."
           }
         }
       }
@@ -23549,6 +24125,108 @@
         }
       }
     },
+    "agents.scope.writeall": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "full control"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "puna kontrola"
+          }
+        }
+      }
+    },
+    "agents.fullcontrol.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full control"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puna kontrola"
+          }
+        }
+      }
+    },
+    "agents.fullcontrol.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "May change, complete and reopen any task, edit subtasks, and manage projects, areas and labels. It never deletes your tasks and never decides your review."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smije mijenjati, dovršavati i ponovno otvarati bilo koji zadatak, uređivati podzadatke i upravljati projektima, područjima i oznakama. Nikad ne briše tvoje zadatke i nikad ne odlučuje o tvom pregledu."
+          }
+        }
+      }
+    },
+    "agents.fullcontrol.confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give %@ full control? It can then change or complete any of your tasks. You can undo its work for today from here and turn this off at any time."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dati agentu %@ punu kontrolu? Tada može mijenjati ili dovršavati sve tvoje zadatke. Njegov današnji rad možeš poništiti ovdje, a ovo možeš isključiti u bilo kojem trenutku."
+          }
+        }
+      }
+    },
+    "agents.fullcontrol.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full control for %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puna kontrola za %@"
+          }
+        }
+      }
+    },
+    "agents.fullcontrol.enable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give full control"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daj punu kontrolu"
+          }
+        }
+      }
+    },
     "agents.scope.rules": {
       "extractionState": "manual",
       "localizations": {
@@ -24823,6 +25501,74 @@
         }
       }
     },
+    "review.inspector.comment": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comment for the agent (optional)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komentar za agenta (neobavezno)"
+          }
+        }
+      }
+    },
+    "review.inspector.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept closes the task. Reject sends it back to the agent with your comment."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prihvaćanjem se zadatak zatvara. Odbijanjem se vraća agentu s tvojim komentarom."
+          }
+        }
+      }
+    },
+    "review.inspector.accepted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You accepted this"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prihvatio si ovo"
+          }
+        }
+      }
+    },
+    "review.inspector.rejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You sent this back"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vratio si ovo agentu"
+          }
+        }
+      }
+    },
     "review.reopen.prompt": {
       "extractionState": "manual",
       "localizations": {
@@ -25327,6 +26073,168 @@
           "stringUnit": {
             "state": "translated",
             "value": "kasni"
+          }
+        }
+      }
+    },
+    "ctx.task.savetemplate": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as Template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremi kao predložak"
+          }
+        }
+      }
+    },
+    "ctx.task.savetemplate.help": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep this task and its subtasks as a starting point for new tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremi ovaj zadatak i njegove podzadatke kao polazište za nove zadatke"
+          }
+        }
+      }
+    },
+    "undo.templatesaved.name": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved template “%1$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predložak “%1$@” je spremljen"
+          }
+        }
+      }
+    },
+    "undo.templatesaved.manage": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uredi"
+          }
+        }
+      }
+    },
+    "undo.fromtemplate.name": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created “%1$@” from a template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadatak “%1$@” stvoren je iz predloška"
+          }
+        }
+      }
+    },
+    "palette.template.manage": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage templates…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uredi predloške…"
+          }
+        }
+      }
+    },
+    "menu.file.newfromtemplate": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New from Template"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novo iz predloška"
+          }
+        }
+      }
+    },
+    "menu.file.templates.empty": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No templates yet. Right-click a task, Save as Template."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema predložaka. Desni klik na zadatak, Spremi kao predložak."
+          }
+        }
+      }
+    },
+    "menu.file.templates.manage": {
+      "comment": "Templates.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage Templates…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uredi predloške…"
           }
         }
       }

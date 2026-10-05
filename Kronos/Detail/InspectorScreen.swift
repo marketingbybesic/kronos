@@ -104,6 +104,8 @@ struct InspectorScreen: View {
             VStack(alignment: .leading, spacing: Metrics.inspectorSectionGap) {
                 if let parent = task.parent { breadcrumb(parent) }
                 header(task)
+                // The person's check of an agent's "done" report needs a decision: it sits above Details, always visible.
+                InspectorReviewSection(model: model, task: task)
                 firstMoveSection(task)
                     .tourAnchor(.inspectorFirstMove)
                 InspectorAttributesRow(model: model, task: task)

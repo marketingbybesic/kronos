@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -110,3 +111,5 @@ import Foundation
         #expect((again.body["events"] as? [Any])?.isEmpty == true)
     }
 }
+
+#endif

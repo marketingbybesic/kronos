@@ -24,9 +24,12 @@ public enum ListScopeDefaults {
         /// Set only for `.area`, where list membership needs `task.areaID` directly — a task
         /// with no project has no other way to belong to an area.
         public var areaID: UUID?
+        /// Set only for a saved view that belongs to a project: a task typed there goes to that project, so
+        /// it is a member of the list it was typed into.
+        public var projectID: UUID?
 
-        public init(status: KStatus, dueDay: Int?, areaID: UUID?) {
-            self.status = status; self.dueDay = dueDay; self.areaID = areaID
+        public init(status: KStatus, dueDay: Int?, areaID: UUID?, projectID: UUID? = nil) {
+            self.status = status; self.dueDay = dueDay; self.areaID = areaID; self.projectID = projectID
         }
     }
 
@@ -38,10 +41,14 @@ public enum ListScopeDefaults {
     /// blocked-on-someone-else is `.waiting` whether it was typed on Someday, on Today, or with
     /// no scope at all. Checked first, before the per-scope switch, so no scope case below has
     /// to remember to defer to it.
+    ///
+    /// `savedViewHome` is the project the open saved view belongs to (nil for any other list): only a
+    /// `.savedView` scope reads it.
     public static func apply(scope: QuickAddScopeKind?, explicitDueDay: Int?, today: Int,
-                              isWaiting: Bool = false) -> Result {
+                              isWaiting: Bool = false, savedViewHome: UUID? = nil) -> Result {
+        let home: UUID? = { if case .savedView = scope { return savedViewHome }; return nil }()
         if isWaiting {
-            return Result(status: .waiting, dueDay: explicitDueDay, areaID: areaID(for: scope))
+            return Result(status: .waiting, dueDay: explicitDueDay, areaID: areaID(for: scope), projectID: home)
         }
         switch scope {
         case .someday:
@@ -64,10 +71,12 @@ public enum ListScopeDefaults {
             // for it. Someday is only ever chosen on purpose (the Someday scope, or a later
             // status pick), never filled in for a missing date. An explicit date wins.
             return Result(status: .todo, dueDay: explicitDueDay, areaID: nil)
-        case .project, .savedView:
-            // fallbackProject (for a project scope) already carries the right membership, and a
-            // saved view has no scope-specific default.
+        case .project:
+            // fallbackProject (for a project scope) already carries the right membership.
             return Result(status: .todo, dueDay: explicitDueDay, areaID: nil)
+        case .savedView:
+            // A view of a project files the new task in that project; any other view has no default.
+            return Result(status: .todo, dueDay: explicitDueDay, areaID: nil, projectID: home)
         }
     }
 

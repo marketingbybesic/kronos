@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -111,3 +112,5 @@ struct MCPCreateTaskTextTests {
         #expect(schema.contains("\"strictLabels\""))
     }
 }
+
+#endif

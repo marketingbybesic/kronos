@@ -88,6 +88,23 @@ public struct MCPTaskFull: Codable, Sendable {
     public let context: AgentJSON?
     /// What came back when the task closed or a proposal was decided.
     public let result: AgentJSON?
+    /// The person's verdict on this task (Accept or Reject, with his word); absent until he decides.
+    /// Only the person's review actions write it: no tool can.
+    public let verdict: MCPVerdict?
+}
+
+/// The person's verdict on agent work: `accepted` or `rejected`, his optional comment and when.
+public struct MCPVerdict: Codable, Sendable {
+    public let decision: String
+    public let comment: String?
+    public let at: Date?
+
+    init?(_ r: AgentTaskResult) {
+        guard r.by == "me", let v = r.verdict else { return nil }
+        decision = v
+        comment = r.verdictComment
+        at = r.verdictAt
+    }
 }
 
 public struct MCPProjectDTO: Codable, Sendable {
@@ -236,6 +253,7 @@ extension MCPTaskFull {
         agentID = t.agentID
         context = t.contextJSON.flatMap(AgentJSON.parse).map(AgentJSON.object)
         result = t.resultJSON.flatMap(AgentJSON.parse).map(AgentJSON.object)
+        verdict = AgentTaskResult.decode(t.resultJSON).flatMap(MCPVerdict.init)
     }
 
     static func reviewName(_ raw: Int) -> String? {

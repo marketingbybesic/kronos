@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -159,3 +160,5 @@ import Foundation
         #expect(looks < 50, "returned on the event after \(looks) looks, not at the 50 s deadline")
     }
 }
+
+#endif

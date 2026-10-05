@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -152,3 +153,5 @@ struct RouterConfigSignatureTests {
         #expect(base == signature(rules: [rule("Calls are people work.", active: false)]))
     }
 }
+
+#endif

@@ -135,8 +135,13 @@ extension LiveUITest {
     }
 
     static func internalTaskPasteboard(_ key: String, _ tasks: [String: KTask]) -> NSPasteboard {
+        // The shape a real task-row drag has: the private marker type, and plain text that is
+        // NOT the marker (a dossier), so these steps prove the reader no longer needs plain text.
         let pb = freshPasteboard()
-        pb.setString(DropZonePayloadReader.taskDragString(tasks[key]!.id), forType: .string)
+        let task = tasks[key]!
+        pb.declareTypes([DropZonePayloadReader.dragItemType, .string], owner: nil)
+        pb.setData(Data(DropZonePayloadReader.taskDragString(task.id).utf8), forType: DropZonePayloadReader.dragItemType)
+        pb.setString("# \(task.title)\n\n" + TaskLink.string(for: task.id), forType: .string)
         return pb
     }
 

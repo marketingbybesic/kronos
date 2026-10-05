@@ -12,6 +12,8 @@ public enum ActivityVerb {
     public static let doneByAgent = "task.doneByAgent"
     public static let restored = "task.restored"
     public static let reverted = "agent.reverted"
+    /// A project, area or label an agent with full control created or changed (no task id).
+    public static let structure = "structure.changed"
     // Reported to the agent that owns the task.
     public static let completed = "task.completed"
     public static let approved = "task.approved"
@@ -27,7 +29,7 @@ public enum ActivityVerb {
     /// Verbs an agent may hear about.
     public static let delivered: Set<String> = [completed, approved, rejected, reopened, deleted, assigned, commented, edited]
     /// Verbs that count as a write by an agent (the 7-day figure in Settings).
-    public static let writes: Set<String> = [created, updated, completed, deleted, restored, doneByAgent, commented]
+    public static let writes: Set<String> = [created, updated, completed, deleted, restored, doneByAgent, commented, structure]
 }
 
 extension AgentHub {

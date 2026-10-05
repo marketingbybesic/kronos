@@ -134,11 +134,8 @@ public enum ExtractOutlineValidator {
 
         var out: [ProposedTask] = []
         for proposal in deterministic {
-            // Every task line MUST carry priority and effort — `NoteSplitter.split` leaves
-            // both at `.none` when `QuickAddParser` found no marker of that kind on the line,
-            // so a reply that skipped either token is dropped here, never kept with a `.none`
-            // default.
-            guard proposal.priority != .none, proposal.effort != .none else { continue }
+            // A reply that skipped the priority or effort marker is still a real task: it keeps
+            // `.none` and auto-triage fills it later. Only the grounding guard below drops a task.
 
             let notes = outlineNotes[proposal.sourceLine]
             let groundedByNotes = notes.map { sourceFolded.contains(KTextFold.fold($0)) } ?? false

@@ -36,6 +36,15 @@ extension MCPDispatcher {
             return .error(.internalError, message: "alias \(tool.name) was not resolved")
         case .listProjects:  return listProjects(arguments)
         case .listAreas:     return listAreas(arguments)
+        case .listLabels:    return listLabels(arguments)
+        case .createLabel:   return createLabel(arguments)
+        case .updateLabel:   return updateLabel(arguments)
+        case .createProject: return createProject(arguments)
+        case .updateProject: return updateProject(arguments)
+        case .createArea:    return createArea(arguments)
+        case .updateArea:    return updateArea(arguments)
+        case .deleteArea:    return deleteArea(arguments)
+        case .moveTask:      return moveTask(arguments)
         }
     }
 

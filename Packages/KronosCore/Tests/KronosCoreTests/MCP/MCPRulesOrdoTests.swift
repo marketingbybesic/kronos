@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -96,3 +97,5 @@ import Foundation
         #expect(sorted == ["T5", "T4", "T3", "T2", "T1"])
     }
 }
+
+#endif

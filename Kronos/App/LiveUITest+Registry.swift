@@ -37,6 +37,16 @@ extension LiveUITest {
         ("E-A11Y", eA11ySteps),
         ("F-SORT", fSortSteps),
         ("F-OPEN", fOpenSteps),
+        ("A-DRAG", aDragSteps),
+        ("I-CAPTURE", iCaptureSteps),
+        ("A-MCP2", aMcpSteps),
+        ("L-SUB", lSubSteps),
+        ("I-TMPL", iTmplSteps),
+        ("L-VIEW", lViewSteps),
+        ("I-BLOCK", iBlockSteps),
+        ("I-INSPECT", iInspectSteps),
+        ("FOLLOWUP", followupSteps),
+        ("L-SAVED", lSavedSteps),
         // GROUP-STEPS-END
     ]
 

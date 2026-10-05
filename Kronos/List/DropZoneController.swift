@@ -81,9 +81,23 @@ final class ListDropController {
 
     // MARK: Fed by SwiftUI
 
-    func setRowFrames(_ list: [DropRowFrame]) {
-        frames = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
-        rows = list.filter { $0.frame.height > 0 }
+    func reportRow(_ frame: DropRowFrame) {
+        guard frames[frame.id] != frame else { return }
+        frames[frame.id] = frame
+        rowsChanged()
+    }
+
+    func reportRowIfAbsent(_ frame: DropRowFrame) {
+        if frames[frame.id] == nil { reportRow(frame) }
+    }
+
+    func removeRow(_ id: UUID) {
+        guard frames.removeValue(forKey: id) != nil else { return }
+        rowsChanged()
+    }
+
+    private func rowsChanged() {
+        rows = frames.values.filter { $0.frame.height > 0 }
             .sorted { $0.frame.minY < $1.frame.minY }
             .map { DropRow(id: $0.id, parentID: $0.parentID, minY: Double($0.frame.minY), maxY: Double($0.frame.maxY)) }
         // Rows moved under a resting pointer (scrolling, list changes). Deferred: this runs while SwiftUI lays out.
@@ -127,13 +141,21 @@ final class ListDropController {
 
     // MARK: Resolution
 
+    /// The reported rows that belong to the list the engine decides on now. A row view that is still on its way out
+    /// (the previous scope after a switch, a slower machine) keeps reporting for a moment and would otherwise
+    /// answer for a position the new rows already occupy.
+    private var rowsInList: [DropRow] {
+        let known = Set(config.order.tasks).union(config.order.subtasks.values.joined())
+        return rows.filter { known.contains($0.id) }
+    }
+
     var currentResolution: DropResolution? { feedback?.resolution }
 
     /// Where the pointer is and what a drop there would do, with the hold measured on `now`.
     func resolution(forPointer p: CGPoint) -> DropResolution? {
         guard let subject else { return nil }
         // The hold belongs to the row whose centre the pointer rests in: probe with an endless hold.
-        let probe = DropResolver.resolve(rows: rows, pointerY: Double(p.y), subject: subject, order: config.order,
+        let probe = DropResolver.resolve(rows: rowsInList, pointerY: Double(p.y), subject: subject, order: config.order,
                                          holdSeconds: .infinity, isManualSort: config.isManualSort)
         let candidate = (probe?.zone.needsHold == true) ? probe?.rowID : nil
         if candidate != holdRow {
@@ -142,7 +164,7 @@ final class ListDropController {
             scheduleHoldTimer(active: candidate != nil)
         }
         let held = holdStart.map { now() - $0 } ?? 0
-        return DropResolver.resolve(rows: rows, pointerY: Double(p.y), subject: subject, order: config.order,
+        return DropResolver.resolve(rows: rowsInList, pointerY: Double(p.y), subject: subject, order: config.order,
                                     holdSeconds: held, isManualSort: config.isManualSort)
     }
 

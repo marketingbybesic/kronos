@@ -1,9 +1,11 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
 
 /// Every tool crossed with every scope set. `true` = the scope check lets the call through (the
 /// tool may still answer with its own error); `false` = FORBIDDEN. The table is written by hand.
+/// Columns: none, read, standard, trusted, legacy, full (standard plus write.all).
 @MainActor
 @Suite struct MCPScopeTests {
 
@@ -18,6 +20,7 @@ import Foundation
         ("standard", .standard),
         ("trusted", AgentScopes([.read, .propose, .writeOwn, .comment, .writeTrusted])),
         ("legacy", .legacy),
+        ("full", AgentScopes([.read, .propose, .writeOwn, .comment, .writeAll])),
     ]
 
     private func make(_ scopes: AgentScopes) throws -> (AgentRig, AgentIdentity, Ctx) {
@@ -42,46 +45,55 @@ import Foundation
         let label: String
         let tool: String
         let args: (Ctx) -> [String: Any]
-        /// allowed per set: none, read, standard, trusted, legacy
+        /// allowed per set: none, read, standard, trusted, legacy, full
         let allowed: [Bool]
     }
 
     static let cases: [Case] = [
-        Case(label: "list_tasks", tool: "list_tasks", args: { _ in ["view": "all"] }, allowed: [false, true, true, true, true]),
-        Case(label: "get_task foreign", tool: "get_task", args: { ["id": $0.foreign.uuidString] }, allowed: [false, true, true, true, true]),
-        Case(label: "ordo_get", tool: "ordo_get", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "upnext_get", tool: "upnext_get", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "rules_list", tool: "rules_list", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "list_projects", tool: "list_projects", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "list_areas", tool: "list_areas", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "whoami", tool: "whoami", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "next", tool: "next", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "events_poll", tool: "events_poll", args: { _ in [:] }, allowed: [false, true, true, true, true]),
-        Case(label: "events_ack", tool: "events_ack", args: { _ in ["upTo": "0"] }, allowed: [false, true, true, true, true]),
-        Case(label: "create_task", tool: "create_task", args: { _ in ["title": "New"] }, allowed: [false, false, true, true, true]),
-        Case(label: "propose_tasks", tool: "propose_tasks", args: { _ in ["title": "P", "tasks": [["title": "x"]]] }, allowed: [false, false, true, true, true]),
-        Case(label: "propose_update foreign", tool: "propose_update", args: { ["id": $0.foreign.uuidString, "patch": ["priority": "high"]] }, allowed: [false, false, true, true, true]),
-        Case(label: "comment_task foreign", tool: "comment_task", args: { ["id": $0.foreign.uuidString, "text": "hello"] }, allowed: [false, false, true, true, false]),
-        Case(label: "update_task mine", tool: "update_task", args: { ["id": $0.mine.uuidString, "title": "Changed"] }, allowed: [false, false, true, true, false]),
-        Case(label: "update_task foreign", tool: "update_task", args: { ["id": $0.foreign.uuidString, "title": "Changed"] }, allowed: [false, false, false, false, false]),
-        Case(label: "update_task foreign notes", tool: "update_task", args: { ["id": $0.foreign.uuidString, "notes": "overwritten"] }, allowed: [false, false, false, false, false]),
-        Case(label: "complete_task mine", tool: "complete_task", args: { ["id": $0.mine.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "complete_task foreign", tool: "complete_task", args: { ["id": $0.foreign.uuidString] }, allowed: [false, false, false, false, false]),
-        Case(label: "delete_task mine", tool: "delete_task", args: { ["id": $0.mine.uuidString, "confirm": true] }, allowed: [false, false, true, true, false]),
-        Case(label: "delete_task foreign", tool: "delete_task", args: { ["id": $0.foreign.uuidString, "confirm": true] }, allowed: [false, false, false, false, false]),
-        Case(label: "restore_task mine", tool: "restore_task", args: { ["id": $0.mineDeleted.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "restore_task foreign-deleted", tool: "restore_task", args: { _ in ["id": UUID().uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "add_subtask mine", tool: "add_subtask", args: { ["taskID": $0.mine.uuidString, "title": "s"] }, allowed: [false, false, true, true, false]),
-        Case(label: "add_subtask foreign", tool: "add_subtask", args: { ["taskID": $0.foreign.uuidString, "title": "s"] }, allowed: [false, false, false, false, false]),
-        Case(label: "toggle_subtask mine", tool: "toggle_subtask", args: { ["id": $0.mineChild.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "toggle_subtask foreign", tool: "toggle_subtask", args: { ["id": $0.foreignChild.uuidString] }, allowed: [false, false, false, false, false]),
-        Case(label: "ordo_set top mine", tool: "ordo_set", args: { ["top": $0.mine.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "ordo_set top foreign", tool: "ordo_set", args: { ["top": $0.foreign.uuidString] }, allowed: [false, false, false, false, false]),
-        Case(label: "upnext_set top mine", tool: "upnext_set", args: { ["top": $0.mine.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "upnext_set top foreign", tool: "upnext_set", args: { ["top": $0.foreign.uuidString] }, allowed: [false, false, false, false, false]),
-        Case(label: "rules_add", tool: "rules_add", args: { _ in ["text": "Never schedule on Sundays"] }, allowed: [false, false, true, true, true]),
-        Case(label: "rules_delete agent rule", tool: "rules_delete", args: { ["id": $0.agentRule.uuidString] }, allowed: [false, false, true, true, false]),
-        Case(label: "rules_delete owner rule", tool: "rules_delete", args: { ["id": $0.ownerRule.uuidString] }, allowed: [false, false, false, false, false]),
+        Case(label: "list_tasks", tool: "list_tasks", args: { _ in ["view": "all"] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "get_task foreign", tool: "get_task", args: { ["id": $0.foreign.uuidString] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "ordo_get", tool: "ordo_get", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "upnext_get", tool: "upnext_get", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "rules_list", tool: "rules_list", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "list_projects", tool: "list_projects", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "list_areas", tool: "list_areas", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "whoami", tool: "whoami", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "next", tool: "next", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "events_poll", tool: "events_poll", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "events_ack", tool: "events_ack", args: { _ in ["upTo": "0"] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "create_task", tool: "create_task", args: { _ in ["title": "New"] }, allowed: [false, false, true, true, true, true]),
+        Case(label: "propose_tasks", tool: "propose_tasks", args: { _ in ["title": "P", "tasks": [["title": "x"]]] }, allowed: [false, false, true, true, true, true]),
+        Case(label: "propose_update foreign", tool: "propose_update", args: { ["id": $0.foreign.uuidString, "patch": ["priority": "high"]] }, allowed: [false, false, true, true, true, true]),
+        Case(label: "comment_task foreign", tool: "comment_task", args: { ["id": $0.foreign.uuidString, "text": "hello"] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "update_task mine", tool: "update_task", args: { ["id": $0.mine.uuidString, "title": "Changed"] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "update_task foreign", tool: "update_task", args: { ["id": $0.foreign.uuidString, "title": "Changed"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "update_task foreign notes", tool: "update_task", args: { ["id": $0.foreign.uuidString, "notes": "overwritten"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "complete_task mine", tool: "complete_task", args: { ["id": $0.mine.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "complete_task foreign", tool: "complete_task", args: { ["id": $0.foreign.uuidString] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "delete_task mine", tool: "delete_task", args: { ["id": $0.mine.uuidString, "confirm": true] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "delete_task foreign", tool: "delete_task", args: { ["id": $0.foreign.uuidString, "confirm": true] }, allowed: [false, false, false, false, false, false]),
+        Case(label: "restore_task mine", tool: "restore_task", args: { ["id": $0.mineDeleted.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "restore_task foreign-deleted", tool: "restore_task", args: { _ in ["id": UUID().uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "add_subtask mine", tool: "add_subtask", args: { ["taskID": $0.mine.uuidString, "title": "s"] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "add_subtask foreign", tool: "add_subtask", args: { ["taskID": $0.foreign.uuidString, "title": "s"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "toggle_subtask mine", tool: "toggle_subtask", args: { ["id": $0.mineChild.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "toggle_subtask foreign", tool: "toggle_subtask", args: { ["id": $0.foreignChild.uuidString] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "ordo_set top mine", tool: "ordo_set", args: { ["top": $0.mine.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "ordo_set top foreign", tool: "ordo_set", args: { ["top": $0.foreign.uuidString] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "upnext_set top mine", tool: "upnext_set", args: { ["top": $0.mine.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "upnext_set top foreign", tool: "upnext_set", args: { ["top": $0.foreign.uuidString] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "rules_add", tool: "rules_add", args: { _ in ["text": "Never schedule on Sundays"] }, allowed: [false, false, true, true, true, true]),
+        Case(label: "rules_delete agent rule", tool: "rules_delete", args: { ["id": $0.agentRule.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "rules_delete owner rule", tool: "rules_delete", args: { ["id": $0.ownerRule.uuidString] }, allowed: [false, false, false, false, false, false]),
+        Case(label: "list_labels", tool: "list_labels", args: { _ in [:] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "create_label", tool: "create_label", args: { _ in ["name": "Errand"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "update_label", tool: "update_label", args: { _ in ["id": UUID().uuidString, "name": "Renamed"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "create_project", tool: "create_project", args: { _ in ["name": "New project"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "update_project", tool: "update_project", args: { _ in ["id": UUID().uuidString, "name": "Renamed"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "create_area", tool: "create_area", args: { _ in ["name": "New area"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "update_area", tool: "update_area", args: { _ in ["id": UUID().uuidString, "name": "Renamed"] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "delete_area", tool: "delete_area", args: { _ in ["id": UUID().uuidString, "confirm": true] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "move_task foreign", tool: "move_task", args: { ["id": $0.foreign.uuidString, "project": NSNull()] }, allowed: [false, false, false, false, false, true]),
     ]
 
     @Test func everyToolAgainstEverySetAnswersAsTheTableSays() throws {
@@ -155,7 +167,7 @@ import Foundation
     // D9-scopes: aliases are judged exactly like their targets.
 
     @Test func upnextSetIsForbiddenLikeOrdoSet() throws {
-        for set in Self.sets {
+        for set in Self.sets where !set.scopes.has(.writeAll) {
             let (rig, me, ctx) = try make(set.scopes)
             let viaAlias = try rig.call("upnext_set", ["top": ctx.foreign.uuidString], as: me)
             let (rig2, me2, ctx2) = try make(set.scopes)
@@ -187,3 +199,5 @@ import Foundation
         }
     }
 }
+
+#endif

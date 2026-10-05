@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 import SwiftData
@@ -70,3 +71,5 @@ final class ClockBox: @unchecked Sendable {
     var now: Date
     init(_ d: Date) { now = d }
 }
+
+#endif

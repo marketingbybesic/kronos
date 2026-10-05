@@ -11,7 +11,7 @@ import KronosCore
 @MainActor
 extension LiveUITest {
     /// A left click `count` times in a row at `p` (the second down carries clickCount 2, like a real double-click).
-    private static func multiClick(_ p: NSPoint, count: Int) async {
+    static func multiClick(_ p: NSPoint, count: Int) async {
         if !NSApp.isActive { lostFocus = true }
         post(.mouseMoved, at: p)
         for n in 1...count {
@@ -89,7 +89,7 @@ extension LiveUITest {
         model.inspectedSubtaskID = nil
         try? await Task.sleep(for: .milliseconds(700))
         await expandAll()
-        if let p = point("subrow.kids.c2", xFraction: 0.35) {
+        if let p = point("subrow.kids.c2", xFraction: 0.7) {
             let hit = window.contentView?.hitTest(window.contentView!.convert(p, from: nil))
             diagnostics.append("kids double-click: win=(\(Int(p.x)),\(Int(p.y))) frame=\(String(describing: UITestAnchors.frames["subrow.kids.c2"])) hit=\(hit.map { String(describing: type(of: $0)) } ?? "nil") active=\(NSApp.isActive)")
             await multiClick(p, count: 2)

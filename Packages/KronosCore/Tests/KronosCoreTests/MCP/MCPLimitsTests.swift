@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -187,3 +188,5 @@ private enum Harness {
         #expect(store.allTasks().isEmpty)
     }
 }
+
+#endif

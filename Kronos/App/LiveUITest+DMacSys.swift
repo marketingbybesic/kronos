@@ -1,8 +1,8 @@
 // Live steps for the macOS integration work: drag out of a row, Copy Kronos link, the Spotlight
 // diff against a recording index, the Services entry for files and links, the Focus filter memory,
-// the Reminders re-import, the parent cue and the launch kind. Run alone with `--only group:D-MACSYS`.
+// the parent cue and the launch kind. Run alone with `--only group:D-MACSYS`.
 // Everything runs against the scratch store of the test run, private pasteboards and private
-// defaults suites: the person's clipboard, Spotlight index, Reminders and Focus settings are never
+// defaults suites: the person's clipboard, Spotlight index and Focus settings are never
 // touched. `KRONOS_UITEST_BREAK=1` flips one expectation per step group: the run must then fail.
 #if !RELEASE
 import AppKit
@@ -19,9 +19,7 @@ extension LiveUITest {
         await spotlightDiff(model, breakMode: breakMode)
         servicesAddLink(model, breakMode: breakMode)
         focusFilterMemory(model, breakMode: breakMode)
-        await remindersReimport(model, breakMode: breakMode)
         parentCueAndLaunchKind(model, breakMode: breakMode)
-        await remindersOptionShot(model)
     }
 
     private static func privatePasteboard() -> NSPasteboard {
@@ -39,13 +37,13 @@ extension LiveUITest {
     private static func dragOutPayload(_ model: AppModel, breakMode: Bool) async {
         let store = model.store
         let task = store.createNoUndo(title: "dmacsys drag probe")
-        let provider = DragOut.provider(id: task.id, title: task.title, isChild: false)
+        let provider = DragOut.provider(task: store.task(task.id)!)
         let types = provider.registeredTypeIdentifiers
         let first = types.first ?? ""
         let internalData = await loadData(provider, first)
         let internalText = internalData.flatMap { String(data: $0, encoding: .utf8) }
         record("drag out: the internal text stays the first type and is unchanged",
-               first.contains("plain-text") && internalText == "kronos-task:\(task.id.uuidString)",
+               first == "app.kronos.drag-item" && internalText == "kronos-task:\(task.id.uuidString)",
                "first=\(first) text=\(internalText ?? "nil")")
         let link = TaskLink.string(for: task.id)
         let urlData = await loadData(provider, DragOut.linkURLType)
@@ -233,55 +231,6 @@ extension LiveUITest {
         model.scope = .all
     }
 
-    // MARK: Reminders
-
-    private static func remindersReimport(_ model: AppModel, breakMode: Bool) async {
-        let store = model.store
-        let one = ReminderItem(title: "dmacsys reminder one", notes: nil, due: nil, listName: "Nowhere", id: "R-ONE")
-        let two = ReminderItem(title: "dmacsys reminder two", notes: nil, due: nil, listName: "Nowhere", id: "R-TWO")
-        let recorder = RecordingReminders(items: [one])
-        let savedFlag = RemindersImport.markComplete
-        RemindersImport.markComplete = false
-
-        let capture = CaptureModel(model: model)
-        capture.remindersProvider = recorder
-        await capture.importFromReminders()
-        let firstRows = capture.rows.count
-        for row in capture.rows { capture.setTicked(row.id, true) }
-        capture.create()
-        await settle(400)
-        let stamped = store.allTasks().filter { $0.source == "reminders" }
-        record("Reminders: a created task is stamped with the reminders source and its id",
-               firstRows == 1 && stamped.count == 1 && stamped.first?.externalID == "reminders:R-ONE" && recorder.completed.isEmpty,
-               "rows=\(firstRows) stamped=\(stamped.map { $0.externalID ?? "nil" }) completed=\(recorder.completed)")
-
-        recorder.items = [one, two]
-        RemindersImport.markComplete = true
-        let again = CaptureModel(model: model)
-        again.remindersProvider = recorder
-        await again.importFromReminders()
-        let rows2 = again.rows.map(\.proposal.title)
-        for row in again.rows { again.setTicked(row.id, true) }
-        again.create()
-        await settle(400)
-        let all = store.allTasks().filter { $0.title.hasPrefix("dmacsys reminder") }
-        record("Reminders: importing twice offers only the new reminder and makes 0 duplicates",
-               rows2 == ["dmacsys reminder two"] && all.count == (breakMode ? 3 : 2)
-                   && Set(all.compactMap(\.externalID)) == ["reminders:R-ONE", "reminders:R-TWO"],
-               "rows=\(rows2) tasks=\(all.map(\.title))")
-        record("Reminders: the option completes only the reminder whose task was just made",
-               recorder.completed == ["R-TWO"], "completed=\(recorder.completed)")
-
-        recorder.items = [one, two]
-        let third = CaptureModel(model: model)
-        third.remindersProvider = recorder
-        await third.importFromReminders()
-        record("Reminders: when every reminder is known the import says so and shows nothing",
-               third.rows.isEmpty && third.remindersState == .empty && RemindersImport.lastImportAllKnown,
-               "rows=\(third.rows.count) state=\(third.remindersState) allKnown=\(RemindersImport.lastImportAllKnown)")
-        RemindersImport.markComplete = savedFlag
-    }
-
     // MARK: Parent cue and launch kind
 
     private static func parentCueAndLaunchKind(_ model: AppModel, breakMode: Bool) {
@@ -302,61 +251,6 @@ extension LiveUITest {
                "first=\(cueFirst) last=\(cueLast)")
         record("launch kind: a scratch run is never a login launch",
                AppDelegate.shared.launchKind == (breakMode ? .login : .normal), "kind=\(AppDelegate.shared.launchKind)")
-    }
-
-    // MARK: Render of the one new control
-
-    /// Renders the Capture paste step with Reminders access, so the "Also mark them complete" row is
-    /// on screen, offscreen and without taking focus. The PNG goes to `KRONOS_SHOT_DIR` (or the
-    /// leaf's shots folder when it exists); the step passes when the render is a full 520 pt card.
-    private static func remindersOptionShot(_ model: AppModel) async {
-        let capture = CaptureModel(model: model)
-        capture.remindersProvider = RecordingReminders(items: [])
-        let view = CapturePasteView(capture: capture, model: model)
-            .frame(width: Metrics.inspectorMax, height: Metrics.inspectorMax)
-            .background(Tok.bg)
-            .environment(\.colorScheme, .dark)
-        let host = NSHostingView(rootView: view)
-        host.frame = NSRect(x: 0, y: 0, width: Metrics.inspectorMax, height: Metrics.inspectorMax)
-        let win = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        win.backgroundColor = NSColor.black
-        win.contentView = host
-        host.layoutSubtreeIfNeeded()
-        await settle(500)
-        host.layoutSubtreeIfNeeded()
-        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
-            record("design: the paste step with the Reminders option renders", false, "no bitmap"); return
-        }
-        host.cacheDisplay(in: host.bounds, to: rep)
-        let env = ProcessInfo.processInfo.environment
-        let dir = env["KRONOS_SHOT_DIR"] ?? "/tmp/kronos-shots"
-        var written = false
-        if FileManager.default.fileExists(atPath: dir), let png = rep.representation(using: .png, properties: [:]) {
-            written = (try? png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("capture-paste-reminders-en-M.png"))) != nil
-        }
-        // Measured from the render itself (a guest run cannot hand a PNG back): OLED corners, no red
-        // hue anywhere, something drawn, and the option row is at least one hit target tall.
-        let w = rep.pixelsWide, h = rep.pixelsHigh
-        func rgb(_ x: Int, _ y: Int) -> (Double, Double, Double) {
-            let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) ?? .black
-            return (Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent))
-        }
-        let corners = [rgb(0, 0), rgb(w - 1, 0), rgb(0, h - 1), rgb(w - 1, h - 1)]
-        let cornersBlack = corners.allSatisfy { $0.0 <= 1.0 / 255 && $0.1 <= 1.0 / 255 && $0.2 <= 1.0 / 255 }
-        var lit = 0, red = 0
-        for y in stride(from: 0, to: h, by: 2) {
-            for x in stride(from: 0, to: w, by: 2) {
-                let p = rgb(x, y)
-                if max(p.0, p.1, p.2) > 0.1 { lit += 1 }
-                if p.0 - max(p.1, p.2) > 0.08 { red += 1 }
-            }
-        }
-        let row = NSHostingView(rootView: RemindersCompleteToggle().frame(width: Metrics.inspectorMax - 2 * Space.x5))
-        let rowHeight = row.fittingSize.height
-        record("design: the paste step with the Reminders option renders on OLED black, without red, with a hit-size option row",
-               w >= 520 && h >= 520 && cornersBlack && lit > 50 && red == 0 && rowHeight >= Metrics.minHit,
-               "px=\(w)x\(h) cornersBlack=\(cornersBlack) lit=\(lit) red=\(red) rowHeight=\(rowHeight) written=\(written)")
-        win.contentView = nil
     }
 }
 #endif

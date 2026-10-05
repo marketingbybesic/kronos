@@ -44,7 +44,7 @@ struct TaskListScreen: View {
         let ctx = context
         VStack(alignment: .leading, spacing: 0) {
             header(ctx)
-            if ctx.activeRuleCount > 0 {
+            if ruleCount(ctx) > 0 {
                 KActiveRulesBar(chips: chips(ctx), onReset: resetOptions)
                     .uiTestAnchor("rules.bar")
                     .padding(.horizontal, Space.x4)
@@ -137,7 +137,7 @@ struct TaskListScreen: View {
             KTextField(String(localized: "sidebar.search.placeholder"), text: $model.searchText, leading: "search")
                 .frame(maxWidth: 260)
                 .focused($searchFocused)
-            KViewOptionsIconButton(activeCount: ctx.activeRuleCount) { showPopover.toggle() }
+            KViewOptionsIconButton(activeCount: ruleCount(ctx)) { showPopover.toggle() }
                 .popover(isPresented: $showPopover, arrowEdge: .bottom) {
                     ListViewOptionsPopoverContent(model: model, scope: model.scope)
                 }
@@ -173,6 +173,18 @@ struct TaskListScreen: View {
         return model.store.task(id)
     }
 
+    /// The filter as chips and the rule count see it: a saved view's own project is where the view lives, not a
+    /// rule to show or remove (it is the locked row in the options popover), so it is left out.
+    private func visibleFilter(_ options: ViewOptions) -> KFilter {
+        var f = options.filter
+        if ListViewReset.pin(model: model, scope: model.scope) != nil { f.clear(.project) }
+        return f
+    }
+
+    private func ruleCount(_ ctx: ListContext) -> Int {
+        ViewOptionsMapper.activeRuleCount(sort: ctx.options.sort, filter: visibleFilter(ctx.options))
+    }
+
     private func chips(_ ctx: ListContext) -> [KActiveRulesBar.RuleChip] {
         var chips: [KActiveRulesBar.RuleChip] = []
         if ctx.options.sort != KSortDescriptor.default {
@@ -185,8 +197,9 @@ struct TaskListScreen: View {
                 }))
             }
         }
-        if ctx.options.filter != .empty {
-            let texts = ViewOptionsMapper.filterChipTexts(ctx.options.filter, projectName: projectName, areaName: areaName, labelName: labelName)
+        let shownFilter = visibleFilter(ctx.options)
+        if shownFilter != .empty {
+            let texts = ViewOptionsMapper.filterChipTexts(shownFilter, projectName: projectName, areaName: areaName, labelName: labelName)
             for (i, text) in texts.enumerated() {
                 chips.append(.init(id: "filter.\(i)", text: text, onTap: { showPopover = true }, onRemove: {
                     removeFilterRule(at: i, from: ctx.options)
@@ -197,27 +210,11 @@ struct TaskListScreen: View {
     }
 
     private func removeFilterRule(at index: Int, from options: ViewOptions) {
-        let rules = ViewOptionsMapper.filterRules(from: options.filter, projectName: projectName, areaName: areaName, labelName: labelName)
+        let shown = visibleFilter(options)
+        let rules = ViewOptionsMapper.filterRules(from: shown, projectName: projectName, areaName: areaName, labelName: labelName)
         guard rules.indices.contains(index) else { return }
-        var f = options.filter
-        switch ViewOptionsMapper.filterFieldID(rules[index].field) {
-        case .status: f.statuses = []
-        case .priority: f.priorities = []
-        case .effort: f.efforts = []
-        case .depth: f.depths = []
-        case .project: f.projectIDs = []; f.noProject = false
-        case .area: f.areaIDs = []
-        case .label: f.labelIDs = []
-        case .deadline: f.due = .any; f.dueFrom = nil; f.dueTo = nil
-        case .hasSubtasks: f.hasSubtasks = nil
-        case .hasNotes: f.hasNotes = nil
-        case .isSomeday: f.isSomeday = nil
-        case .needsTriage: f.needsTriage = nil
-        case .dread: f.dread = nil
-        case .text: f.text = ""
-        }
         var opts = options
-        opts.filter = f
+        opts.filter = ViewOptionsMapper.clearing(ViewOptionsMapper.filterFieldID(rules[index].field), from: options.filter)
         model.setOptions(opts, for: model.scope)
     }
 
@@ -229,7 +226,7 @@ struct TaskListScreen: View {
 
     @ViewBuilder
     private func body(_ ctx: ListContext) -> some View {
-        if ctx.totalCount == 0 && model.searchText.isEmpty && ctx.activeRuleCount == 0 {
+        if ctx.totalCount == 0 && model.searchText.isEmpty && ruleCount(ctx) == 0 {
             // An empty list still starts with the same "New task" row every other list has:
             // without it an empty area or project offered no visible way to add the first task.
             VStack(alignment: .leading, spacing: 0) {
@@ -269,6 +266,16 @@ struct TaskListScreen: View {
                         ForEach(ctx.currentRows, id: \.id) { task in
                             row(task, ctx, columnMode)
                         }
+                        // Sorted by an attribute some tasks lack: they end the list under their own header.
+                        if let key = ctx.missingKey, !ctx.missing.isEmpty {
+                            ListMissingHeader(model: model, key: key,
+                                              ids: ctx.missing.filter { KStatus.open.contains($0.status) }.map(\.id),
+                                              scope: model.scope, total: ctx.missing.count)
+                                .padding(.top, Space.x2)
+                            ForEach(ctx.openMissingRows, id: \.id) { task in
+                                row(task, ctx, columnMode)
+                            }
+                        }
                         if !ctx.earlier.isEmpty {
                             ListEarlierHeader(model: model, ids: ctx.earlier.map(\.id))
                                 .padding(.top, Space.x2)
@@ -290,7 +297,7 @@ struct TaskListScreen: View {
                 .listDropLayer(model: model, config: dropConfig(ctx))
                 // Right-click on the list itself (rows keep their own menu): Clear all, only while a sort or filter is set.
                 .contextMenu {
-                    if ctx.options.hasRulesToClear {
+                    if ctx.options.hasRulesToClear(keepingPin: ListViewReset.pin(model: model, scope: model.scope)) {
                         Button(String(localized: "viewoptions.clearall")) { resetOptions() }
                     }
                 }

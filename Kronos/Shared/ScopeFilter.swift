@@ -7,38 +7,60 @@ import KronosCore
 
 enum ScopeFilter {
     /// LIST MEMBERSHIP: does `task` belong to `scope`, before the user's own view options?
-    /// Fixed scopes are open-only by definition. Project / area scopes include closed tasks —
+    /// Fixed scopes are open-only by definition, unless `includeClosed` (the list's "Show completed"):
+    /// then Inbox and All take closed tasks too, Today takes what was completed today and Next 7 days
+    /// what was completed today or scheduled inside its window (`ListStatusPolicy.admitsClosed`).
+    /// Waiting and Someday never hold a closed task. Project / area scopes include closed tasks —
     /// whether those are SHOWN is the list's `ViewOptions.showCompleted`, not membership.
     /// A saved view has no base membership: its own `KFilter` is the whole rule.
     /// A task of an archived project belongs to no scope except that project itself, so it leaves
     /// Today, Next 7, Waiting, Someday, All, areas and saved views along with the project.
-    static func matches(_ task: KTask, scope: ListScope, today: Int) -> Bool {
+    static func matches(_ task: KTask, scope: ListScope, today: Int, includeClosed: Bool = false) -> Bool {
         // An undecided agent proposal (reviewRaw 1) is in no scope; only the Review queue shows it.
         guard task.deletedAt == nil, task.reviewRaw != 1 else { return false }
         if task.isProjectArchived, !isProjectScope(scope) { return false }
         let isOpen = KStatus.open.contains(task.status)
+        /// A closed task of a fixed scope, when closed tasks are included.
+        func closedBelongs() -> Bool {
+            includeClosed && ListStatusPolicy.admitsClosed(statusKind(scope),
+                                                           completedDay: task.completedAt.map { Day.from($0) },
+                                                           scheduleDay: task.scheduleDay, today: today)
+        }
         switch scope {
         case .inbox:
-            return task.projectID == nil && task.status != .someday && isOpen
+            return task.projectID == nil && task.status != .someday && (isOpen || closedBelongs())
         case .today:
             // Schedule day (planned day, else effective due): an undone subtask due today or
             // overdue brings its parent in (the subtask itself is never a row of its own), and a
             // task planned for a later day stays out until that day.
-            return DueScope.isToday(task, today: today)
+            return isOpen ? DueScope.isToday(task, today: today) : closedBelongs()
         case .next7:
-            return DueScope.isNext7(task, today: today)
+            return isOpen ? DueScope.isNext7(task, today: today) : closedBelongs()
         case .waiting:
             return task.status == .waiting
         case .someday:
             return task.status == .someday
         case .all:
-            return isOpen
+            return isOpen || closedBelongs()
         case .project(let id):
             return task.projectID == id
         case .area(let id):
             return task.areaID == id
         case .savedView:
             return true
+        }
+    }
+
+    /// The kind of list `scope` is, for the "Show completed" rule (`ListStatusPolicy`).
+    static func statusKind(_ scope: ListScope) -> ListStatusPolicy.ScopeKind {
+        switch scope {
+        case .inbox: return .inbox
+        case .today: return .today
+        case .next7: return .next7
+        case .all: return .all
+        case .waiting: return .waiting
+        case .someday: return .someday
+        case .project, .area, .savedView: return .container
         }
     }
 

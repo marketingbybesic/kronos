@@ -65,6 +65,16 @@ final class AgentsSettingsController {
         refresh()
     }
 
+    /// Full control (scope write.all): off by default, decided here and never over MCP. The shared
+    /// legacy token cannot hold it (its identity is pinned to read + propose), so it is refused.
+    func setFullControl(_ on: Bool, slug: String) {
+        guard !fixture, let hub, let agent = hub.agent(slug: slug), !agent.tokenHash.isEmpty else { return }
+        var scopes = AgentScopes(csv: agent.scopesRaw)
+        if on { scopes.set.insert(.writeAll) } else { scopes.set.remove(.writeAll) }
+        hub.setScopes(scopes, slug: slug)
+        refresh()
+    }
+
     /// A new token for the agent; the old one stops working at once.
     func rotateToken(slug: String) {
         guard !fixture else { return }

@@ -59,7 +59,7 @@ struct ContextLinkDropModifier: ViewModifier {
         let pasteboard = NSPasteboard(name: .drag)
         DropTypesLog.append(pasteboard)
         guard MailDropPasteboard.subtaskID(from: pasteboard) == nil,
-              pasteboard.string(forType: .string)?.hasPrefix(DropZonePayloadReader.taskPrefix) != true else { return false }
+              DropZonePayloadReader.draggedTaskID(from: pasteboard) == nil else { return false }
         if let links = links(fromDragPasteboard: pasteboard) {
             write(links, to: target, model: model)
             return true

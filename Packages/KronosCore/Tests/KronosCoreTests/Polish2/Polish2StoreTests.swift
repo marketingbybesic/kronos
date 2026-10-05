@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -143,3 +144,5 @@ import Foundation
         #expect(store.undoDepth == depth, "bookkeeping pushes no undo step")
     }
 }
+
+#endif

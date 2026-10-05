@@ -126,7 +126,15 @@ extension TriageFlowView {
 
     /// Space: complete it (one undo step, pill), next card.
     func completeTask(_ task: KTask) {
-        model.store.complete(task.id)
+        // A task that waits on an open task asks first ("Finish <B> first"); the card stays on
+        // this task and the chosen write comes back through `finish`, then the flow moves on.
+        let blocked = model.interceptBlockedCompletion(of: task) { write in finishCompleting(task, write: write) }
+        guard !blocked else { return }
+        finishCompleting(task) { model.store.complete(task.id) }
+    }
+
+    private func finishCompleting(_ task: KTask, write: () -> Void) {
+        write()
         if model.pinnedFocusTaskID == task.id { model.pinnedFocusTaskID = nil }
         model.didMutate()
         UndoToastCenter.shared.show(String(format: String(localized: "undo.completed.name"), task.title))

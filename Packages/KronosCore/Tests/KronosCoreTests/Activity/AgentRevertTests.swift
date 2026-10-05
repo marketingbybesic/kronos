@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -90,3 +91,5 @@ import Foundation
         #expect(r.hub.writeCount(agentID: a.agentID, days: 7) == 2)
     }
 }
+
+#endif

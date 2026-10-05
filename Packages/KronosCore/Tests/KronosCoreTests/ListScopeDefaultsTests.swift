@@ -94,4 +94,19 @@ struct ListScopeDefaultsTests {
         let area = ListScopeDefaults.apply(scope: .area(areaID), explicitDueDay: nil, today: today, isWaiting: true)
         #expect(area.areaID == areaID)
     }
+
+    // A saved view that belongs to a project files a typed task in that project; nothing else does.
+    @Test func savedViewOfAProjectDefaultsToItsProject() {
+        let home = UUID()
+        let inView = ListScopeDefaults.apply(scope: .savedView, explicitDueDay: nil, today: today, savedViewHome: home)
+        #expect(inView == .init(status: .todo, dueDay: nil, areaID: nil, projectID: home))
+        let waiting = ListScopeDefaults.apply(scope: .savedView, explicitDueDay: nil, today: today, isWaiting: true, savedViewHome: home)
+        #expect(waiting.status == .waiting && waiting.projectID == home)
+        // A view with no project, and every other scope even when a home is passed, stays project-less.
+        #expect(ListScopeDefaults.apply(scope: .savedView, explicitDueDay: nil, today: today).projectID == nil)
+        let others: [QuickAddScopeKind?] = [nil, .inbox, .today, .next7, .someday, .waiting, .all, .project, .area(UUID())]
+        for scope in others {
+            #expect(ListScopeDefaults.apply(scope: scope, explicitDueDay: nil, today: today, savedViewHome: home).projectID == nil)
+        }
+    }
 }

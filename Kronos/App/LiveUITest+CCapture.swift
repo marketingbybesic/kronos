@@ -9,7 +9,6 @@
 //     page a web chip that lands on the task; a (scripted) Mail that does not hand over the
 //     message link in time leaves the subject alone within 2 s; the consent chip asks and reads.
 //   - "every week" makes a repeating task; the inline add row grows with its lines.
-//   - Capture: a task made from a reminder keeps its origin when its title was edited in review.
 // The system side of context is a scripted environment (no Apple Events, no Accessibility):
 // the real reader, panel, chips and create path run; only osascript is replaced.
 // Plus the older quick add steps this area owns (panel typing, entry field, other surfaces),
@@ -102,7 +101,6 @@ extension LiveUITest {
         await ccReturnChords(model, main: main, breakMode: breakMode)
         await ccContext(model, main: main, controller: controller)
         await ccRepeatAndInline(model, main: main)
-        await ccReminderOrigin(model)
 
         controller.contextEnvironment = NullQuickAddContextEnvironment()
         controller.frontAppOverride = nil
@@ -296,23 +294,5 @@ extension LiveUITest {
                "subtasks=\(ccTask("ccap lines")?.orderedSubtasks.map(\.title) ?? [])")
     }
 
-    // MARK: Capture
-
-    private static func ccReminderOrigin(_ model: AppModel) async {
-        let item = ReminderItem(title: "ccap reminder", notes: nil, due: nil, listName: "Nowhere", id: "CC-ONE")
-        let capture = CaptureModel(model: model)
-        capture.remindersProvider = FixtureReminders(access: .granted, items: [item])
-        let savedFlag = RemindersImport.markComplete
-        RemindersImport.markComplete = false
-        await capture.importFromReminders()
-        if let row = capture.rows.first { capture.update(row.id) { $0.title = "ccap reminder renamed" } }
-        capture.create()
-        await ccSettle(300)
-        let t = ccTask("ccap reminder renamed")
-        record("capture: a task made from a reminder keeps its origin after its title was edited",
-               t?.externalID == "reminders:CC-ONE" && t?.source == "reminders" && capture.createdReminders == [item],
-               "ext=\(t?.externalID ?? "nil") source=\(t?.source ?? "nil") created=\(capture.createdReminders.map(\.id))")
-        RemindersImport.markComplete = savedFlag
-    }
 }
 #endif

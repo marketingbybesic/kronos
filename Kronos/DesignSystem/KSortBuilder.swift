@@ -7,11 +7,14 @@
 import SwiftUI
 
 public struct KSortRule: Identifiable {
-    public let id = UUID()
+    /// Stable across rebuilds when the caller passes one (the row keeps its identity while its
+    /// direction changes); a fresh one otherwise.
+    public let id: AnyHashable
     public var field: KSortFilterField
     public var ascending: Bool
 
-    public init(field: KSortFilterField, ascending: Bool = true) {
+    public init(id: AnyHashable = AnyHashable(UUID()), field: KSortFilterField, ascending: Bool = true) {
+        self.id = id
         self.field = field
         self.ascending = ascending
     }
@@ -103,13 +106,17 @@ public struct KSortRuleRow: View {
         .accessibilityHint(String(localized: "viewoptions.sort.direction.hint", defaultValue: "Reverses the sort direction"))
     }
 
+    /// The size and hit shape live INSIDE the label (like `directionToggle`): a plain-style button is
+    /// pressable only on its label's pixels, so with the frame outside only the ~8 pt glyph took a click.
     private var removeButton: some View {
         Button(action: onRemove) {
             Icon("x", size: Metrics.iconXS)
                 .foregroundStyle(isRowHovering ? Tok.textSecondary : Tok.textDisabled)
+                .frame(width: Metrics.minHit, height: Metrics.minHit)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
+        .uiTestAnchor("sort.remove.\(String(describing: rule.field.id.base))")
         .accessibilityLabel(String(localized: "viewoptions.sort.remove.accessibility", defaultValue: "Remove sort rule \(rule.field.name)"))
     }
 }
@@ -132,15 +139,21 @@ public struct KSortBuilder: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
-            ForEach($rules) { $rule in
+            // Rows are addressed by POSITION, never by `rule.id`: a caller whose binding rebuilds its rules
+            // on every read (the app's does) hands out fresh ids each time, so an id captured when the row
+            // was drawn matched nothing when the remove button was pressed, and the X did nothing.
+            ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
                 // Re-picking this row's own field offers its current field plus every
                 // field not already used by a DIFFERENT row.
-                let usedByOthers = Set(rules.filter { $0.id != rule.id }.map(\.field.id))
+                let usedByOthers = Set(rules.enumerated().filter { $0.offset != index }.map(\.element.field.id))
                 let pickableFields = availableFields.filter { !usedByOthers.contains($0.id) }
-                KSortRuleRow(rule: $rule, availableFields: pickableFields) { field in
-                    rule.field = field
+                let row = Binding<KSortRule>(
+                    get: { rules.indices.contains(index) ? rules[index] : rule },
+                    set: { if rules.indices.contains(index) { rules[index] = $0 } })
+                KSortRuleRow(rule: row, availableFields: pickableFields) { field in
+                    if rules.indices.contains(index) { rules[index].field = field }
                 } onRemove: {
-                    rules.removeAll { $0.id == rule.id }
+                    if rules.indices.contains(index) { rules.remove(at: index) }
                 }
             }
             if !unusedFields.isEmpty {

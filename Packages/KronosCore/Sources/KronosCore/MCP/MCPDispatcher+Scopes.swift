@@ -9,11 +9,11 @@ import Foundation
 extension MCPDispatcher {
 
     /// What a tool needs beyond ownership.
-    private enum Need { case read, propose, writeOwn, comment, ordo, rules, rulesDelete }
+    private enum Need { case read, propose, writeOwn, comment, ordo, rules, rulesDelete, structure }
 
     private func need(_ tool: MCPTool) -> Need {
         switch tool.canonical {
-        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas, .whoami, .eventsPoll, .eventsAck, .next:
+        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas, .listLabels, .whoami, .eventsPoll, .eventsAck, .next:
             return .read
         case .createTask, .proposeTasks, .proposeUpdate: return .propose
         case .commentTask: return .comment
@@ -22,6 +22,8 @@ extension MCPDispatcher {
         case .rulesAdd: return .rules
         case .rulesDelete: return .rulesDelete
         case .upnextGet, .upnextSet: return .read
+        case .createLabel, .updateLabel, .createProject, .updateProject, .createArea, .updateArea, .deleteArea, .moveTask:
+            return .structure
         }
     }
 
@@ -73,25 +75,30 @@ extension MCPDispatcher {
                 }
             }
         case .writeOwn:
-            guard me.scopes.has(.writeOwn) else { return forbidden("this agent may not change tasks", scope: .writeOwn, hint: "use propose_update") }
+            let full = me.scopes.has(.writeAll)
+            guard me.scopes.has(.writeOwn) || full else { return forbidden("this agent may not change tasks", scope: .writeOwn, hint: "use propose_update") }
             let target = tool.canonical == .addSubtask ? uuid("taskID") : uuid("id")
             if let target {
                 // restore_task names a deleted task, so look through deletions too.
                 guard let t = store.taskIncludingDeleted(target) else { return nil }   // NOT_FOUND comes from the handler
-                if !owns(t, me) {
+                // Full control reaches every task but never deletes or restores one that is not the agent's.
+                let destructive = tool.canonical == .deleteTask || tool.canonical == .restoreTask
+                if !owns(t, me) && (!full || destructive) {
                     let hint = tool.canonical == .deleteTask
                         ? "use propose_update" : "use propose_update or comment_task"
-                    return forbidden("\(tool.name) works only on tasks you created or were assigned", scope: .writeOwn, hint: hint)
+                    return forbidden("\(tool.name) works only on tasks you created or were assigned", scope: full ? nil : .writeOwn, hint: hint)
                 }
+                if let locked = verdictLock(tool, t, obj, me) { return locked }
             }
         case .ordo:
-            guard me.scopes.has(.writeOwn) else { return forbidden("this agent may not reorder Up next", scope: .writeOwn, hint: "use propose_update") }
+            let full = me.scopes.has(.writeAll)
+            guard me.scopes.has(.writeOwn) || full else { return forbidden("this agent may not reorder Up next", scope: .writeOwn, hint: "use propose_update") }
             var named = Set<UUID>()
             if let top = uuid("top") { named.insert(top) }
             for raw in (obj["order"] as? [String]) ?? [] { if let u = UUID(uuidString: raw) { named.insert(u) } }
             // `order` also removes whatever it leaves out, so the tasks already queued count too.
             if obj["order"] != nil { for t in store.allTasks() where t.isInOrdo { named.insert(t.id) } }
-            for id in named {
+            for id in named where !full {
                 if let t = store.task(id), !owns(t, me) {
                     return forbidden("Up next holds tasks that are not yours; you may reorder only your own", scope: .writeOwn,
                                      hint: "use propose_update")
@@ -100,6 +107,11 @@ extension MCPDispatcher {
         case .rules:
             guard me.scopes.has(.propose) || me.scopes.has(.rulesPropose) else {
                 return forbidden("this agent may not propose house rules", scope: .rulesPropose)
+            }
+        case .structure:
+            guard me.scopes.has(.writeAll) else {
+                return forbidden("\(tool.name) needs full control, which the owner grants per agent in Settings > Agents", scope: .writeAll,
+                                 hint: "ask the owner to turn on Full control for this agent")
             }
         case .rulesDelete:
             guard me.scopes.has(.writeOwn) || me.scopes.has(.rulesPropose) else {
@@ -111,6 +123,25 @@ extension MCPDispatcher {
             }
         }
         return nil
+    }
+
+    /// The verdict on agent work (accept, reject, reopen) is the person's. A tool that would close or
+    /// reopen a task waiting for that verdict is refused for every agent, with or without full control,
+    /// so no agent can pass its own review (or anyone else's).
+    private func verdictLock(_ tool: MCPTool, _ t: KTask, _ obj: [String: Any], _ me: AgentIdentity) -> MCPToolOutcome? {
+        let changesState: Bool
+        switch tool.canonical {
+        case .completeTask: changesState = !(t.assigneeRaw == 1 && t.agentID == me.agentID)
+        case .updateTask: changesState = obj["status"] != nil
+        default: changesState = false
+        }
+        guard changesState else { return nil }
+        // A task handed to another agent closes only through that agent's report and the person's check.
+        let closes = tool.canonical == .completeTask || ["done", "canceled"].contains(obj["status"] as? String ?? "")
+        let othersAssignment = t.assigneeRaw == 1 && t.agentID != nil && t.agentID != me.agentID && closes
+        guard othersAssignment || t.reviewRaw == ReviewState.awaitingCheck
+                || (t.reviewRaw == ReviewState.pending && !owns(t, me)) else { return nil }
+        return forbidden("the verdict on agent work (accept, reject, reopen) is the owner's alone", hint: "read the outcome with get_task or events_poll")
     }
 
     /// RATE_LIMITED when `adding` more tasks would pass the agent's daily cap.
@@ -131,17 +162,28 @@ extension MCPDispatcher {
         let obj = (try? JSONSerialization.jsonObject(with: arguments)) as? [String: Any] ?? [:]
         let target: UUID? = {
             switch tool.canonical {
-            case .updateTask, .completeTask, .deleteTask, .restoreTask: return (obj["id"] as? String).flatMap(UUID.init(uuidString:))
+            case .updateTask, .completeTask, .deleteTask, .restoreTask, .moveTask: return (obj["id"] as? String).flatMap(UUID.init(uuidString:))
             default: return nil
             }
         }()
         let before = target.flatMap { store.taskIncludingDeleted($0) }.map(TaskSnapshot.init)
         let outcome = dispatch(tool, arguments: arguments)
+        switch tool.canonical {
+        case .createLabel, .updateLabel, .createProject, .updateProject, .createArea, .updateArea, .deleteArea:
+            // Structure has no task to revert; the log still says who changed what.
+            if !outcome.isError {
+                var payload: [String: AgentJSON] = ["tool": .string(tool.name)]
+                for key in ["id", "name"] { if let v = obj[key] as? String { payload[key] = .string(v) } }
+                hub.append(actor: me.actor, verb: ActivityVerb.structure, agentID: me.agentID, payload: payload)
+            }
+            return outcome
+        default: break
+        }
         guard !outcome.isError, let target else { return outcome }
         let after = store.taskIncludingDeleted(target).map(TaskSnapshot.init)
         let actor = me.actor
         switch tool.canonical {
-        case .updateTask:
+        case .updateTask, .moveTask:
             guard let before, let after else { break }
             let d = TaskSnapshot.diff(before, after)
             if !d.after.isEmpty {

@@ -176,3 +176,29 @@ extension TriageFlowView {
         return true
     }
 }
+
+/// The person's verdict on an agent's "done" report from outside the Review card (the inspector). One store
+/// transition, one undo step, one pill, like the card; the optional comment goes to the agent with the
+/// verdict. Only these person-side actions write a verdict: no MCP tool can.
+@MainActor
+enum ReviewVerdict {
+
+    @discardableResult
+    static func accept(_ task: KTask, comment: String, model: AppModel) -> Bool {
+        let title = task.title
+        guard AgentReview.acceptAgentDone(task.id, comment: comment, store: model.store) else { return false }
+        KronosSounds.play(.task)
+        UndoToastCenter.shared.show(String(format: String(localized: "review.undo.accepted"), title))
+        model.didMutate()
+        return true
+    }
+
+    @discardableResult
+    static func reject(_ task: KTask, comment: String, model: AppModel) -> Bool {
+        let title = task.title
+        guard AgentReview.reopen(task.id, comment: comment, store: model.store) else { return false }
+        UndoToastCenter.shared.show(String(format: String(localized: "review.undo.reopened"), title))
+        model.didMutate()
+        return true
+    }
+}

@@ -7,6 +7,30 @@
 import SwiftUI
 import KronosCore
 
+extension ListScope {
+    /// The kind of list this is, for what the view-options editor offers on it.
+    var shape: ListShape {
+        switch self {
+        case .project: return .project
+        case .area: return .area
+        case .savedView: return .savedView
+        case .waiting: return .waiting
+        case .someday: return .someday
+        case .inbox, .today, .next7, .all: return .global
+        }
+    }
+}
+
+@MainActor
+extension AppModel {
+    /// The options of `scope` as its list and its editor use them: what is stored, minus the sort keys and
+    /// filter fields that kind of list does not offer (`ViewFieldCatalog.sanitized`). A saved view keeps all
+    /// of its own. Stored options are never rewritten by this.
+    func viewOptions(for scope: ListScope) -> ViewOptions {
+        ViewFieldCatalog.sanitized(options(for: scope), for: scope.shape)
+    }
+}
+
 /// One computed snapshot of "what this scope shows right now" — title, options, final rows —
 /// so the header, chips, body and Ordo publisher all read the identical list.
 @MainActor
@@ -21,14 +45,26 @@ struct ListContext {
     let markedLabelIDs: Set<UUID>
     /// Today only: rows carried from earlier days, shown under the collapsed "Earlier (n)" header.
     let earlier: [KTask]
-    /// How many leading entries of `rows` are the scope's own (non-Earlier) rows.
+    /// How many of the scope's own (non-Earlier) tasks the list holds: the rows with a value for the
+    /// sort key plus the missing group, open or folded.
     let currentCount: Int
+    /// A list sorted by deadline, effort, estimate or project: the tasks WITHOUT a value for that key,
+    /// shown under their own header at the end (folded: not in `rows`). Empty otherwise.
+    let missing: [KTask]
+    /// The sort key `missing` is about; nil when there is no missing group.
+    let missingKey: KSortKey?
+    /// How many leading entries of `rows` come before the missing group (the rows that have a value).
+    let presentCount: Int
+    /// How many entries of `rows` are the missing group's (0 while it is folded).
+    let openMissingCount: Int
 
-    /// Rows above the Earlier header.
-    var currentRows: ArraySlice<KTask> { rows.prefix(currentCount) }
+    /// Rows above the missing group and the Earlier header.
+    var currentRows: ArraySlice<KTask> { rows.prefix(presentCount) }
+    /// The missing group's rows while it is open (empty while it is folded).
+    var openMissingRows: ArraySlice<KTask> { rows.dropFirst(presentCount).prefix(openMissingCount) }
     /// Earlier rows while the section is open (empty while it is collapsed).
-    var openEarlierRows: ArraySlice<KTask> { rows.dropFirst(currentCount) }
-    /// Everything the list holds, open section or not (Today is clear only when this is 0).
+    var openEarlierRows: ArraySlice<KTask> { rows.dropFirst(presentCount + openMissingCount) }
+    /// Everything the list holds, open sections or not (Today is clear only when this is 0).
     var totalCount: Int { currentCount + earlier.count }
 
     /// The snapshot for the model's current state: built once per state, then shared.
@@ -48,24 +84,34 @@ struct ListContext {
         // for every task): until the user edits its options here, `model.options(for:)` answers with
         // the KSavedView's own sort + filter + showDone; an edit is then kept on top of it (and
         // "Update view" writes it back).
-        let opts = model.options(for: scope)
+        // Stored options may hold sort keys and filter fields this kind of list no longer offers (or a
+        // project filter on a project list): they are dropped here, never written back.
+        let opts = model.viewOptions(for: scope)
         self.options = opts
         self.title = ListContext.title(for: scope, model: model)
         let today = Day.today()
 
+        // "Show completed" only means something where closed tasks can be members. Asking for a closed
+        // status in the filter finds them too, with the switch off.
+        let showCompleted = opts.showCompleted && scope.shape.offersShowCompleted
+        let includeClosed = ListStatusPolicy.includesClosed(showCompleted: showCompleted,
+                                                            userStatuses: opts.filter.statuses,
+                                                            statusesNegated: opts.filter.isNegated(.statuses))
         var filter = opts.filter
         let base = ScopeFilter.baseFilter(for: scope)
-        filter.statuses = filter.statuses.isEmpty ? base.statuses : filter.statuses
-        if !opts.showCompleted, filter.statuses.isEmpty {
-            filter.statuses = KStatus.openRaw
-        }
+        filter.statuses = ListStatusPolicy.effectiveStatuses(base: base.statuses, user: opts.filter.statuses,
+                                                             showCompleted: showCompleted)
         filter.projectIDs = filter.projectIDs.isEmpty ? base.projectIDs : filter.projectIDs
         filter.areaIDs = filter.areaIDs.isEmpty ? base.areaIDs : filter.areaIDs
         filter.noProject = filter.noProject || base.noProject
-        if filter.due == .any { filter.due = base.due }
+        // The date lists' own window is already their membership rule; with closed tasks in, a task that
+        // was completed today need not be due today.
+        if filter.due == .any { filter.due = (includeClosed && (scope == .today || scope == .next7)) ? .any : base.due }
 
         let all = model.store.allTasks()
-        var matched = all.filter { ScopeFilter.matches($0, scope: scope, today: today) && filter.matches($0, today: today) }
+        var matched = all.filter {
+            ScopeFilter.matches($0, scope: scope, today: today, includeClosed: includeClosed) && filter.matches($0, today: today)
+        }
         // A row completed from this list a moment ago stays (struck through) for about a second, so
         // the click visibly lands before the row leaves (ListLinger).
         let lingering = ListLinger.ids(for: scope)
@@ -79,18 +125,33 @@ struct ListContext {
         }
         let sorted = KTaskSorter.sorted(matched, by: opts.sort)
         // Today: carried rows (and rows whose day has passed) move into the Earlier section at
-        // the end. `rows` is what is shown, in display order: today's rows, then the Earlier rows
-        // only while the section is open, so keyboard, selection and "next" follow the screen.
+        // the end; a task completed today stays with today's rows. `rows` is what is shown, in display
+        // order: the scope's own rows, then the Earlier rows only while the section is open, so
+        // keyboard, selection and "next" follow the screen.
+        var current = sorted
+        var earlierRows: [KTask] = []
         if scope == .today {
-            let split = TodayPartition.split(rows: sorted, today: today)
-            self.earlier = split.earlier
-            self.rows = split.current + (ListEarlierState.shared.isExpanded ? split.earlier : [])
-            self.currentCount = split.current.count
-        } else {
-            self.earlier = []
-            self.rows = sorted
-            self.currentCount = sorted.count
+            let isEarlier: (KTask) -> Bool = { KStatus.open.contains($0.status) && TodayPartition.isEarlier($0, today: today) }
+            current = sorted.filter { !isEarlier($0) }
+            earlierRows = sorted.filter(isEarlier)
         }
+        // Sorted by an attribute some tasks lack: those tasks leave the main run and form their own group
+        // at the end (the sorter already puts them last), folded or not.
+        var present = current
+        var missingRows: [KTask] = []
+        var groupKey: KSortKey?
+        if let key = SortGrouping.missingKey(for: opts.sort) {
+            let split = SortGrouping.split(rows: current, key: key)
+            if !split.missing.isEmpty { present = split.present; missingRows = split.missing; groupKey = key }
+        }
+        let visibleMissing = ListMissingState.shared.isExpanded ? missingRows : []
+        self.earlier = earlierRows
+        self.rows = present + visibleMissing + (scope == .today && ListEarlierState.shared.isExpanded ? earlierRows : [])
+        self.missing = missingRows
+        self.missingKey = groupKey
+        self.presentCount = present.count
+        self.openMissingCount = visibleMissing.count
+        self.currentCount = present.count + missingRows.count
         self.activeRuleCount = ViewOptionsMapper.activeRuleCount(sort: opts.sort, filter: opts.filter)
         self.markedLabelIDs = opts.filter.isNegated(.labels) ? [] : Set(opts.filter.labelIDs)
     }
@@ -117,6 +178,7 @@ struct ListContextKey: Equatable {
     let search: String
     let options: ViewOptions
     let earlierExpanded: Bool
+    let missingExpanded: Bool
     let lingerGeneration: Int
     let today: Int
 
@@ -125,8 +187,9 @@ struct ListContextKey: Equatable {
         undoDepth = model.store.undoDepth
         scope = model.scope
         search = model.searchText
-        options = model.options(for: model.scope)
+        options = model.viewOptions(for: model.scope)
         earlierExpanded = ListEarlierState.shared.isExpanded
+        missingExpanded = ListMissingState.shared.isExpanded
         lingerGeneration = ListLinger.generation
         today = Day.today()
     }

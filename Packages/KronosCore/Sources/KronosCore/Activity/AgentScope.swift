@@ -20,6 +20,11 @@ public enum AgentScope: String, CaseIterable, Sendable {
     case ordoPropose = "ordo.propose"
     /// rules_add (a rule always starts inactive); `propose` grants it too.
     case rulesPropose = "rules.propose"
+    /// Full control. Off by default, set per agent in Settings only: update, complete, reopen and
+    /// reorder ANY task, edit any subtask, and create or change projects, areas and labels.
+    /// It never covers deleting a task or a house rule, and never the review verdict (the person's
+    /// Accept / Reject): those stay refused whatever the agent holds.
+    case writeAll = "write.all"
 }
 
 public struct AgentScopes: Equatable, Sendable {

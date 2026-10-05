@@ -6,18 +6,21 @@ import Foundation
 /// be unique, and the params structs must decode what the schema advertises.
 struct MCPToolTests {
 
-    @Test func twentyFiveToolsWithUniqueNames() {
-        #expect(MCPTool.allCases.count == 25)
+    @Test func thirtyFourToolsWithUniqueNames() {
+        #expect(MCPTool.allCases.count == 34)
         let names = MCPTool.allCases.map(\.name)
-        #expect(Set(names).count == 25)
-        // scope-12 alpha set plus list_projects, list_areas, rules_delete and the upnext_* aliases.
+        #expect(Set(names).count == 34)
+        // scope-12 alpha set plus list_projects, list_areas, rules_delete, the agent loop, the upnext_* aliases
+        // and the nine full-control tools.
         #expect(Set(names) == Set([
             "list_tasks", "get_task", "create_task", "update_task",
             "complete_task", "delete_task", "restore_task",
             "add_subtask", "toggle_subtask",
             "ordo_get", "ordo_set", "rules_list", "rules_add",
             "list_projects", "list_areas", "rules_delete", "upnext_get", "upnext_set",
-            "whoami", "propose_tasks", "propose_update", "comment_task", "events_poll", "events_ack", "next"
+            "whoami", "propose_tasks", "propose_update", "comment_task", "events_poll", "events_ack", "next",
+            "list_labels", "create_label", "update_label", "create_project", "update_project",
+            "create_area", "update_area", "delete_area", "move_task"
         ]))
     }
 
@@ -57,7 +60,7 @@ struct MCPToolTests {
         #expect(MCPTool.createTask.isMutating)
         #expect(MCPTool.ordoSet.isMutating)
         #expect(MCPTool.rulesAdd.isMutating)
-        #expect(MCPTool.allCases.filter(\.isMutating).count == 15)
+        #expect(MCPTool.allCases.filter(\.isMutating).count == 23)
     }
 
     // MARK: - create_task field protection (build-7)

@@ -18,7 +18,34 @@ enum InspectorSnapshots {
             "inspector.status.chips": AnyView(InspectorSnapshotHost(model: model, kind: .waitingBlocked)),
             "inspector.project": AnyView(InspectorSnapshotHost(model: model, kind: .projectField)),
             "inspector.projectpicker": AnyView(InspectorSnapshotHost(model: model, kind: .projectPicker)),
+            // The shipped Deadline popover view (InspectorDeadlinePopover), seeded with a task.
+            "inspector.deadline": AnyView(DeadlinePopoverSnapshotHost(model: model)),
         ]
+    }
+}
+
+private struct DeadlinePopoverSnapshotHost: View {
+    let model: AppModel
+    @State private var task: KTask?
+
+    var body: some View {
+        Group {
+            if let task {
+                InspectorDeadlinePopover(model: model, task: task)
+                    .overlay(Rectangle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))   // popover edge, so the insets can be read
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                Color.clear
+            }
+        }
+        .background(Tok.bg)
+        .onAppear {
+            guard task == nil else { return }
+            let created = model.store.create(title: "Send the onboarding pack", notes: "", project: nil,
+                                             status: .todo, priority: .none, dueDay: Day.today() + 3)
+            model.didMutate()
+            task = created
+        }
     }
 }
 

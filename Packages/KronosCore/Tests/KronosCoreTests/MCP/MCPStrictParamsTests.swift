@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -139,7 +140,11 @@ import Foundation
             "rules_delete": (false, true, true),
             "whoami": (true, false, true), "events_poll": (true, false, true), "next": (true, false, true),
             "propose_tasks": (false, false, false), "propose_update": (false, false, false),
-            "comment_task": (false, false, false), "events_ack": (false, false, true)
+            "comment_task": (false, false, false), "events_ack": (false, false, true),
+            "list_labels": (true, false, true), "create_label": (false, false, true), "update_label": (false, true, true),
+            "create_project": (false, false, false), "update_project": (false, true, true),
+            "create_area": (false, false, false), "update_area": (false, true, true),
+            "delete_area": (false, true, true), "move_task": (false, true, true)
         ]
         let tools = try toolsList(d)
         #expect(tools.count == table.count)
@@ -245,3 +250,5 @@ import Foundation
         #expect(info["version"] as? String == MCPDispatcher.serverVersion)
     }
 }
+
+#endif

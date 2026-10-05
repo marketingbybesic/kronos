@@ -1,3 +1,4 @@
+#if os(macOS)
 // An open, not-waiting task follows its own due day automatically: due day SET -> .todo,
 // due day CLEARED -> .someday. A waiting task is never auto-reclassified by this rule at all
 // — Someday is only for a task that is open and truly dateless, not one that is blocked on
@@ -199,3 +200,5 @@ struct AutomaticStatusRuleTests {
         #expect(store.task(t.id)!.status == .todo)
     }
 }
+
+#endif

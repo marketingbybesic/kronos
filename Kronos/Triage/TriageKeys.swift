@@ -35,6 +35,8 @@ extension TriageFlowView {
         guard !model.isTimeBlocksOpen, !model.isImpulsOpen, !model.isCaptureOpen, !model.isPaletteOpen, !model.isKeymapOpen else {
             return false
         }
+        // The "Finish <B> first" card is modal above everything: its own keys (B, Esc, Return) belong to it.
+        guard model.pendingBlockedCompletion == nil else { return false }
         // PICKER GUARD: the project picker popover has its own field and key handling (arrows, Return, Esc);
         // while it is open none of the card's keys act, or Return would also accept the card.
         guard !isPickingProject else { return false }

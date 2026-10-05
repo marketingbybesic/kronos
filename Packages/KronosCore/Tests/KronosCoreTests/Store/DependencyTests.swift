@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -200,4 +201,111 @@ struct DependencyTests {
         let after = call("get_task", ["id": b.id.uuidString])
         #expect((after["task"] as? [String: Any])?["blocked"] == nil)
     }
+
+    // MARK: Finishing a blocked task (the app asks first; the store itself stays unconditional)
+
+    @Test func openBlockersListsOnlyLiveOpenOnesInStoredOrder() throws {
+        let store = try makeStore()
+        let open1 = store.create(title: "open one")
+        let done = store.create(title: "done one")
+        let gone = store.create(title: "deleted one")
+        let open2 = store.create(title: "open two")
+        let a = store.create(title: "a")
+        store.setWaitsOn(a.id, [open2.id, done.id, gone.id, open1.id])
+        store.complete(done.id)
+        store.softDelete(gone.id)
+        #expect(store.openBlockers(of: a.id).map(\.title) == ["open two", "open one"])
+        #expect(store.openBlockers(of: open1.id).isEmpty, "a task that waits on nothing")
+        #expect(store.openBlockers(of: UUID()).isEmpty, "unknown id")
+        store.setStatus(open1.id, .inProgress)
+        #expect(store.openBlockers(of: a.id).count == 2, "in progress is still open")
+        store.setStatus(open1.id, .canceled)
+        #expect(store.openBlockers(of: a.id).map(\.title) == ["open two"], "canceled does not block")
+    }
+
+    @Test func plainCompleteStaysUnconditional() throws {
+        let store = try makeStore()
+        let b = store.create(title: "b")
+        let a = store.create(title: "a")
+        store.setWaitsOn(a.id, [b.id])
+        store.complete(a.id)
+        #expect(a.status == .done, "MCP, URL scheme and Intents complete a blocked task without a prompt")
+        #expect(b.status == .todo)
+    }
+
+    @Test func completeWithBlockersIsOneUndoStep() throws {
+        let store = try makeStore()
+        let b = store.create(title: "b")
+        let c = store.create(title: "c")
+        let a = store.create(title: "a")
+        store.setWaitsOn(a.id, [b.id, c.id])
+        store.clearUndoHistory()
+        #expect(store.canCompleteWithBlockers(a.id))
+        #expect(store.completeWithBlockers(a.id))
+        #expect([a.status, b.status, c.status] == [.done, .done, .done])
+        #expect(store.undoDepth == 1, "one step for three completions")
+        store.undo()
+        #expect([a.status, b.status, c.status] == [.todo, .todo, .todo])
+        #expect(a.waitsOn == [b.id, c.id], "dependency untouched by undo")
+        #expect(store.undoDepth == 0)
+    }
+
+    @Test func completeWithBlockersRefusesWhenABlockerIsBlockedItself() throws {
+        let store = try makeStore()
+        let c = store.create(title: "c")
+        let b = store.create(title: "b")
+        let a = store.create(title: "a")
+        store.setWaitsOn(b.id, [c.id])
+        store.setWaitsOn(a.id, [b.id])
+        store.clearUndoHistory()
+        #expect(!store.canCompleteWithBlockers(a.id))
+        #expect(!store.completeWithBlockers(a.id))
+        #expect([a.status, b.status, c.status] == [.todo, .todo, .todo], "nothing completed, not even partly")
+        #expect(store.undoDepth == 0, "nothing written, nothing to undo")
+        #expect(!store.canCompleteWithBlockers(c.id), "no blockers: nothing to resolve")
+        #expect(!store.completeWithBlockers(c.id))
+        #expect(c.status == .todo)
+    }
+
+    @Test func completeRemovingBlockersKeepsTheOtherIDsAndIsOneUndoStep() throws {
+        let store = try makeStore()
+        let finished = store.create(title: "finished")
+        let b = store.create(title: "b")
+        let a = store.create(title: "a")
+        store.setWaitsOn(a.id, [finished.id, b.id])
+        store.complete(finished.id)
+        store.clearUndoHistory()
+        store.completeRemovingBlockers(a.id)
+        #expect(a.status == .done)
+        #expect(a.waitsOn == [finished.id], "the open blocker is dropped, the finished one stays")
+        #expect(b.status == .todo, "the blocker itself is not touched")
+        #expect(store.undoDepth == 1)
+        store.undo()
+        #expect(a.status == .todo)
+        #expect(a.waitsOn == [finished.id, b.id], "undo restores the dependency in its old order")
+        #expect(store.isBlocked(a.id))
+    }
+
+    @Test func completeRemovingBlockersWithNothingToRemoveJustCompletes() throws {
+        let store = try makeStore()
+        let a = store.create(title: "a")
+        store.clearUndoHistory()
+        store.completeRemovingBlockers(a.id)
+        #expect(a.status == .done)
+        #expect(store.undoDepth == 1)
+    }
+
+    @Test func childTaskBlockerCountsAndCompletesWithBlockers() throws {
+        let store = try makeStore()
+        let parent = store.create(title: "parent")
+        let child = try #require(store.addSubtask(parent.id, title: "child"))
+        let a = store.create(title: "a")
+        store.setWaitsOn(a.id, [child.id])
+        #expect(store.openBlockers(of: a.id).map(\.id) == [child.id])
+        #expect(store.completeWithBlockers(a.id))
+        #expect(child.status == .done)
+        #expect(a.status == .done)
+    }
 }
+
+#endif

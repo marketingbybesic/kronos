@@ -7,12 +7,16 @@ import SwiftUI
 
 struct ListSaveViewSheet: View {
     @State private var name: String
+    /// The project the view will belong to (saved from inside it), named under the field so the person knows
+    /// where the row will appear. nil: a view of its own, listed under "Views".
+    let projectName: String?
     let onSave: (String) -> Void
     let onCancel: () -> Void
     @FocusState private var isFocused: Bool
 
-    init(name: String, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+    init(name: String, projectName: String? = nil, onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self._name = State(initialValue: name)
+        self.projectName = projectName
         self.onSave = onSave
         self.onCancel = onCancel
     }
@@ -28,6 +32,14 @@ struct ListSaveViewSheet: View {
             KTextField("Name", text: $name)
                 .focused($isFocused)
                 .onSubmit(save)
+                .uiTestAnchor("viewsave.name")
+            if let projectName {
+                Text(String(format: String(localized: "viewoptions.saveview.inproject"), projectName))
+                    .font(Typo.row)
+                    .foregroundStyle(Tok.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .uiTestAnchor("viewsave.project")
+            }
             HStack(spacing: Space.x2) {
                 Spacer()
                 Button(String(localized: "common.cancel"), action: onCancel)
@@ -35,6 +47,7 @@ struct ListSaveViewSheet: View {
                 Button(String(localized: "common.save"), action: save)
                     .kButton(.primary)
                     .disabled(trimmed.isEmpty)
+                    .uiTestAnchor("viewsave.save")
             }
         }
         .padding(Space.x4)

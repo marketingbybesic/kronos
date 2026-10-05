@@ -19,13 +19,12 @@ enum DetailSnapshots {
     private static func baseScreens(model: AppModel) -> [String: AnyView] {
         [
             "inspector.recurrence": AnyView(
-                KPanel {
-                    InspectorRecurrenceEditor(
-                        rule: .weekly(every: 1, weekdays: [1, 3], anchor: .fromDueDay),
-                        locale: KronosLocale.languageCode
-                    ) { _ in }
-                }
-                .padding(Space.x4)
+                // The shipped popover view itself, so the PNG shows what the app shows.
+                InspectorRecurrencePopover(
+                    rule: .weekly(every: 1, weekdays: [1, 3], anchor: .fromDueDay),
+                    locale: KronosLocale.languageCode
+                ) { _ in }
+                .overlay(Rectangle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))   // popover edge, so the insets can be read
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .background(Tok.bg)
             ),

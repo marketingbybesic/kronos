@@ -111,11 +111,7 @@ struct CaptureReviewList: View {
     // (not `isDeterministic` alone) now drives every branch.
     @ViewBuilder
     private var statusLine: some View {
-        if capture.fromReminders {
-            Text(String(localized: "capture.reminders.status"))
-                .font(Typo.meta)
-                .foregroundStyle(Tok.textTertiary)
-        } else if capture.isUpgrading {
+        if capture.isUpgrading {
             // A progress state that survives the 15-20 s a real call can take — this text just
             // stays up for as long as `isUpgrading` is true, no timeout of its own, no spinner
             // theatre (matches InspectorBreakdownPreview's own "Thinking…").
@@ -160,12 +156,31 @@ struct CaptureReviewList: View {
                     }
                 }
             }
+            if capture.looksLikeProse, !capture.isAIExtracted {
+                Text(String(localized: "capture.status.prose"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .uiTestAnchor("capture.status.prose")
+            }
+            if !capture.skippedLines.isEmpty {
+                Text(String(format: String(localized: "capture.status.skipped"), skippedSummary))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .lineLimit(2)
+                    .uiTestAnchor("capture.status.skipped")
+            }
             if capture.droppedLineCount > 0 {
                 Text(String(format: String(localized: "capture.status.dropped"), capture.droppedLineCount))
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
             }
         }
+    }
+
+    /// The skipped lines, quoted and cut short, so nothing disappears without a trace.
+    private var skippedSummary: String {
+        capture.skippedLines.prefix(4).map { "\u{201C}\($0.text.prefix(24))\u{201D}" }.joined(separator: ", ")
+            + (capture.skippedLines.count > 4 ? " …" : "")
     }
 
     private var askingText: String {

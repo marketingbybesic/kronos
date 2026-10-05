@@ -43,6 +43,25 @@ struct KronosApp: App {
     }
 }
 
+/// Body of File > New from Template; the list comes from `KronosCommands.body`, which reads the
+/// observable store so the menu is rebuilt when a template is added, renamed or deleted.
+private struct TemplateMenuItems: View {
+    let model: AppModel
+    let templates: [TaskTemplate]
+
+    var body: some View {
+        if templates.isEmpty {
+            Text(String(localized: "menu.file.templates.empty"))
+        } else {
+            ForEach(templates) { t in
+                Button(t.name) { TemplateActions.create(from: t, model: model) }
+            }
+        }
+        Divider()
+        Button(String(localized: "menu.file.templates.manage")) { TemplateActions.manage() }
+    }
+}
+
 /// The app's menu-bar command surface. A separate type (not inline in `.commands {}`) so the
 /// notification-posting glue is unit-legible and the model reference is captured once.
 ///
@@ -59,11 +78,20 @@ private struct KronosCommands: Commands {
 
     var body: some Commands {
         let _ = hotkeyTick.count
+        // Read here, in the body, so the observation tracks it: the list below is rebuilt when a
+        // template is added, renamed or deleted (a read inside the Menu closure is not tracked).
+        let templates = TemplateStore.shared.templates
         CommandGroup(replacing: .newItem) {
             Button(String(localized: "menu.file.newtask")) {
                 NotificationCenter.default.post(name: .kronosNewTaskRequested, object: nil)
             }
             .hotkey("window.newtask")
+
+            // Lists the saved templates (a click makes the task at once) and ends with the
+            // list where they are renamed or deleted. No shortcut: it is not a daily chord.
+            Menu(String(localized: "menu.file.newfromtemplate")) {
+                TemplateMenuItems(model: model, templates: templates)
+            }
         }
 
         CommandGroup(after: .textEditing) {

@@ -29,10 +29,9 @@ struct InspectorFooter: View {
             // template for quick add `/name` and the palette. Saved under the task title at once
             // (no naming step; Settings > Data renames it).
             Button {
-                guard !savedAsTemplate, let tpl = model.store.makeTemplate(from: task.id) else { return }
-                TemplateStore.shared.add(tpl)
-                // Inline confirmation, not the undo pill: that pill's Undo would undo the last
-                // STORE edit, which saving a template is not.
+                guard !savedAsTemplate, TemplateActions.save(taskID: task.id, model: model) != nil else { return }
+                // The shell pill (with Manage) comes from the helper; the label swap stays as
+                // the in-place confirmation next to the button.
                 savedAsTemplate = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { savedAsTemplate = false }
             } label: {

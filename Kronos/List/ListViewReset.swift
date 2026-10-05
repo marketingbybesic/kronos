@@ -12,11 +12,25 @@ import KronosCore
 
 @MainActor
 enum ListViewReset {
-    /// Removes every sort and filter of `scope`. Nothing set: nothing happens and no pill is raised.
+    /// The project the open list belongs to when it is a saved view made inside one: its pin. Read off
+    /// the stored view, so it holds even when the options on screen lost it.
+    static func pin(model: AppModel, scope: ListScope) -> UUID? {
+        guard case .savedView(let id) = scope else { return nil }
+        return model.store.allSavedViews().first { $0.id == id }?.homeProjectID
+    }
+
+    /// `options` with the pin of `scope` (if it has one) in place.
+    static func pinned(_ options: ViewOptions, model: AppModel, scope: ListScope) -> ViewOptions {
+        pin(model: model, scope: scope).map(options.pinned(to:)) ?? options
+    }
+
+    /// Removes every sort and filter of `scope`, except the project a saved view belongs to. Nothing
+    /// to remove: nothing happens and no pill is raised.
     static func clearAll(model: AppModel, scope: ListScope) {
         let before = model.options(for: scope)
-        guard before.hasRulesToClear else { return }
-        model.setOptions(before.cleared(), for: scope)
+        let pin = Self.pin(model: model, scope: scope)
+        guard before.hasRulesToClear(keepingPin: pin) else { return }
+        model.setOptions(before.cleared(keepingPin: pin), for: scope)
         UndoToastCenter.shared.show(String(localized: "list.pill.viewcleared"),
                                     customUndo: { [model] in model.setOptions(before, for: scope) })
     }

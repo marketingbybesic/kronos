@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -79,3 +80,5 @@ struct MCPSubtaskTests {
         #expect(Set(required) == ["taskID", "title"])
     }
 }
+
+#endif

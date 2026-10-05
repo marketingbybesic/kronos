@@ -39,6 +39,8 @@ enum QuickAddCreate {
         var projects = store.allProjects()
         var made: [KTask] = []
         var used: [EntryRecents.Key] = []
+        var savedViewHome: UUID?
+        if case .savedView(let id) = scope { savedViewHome = store.allSavedViews().first { $0.id == id }?.homeProjectID }
 
         func existingOrNewProject(_ d: EntryDestination) -> KProject? {
             if let id = d.id, let p = projects.first(where: { $0.id == id }) { return p }
@@ -69,7 +71,11 @@ enum QuickAddCreate {
                 let explicitDue = result.dueDay ?? repeatPhrase?.firstDue(today: today, calendar: KronosLocale.calendar)
                 let defaults = ListScopeDefaults.apply(scope: scopeKind(for: scope),
                                                         explicitDueDay: explicitDue, today: today,
-                                                        isWaiting: isWaiting)
+                                                        isWaiting: isWaiting, savedViewHome: savedViewHome)
+                // Typed in a view that belongs to a project, with no destination of its own: that project.
+                if project == nil, result.destination == nil, let home = defaults.projectID {
+                    project = projects.first { $0.id == home }
+                }
                 let task = store.create(title: result.title, notes: "", project: project,
                                         status: defaults.status, priority: result.priority,
                                         dueDay: defaults.dueDay)

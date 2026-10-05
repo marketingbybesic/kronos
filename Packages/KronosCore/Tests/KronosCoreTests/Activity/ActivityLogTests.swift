@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -103,3 +104,5 @@ import Foundation
         #expect(audit.webhookStateRaw == 0, "an agent's own write is never delivered back")
     }
 }
+
+#endif

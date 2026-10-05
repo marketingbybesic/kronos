@@ -35,7 +35,11 @@ struct CapturePasteView: View {
             if let notesError {
                 NotesAccessDeniedInline(error: notesError) { isPickingNotes = true }
             }
-            remindersFeedback
+            Text(String(localized: "capture.paste.hint"))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .uiTestAnchor("capture.paste.hint")
             footer
         }
         // Stepping Paste -> Review must not visibly jump sideways — the real Capture card is a
@@ -135,9 +139,9 @@ struct CapturePasteView: View {
             // One Notes entry point (item): the one-tap inbox pull stays reachable through the
             // palette's "Pull from Notes" command (kronosPullFromNotesRequested, handled in
             // CaptureScreen), so the window carries a single, unambiguous Notes button.
-            // A flow layout, not an HStack: three fixed-size source buttons (longer in Croatian
+            // A flow layout, not an HStack: two fixed-size source buttons (longer in Croatian
             // and at Text size L) wrap as whole buttons instead of inflating the column.
-            KFlowLayout(spacing: Space.x3, lineSpacing: Space.x2) { pasteButton; notesButton; remindersButton }
+            KFlowLayout(spacing: Space.x3, lineSpacing: Space.x2) { pasteButton; notesButton }
             ViewThatFits(in: .horizontal) {
                 findTasksRow
                 // Fallback: the hint (decoration) drops before the primary action ever shrinks
@@ -155,11 +159,13 @@ struct CapturePasteView: View {
             }
         }
         .kButton(.secondary).fixedSize()
+        .uiTestAnchor("capture.source.clipboard")
     }
 
     private var notesButton: some View {
         Button(String(localized: "capture.notes.from_notes")) { pickerInitialFolder = nil; isPickingNotes = true }
             .kButton(.secondary).fixedSize()
+            .uiTestAnchor("capture.source.notes")
     }
 
     private var findTasksRow: some View {

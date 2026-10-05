@@ -208,7 +208,7 @@ extension LiveUITest {
         if let rowNodes = CtxMenuRegistry.nodes("row.\(parentID.uuidString)") {
             let top = rowNodes.filter { if case .divider = $0.kind { return false } else { return true } }.map(\.id)
             record("task menu items (task row) match the contract",
-                   top == ["complete", "focus", "dread", "breakdown", "details", "due", "priority", "status", "effort", "labels", "move", "copy", "copyLink", "delete"],
+                   top == ["complete", "focus", "dread", "breakdown", "details", "due", "priority", "status", "effort", "labels", "move", "copy", "copyLink", "savetemplate", "delete"],
                    "top=\(top)")
         } else {
             record("task menu items (task row) match the contract", false, "no menu registered for the parent row")

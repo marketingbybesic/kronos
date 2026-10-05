@@ -118,6 +118,11 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes: [com.besic.kronos.backup]
+        # The private type a task row's drag carries its own marker under (Kronos/List/DropZonePayload.swift).
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: app.kronos.drag-item
+            UTTypeDescription: Kronos drag item
+            UTTypeConformsTo: [public.data]
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: com.besic.kronos.backup
             UTTypeDescription: Kronos backup

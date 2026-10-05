@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -60,3 +61,5 @@ struct LiveNotesTests {
         }
     }
 }
+
+#endif

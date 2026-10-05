@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -138,3 +139,5 @@ struct MCPWireTests {
         #expect(!FileManager.default.fileExists(atPath: f.path))
     }
 }
+
+#endif

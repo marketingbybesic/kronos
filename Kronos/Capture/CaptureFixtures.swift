@@ -83,20 +83,4 @@ enum CaptureFixtures {
         let client = FixtureAIClient(modelID: "example-model", script: [.content(reply)], delay: delay)
         return AIRouter(mode: .allowAny, candidates: [AIRoutedCandidate(client: client)])
     }
-
-    /// Fictional open reminders for the "From Reminders" review snapshot: two list names match
-    /// the harness's Acme / Globex projects, the others (Errands, Reminders) match none, one is
-    /// overdue, one carries notes, one is undated.
-    static var reminders: [ReminderItem] {
-        let day: TimeInterval = 86_400
-        let now = Date()
-        return [
-            ReminderItem(title: "Renew the car insurance", notes: nil, due: now - day, listName: "Errands"),
-            ReminderItem(title: "Send Alex the signed contract", notes: "PDF, both pages", due: now + day, listName: "Acme"),
-            ReminderItem(title: "Review the Globex proposal deck", notes: "Section 3 is still open", due: now + 2 * day, listName: "Globex"),
-            ReminderItem(title: "Call Sam about the offsite", notes: nil, due: now + 4 * day, listName: "Globex"),
-            ReminderItem(title: "Pick up the dry cleaning", notes: nil, due: nil, listName: "Errands"),
-            ReminderItem(title: "Ideas for the autumn newsletter", notes: nil, due: nil, listName: "Reminders"),
-        ]
-    }
 }

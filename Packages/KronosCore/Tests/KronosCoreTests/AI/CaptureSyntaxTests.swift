@@ -158,31 +158,26 @@ struct CaptureSyntaxTests {
         #expect(flight.dueDay == Day.parseISO("2026-09-25"))
     }
 
-    // MARK: - 5. Every task line MUST carry priority and effort — leaving them unset defeats the
-    // point of extraction, since the app's core workflow depends on both being set at capture
-    // time. A line missing either marker is dropped, not silently accepted with `.none`, so a
-    // validator that starts ignoring the requirement fails loudly here.
+    // MARK: - 5. A reply that forgets a priority or effort marker still yields the task: it keeps
+    // `.none` (auto-triage fills it later). Dropping it silently lost real tasks; only the
+    // grounding guard (section 6) rejects a task now.
 
-    @Test func outlineSyntaxRequiresBothPriorityAndEffortMarkers() throws {
-        // Both lines fail the requirement (first missing effort, second missing priority), so
-        // BOTH are dropped and zero survive — `validateExtractOutline` throws on zero kept
-        // (section 6, below), which is itself the proof neither was kept with a `.none` default.
+    @Test func outlineSyntaxKeepsALineMissingAMarkerWithNoneDefaults() throws {
         let source = "Buy milk\nCall the bank"
         let reply = "Buy milk !\n\nCall the bank *\n"
-        #expect(throws: (any Error).self) {
-            _ = try ExtractOutlineValidator.validateExtractOutline(reply, sourceText: source, projectNames: [], today: today)
-        }
+        let tasks = try ExtractOutlineValidator.validateExtractOutline(reply, sourceText: source, projectNames: [], today: today)
+        #expect(tasks.map(\.title) == ["Buy milk", "Call the bank"])
+        #expect(tasks[0].priority == .low)
+        #expect(tasks[0].effort == KEffort.none)
+        #expect(tasks[1].priority == KPriority.none)
+        #expect(tasks[1].effort == .s)
     }
 
-    @Test func outlineSyntaxDropsOnlyTheLineMissingAMarkerKeepsItsSibling() throws {
+    @Test func outlineSyntaxStillDropsAnUngroundedLineWhateverItsMarkers() throws {
         let source = "Buy milk\nCall the bank about the loan"
-        // Blank line between them is REQUIRED by the grammar (a plain line right after a task
-        // line is read as ITS notes, not a new task) — without it "Call the bank..." would be
-        // absorbed into "Buy milk"'s notes instead of becoming its own task line.
-        let reply = "Buy milk !\n\nCall the bank about the loan !! **\n"   // first missing effort
+        let reply = "Buy milk !\n\nLaunch a rocket to the moon !! **\n"
         let tasks = try ExtractOutlineValidator.validateExtractOutline(reply, sourceText: source, projectNames: [], today: today)
-        #expect(tasks.count == 1)
-        #expect(tasks.first?.title == "Call the bank about the loan")
+        #expect(tasks.map(\.title) == ["Buy milk"])
     }
 
     // MARK: - 6. Hallucination guard: title content words must ground in the source, OR notes

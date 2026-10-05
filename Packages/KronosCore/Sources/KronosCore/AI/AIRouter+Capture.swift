@@ -28,13 +28,11 @@ extension AIRouter {
                              projectNames: [String],
                              existingOpenTitles: [String],
                              today: Int) async -> ExtractResult {
-        let deterministic = Self.markDuplicates(
-            NoteSplitter.split(text, today: today, projectNames: projectNames),
-            existingOpenTitles: existingOpenTitles)
-
-        let droppedByCap = max(0, deterministic.count - NoteSplitter.maxProposals)
+        let outline = CaptureGrammar.parse(text, today: today, projectNames: projectNames)
+        let deterministic = Self.markDuplicates(outline.proposals, existingOpenTitles: existingOpenTitles)
+        let droppedByCap = outline.overflow
         func base(_ reason: ExtractReason) -> ExtractResult {
-            ExtractResult(tasks: Array(deterministic.prefix(NoteSplitter.maxProposals)),
+            ExtractResult(tasks: Array(deterministic.prefix(CaptureGrammar.maxItems)),
                          droppedLineCount: droppedByCap, isDeterministic: true, reason: reason)
         }
 
@@ -91,8 +89,8 @@ extension AIRouter {
                 let tasks = try ExtractOutlineValidator.validateExtractOutline(
                     outline, sourceText: text, projectNames: projectNames, today: today)
                 let marked = Self.markDuplicates(tasks, existingOpenTitles: existingOpenTitles)
-                let capped = Array(marked.prefix(NoteSplitter.maxProposals))
-                let dropped = max(0, marked.count - NoteSplitter.maxProposals)
+                let capped = Array(marked.prefix(CaptureGrammar.maxItems))
+                let dropped = max(0, marked.count - CaptureGrammar.maxItems)
                 return ExtractResult(tasks: capped, droppedLineCount: dropped, isDeterministic: false,
                                      reason: .ai(model: candidate.client.modelID))
             } catch {

@@ -169,4 +169,31 @@ struct ViewOptionsTests {
         let json = String(decoding: try JSONEncoder().encode(ViewOptions(sort: [.desc(.priority)])), as: UTF8.self)
         #expect(json.contains("\"priority\""))
     }
+
+    // MARK: Removing a rule (the chip's X and the editor row's X)
+
+    @Test("removing the only sort rule gives the default manual order; removing one of two keeps the other")
+    func removeSortRule() {
+        var only = ViewOptions(sort: [.desc(.priority)])
+        only.sort.remove(at: 0)
+        // The chip's X puts the default back when nothing is left.
+        let afterOnly = only.sort.isEmpty ? KSortDescriptor.default : only.sort
+        #expect(afterOnly == KSortDescriptor.default)
+        #expect(ViewOptions(sort: afterOnly).isManualOrder)
+
+        var two = ViewOptions(sort: [.desc(.priority), .asc(.title)])
+        two.sort.remove(at: 0)
+        #expect(two.sort == [.asc(.title)])
+        #expect(!two.isManualOrder)
+
+        // The editor's own removal (rows -> resolveSort) agrees.
+        #expect(ViewOptions.resolveSort(previous: [.desc(.priority), .asc(.title)], proposed: [.asc(.title)]) == [.asc(.title)])
+        #expect(ViewOptions.resolveSort(previous: [.desc(.priority)], proposed: []) == KSortDescriptor.default)
+    }
+
+    @Test("a manual row removed from a manual list stays the default (why the editor does not list Manual)")
+    func manualRowRemovalIsANoOp() {
+        let previous = KSortDescriptor.default
+        #expect(ViewOptions.resolveSort(previous: previous, proposed: []) == previous)
+    }
 }

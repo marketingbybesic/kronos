@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -300,3 +301,5 @@ struct ChildVisibilityTests {
         #expect(w.store.allTasks().contains { $0.id == kid.id })
     }
 }
+
+#endif

@@ -138,7 +138,12 @@ final class AppModel {
     /// beneath the scrim (⌘N inline row) must bail out instead of focusing behind it.
     var isAnyOverlayOpen: Bool {
         isImpulsOpen || isTriageOpen || isTimeBlocksOpen || isPaletteOpen || isKeymapOpen || isCaptureOpen
+            || pendingBlockedCompletion != nil
     }
+    /// A completion the person asked for on a task that still waits on open tasks. While it is set
+    /// the shell shows the "Finish <B> first" card (Kronos/Detail/BlockedCompletionCard.swift) and
+    /// nothing has been written yet. Not persisted.
+    var pendingBlockedCompletion: BlockedCompletion?
     /// Text handed to Capture from outside the window (menu-bar meeting capture, Siri, a project
     /// folder). Capture reads it ONCE when it opens and clears it. Use `openCapture(with:)`.
     var pendingCaptureText: String?

@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -77,3 +78,5 @@ import Foundation
         #expect(r.protected == ["priority"], "an explicit priority:none is a decision, not an absent value")
     }
 }
+
+#endif

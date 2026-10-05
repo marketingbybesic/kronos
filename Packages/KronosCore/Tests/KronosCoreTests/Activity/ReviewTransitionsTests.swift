@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -153,3 +154,5 @@ import Foundation
         #expect(MCPTaskFull.reviewName(1) == "pending" && MCPTaskFull.reviewName(4) == "awaitingCheck" && MCPTaskFull.reviewName(0) == nil)
     }
 }
+
+#endif

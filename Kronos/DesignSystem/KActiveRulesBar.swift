@@ -33,7 +33,8 @@ public struct KActiveRulesBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Space.x2) {
                 ForEach(chips) { chip in
-                    KChip(chip.text, trailing: .clear, onTap: chip.onTap, onTrailingTap: chip.onRemove)
+                    KChip(chip.text, trailing: .clear, onTap: chip.onTap, onTrailingTap: chip.onRemove,
+                          trailingAnchorID: "rules.chip.remove.\(String(describing: chip.id.base))") { EmptyView() }
                 }
                 Button(String(localized: "viewoptions.clearall"), action: onReset)
                     .buttonStyle(.plain)

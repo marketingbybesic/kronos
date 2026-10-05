@@ -22,9 +22,6 @@ final class CaptureModel {
     private(set) var droppedLineCount = 0
     private(set) var isDeterministic = true
     private(set) var createdCount = 0
-    /// The reminders whose tasks the last `create()` made (and stamped), in row order. The
-    /// "From Reminders" import completes exactly these in Reminders when that option is on.
-    private(set) var createdReminders: [ReminderItem] = []
     /// How many ticked duplicate rows were folded into existing tasks by the last `create()`.
     private(set) var mergedCount = 0
     /// Quiet one-line status while an AI upgrade is in flight. Never a spinner.
@@ -38,15 +35,12 @@ final class CaptureModel {
     /// Which model is currently being asked, shown as "Asking <model>…" while `isUpgrading` —
     /// set right before the request starts, read only by the status line.
     private(set) var askingModel: String?
-    /// True while the review list came from Apple Reminders rather than pasted text: the status
-    /// line then says so instead of talking about AI, and AI actions have no text to work on.
-    private(set) var fromReminders = false
-    /// The paste step's "From Reminders" feedback (CaptureModel+Reminders.swift).
-    enum RemindersState: Equatable { case idle, reading, empty, denied }
-    var remindersState: RemindersState = .idle
-    /// Injectable so a snapshot or test never touches EventKit.
-    var remindersProvider: any RemindersProviding = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
-        ? FixtureReminders(access: .denied) : EventKitReminders.shared
+    /// Lines the grammar skipped (too short, ticked boxes, no title): shown in the review, never silent.
+    private(set) var skippedLines: [DroppedLine] = []
+    /// The paste read as running text rather than a list of lines (`CaptureOutline.looksLikeProse`).
+    private(set) var looksLikeProse = false
+    /// True once an AI reply replaced the plain-line rows.
+    var isAIExtracted: Bool { if case .ai = extractReason { return true } else { return false } }
 
     private var extractTask: Task<Void, Never>?
 
@@ -106,25 +100,19 @@ final class CaptureModel {
     // MARK: Step 1 -> 2
 
     /// Runs the deterministic split immediately (pure, sync), shows the review list, then —
-    /// if AI is configured — kicks off the improving pass in the background. Subtasks come
-    /// from `TaskOutline`'s indent/bullet grammar (via `NoteSplitter.subtasks(in:)`), keyed by
-    /// each proposal's own `sourceLine` — the same key `upgrade(with:)` already matches AI
-    /// replies on. Notes come from `NoteSplitter.notes(in:)` the same way, straight onto
-    /// `proposal.notes` — `ProposedTask` already carries that field and
-    /// `TaskStore+Capture.createMany` already writes it.
+    /// if AI is configured — kicks off the improving pass in the background. Structure (subtasks,
+    /// notes) comes from `CaptureGrammar`, one pass, identity by source line index.
     func findTasks() {
         let text = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let deterministic = NoteSplitter.split(text, today: today, projectNames: projectNames)
-        let marked = AIRouter_markDuplicatesLocally(deterministic, existingOpenTitles: existingOpenTitles)
-        let outlineSubtasks = NoteSplitter.subtasks(in: text, projectNames: projectNames)
-        let outlineNotes = NoteSplitter.notes(in: text, projectNames: projectNames)
-        rows = marked.map { proposal in
-            var proposal = proposal
-            proposal.notes = outlineNotes[proposal.sourceLine]
-            return CaptureRow(proposal: proposal, subtasks: outlineSubtasks[proposal.sourceLine] ?? [])
-        }
-        droppedLineCount = max(0, deterministic.count - NoteSplitter.maxProposals)
+        let outline = CaptureGrammar.parse(text, today: today, projectNames: projectNames)
+        let marked = AIRouter_markDuplicatesLocally(outline.proposals, existingOpenTitles: existingOpenTitles)
+        // One pass, identity by source line index: two tasks with the same title keep their own
+        // subtasks and notes (the proposal itself carries both).
+        rows = marked.map { CaptureRow(proposal: $0) }
+        skippedLines = outline.dropped.filter { $0.reason != .overCap }
+        looksLikeProse = outline.looksLikeProse
+        droppedLineCount = outline.overflow
         isDeterministic = true
         step = .review
 
@@ -197,35 +185,6 @@ final class CaptureModel {
         }
     }
 
-    /// "From Reminders": every open reminder becomes one proposed row (title, notes, due day;
-    /// the list name picks a project only when one of that name already exists). Same review
-    /// step as pasted text, so nothing is created until the user ticks and confirms, and no AI
-    /// call is made: the items are already structured.
-    func showReminders(_ items: [ReminderItem]) {
-        let ordered = RemindersMapping.ordered(items)
-        guard !ordered.isEmpty else { return }
-        let names = projectNames
-        let foldedOpen = Set(existingOpenTitles.map(KTextFold.fold))
-        extractTask?.cancel()
-        isUpgrading = false
-        rows = ordered.map { item in
-            var row = CaptureRow(proposal: ProposedTask(
-                title: item.title,
-                projectName: RemindersMapping.matchProject(listName: item.listName, projectNames: names),
-                dueDay: item.due.map { Day.from($0, calendar: KronosLocale.calendar) },
-                notes: item.notes,
-                sourceLine: item.title,
-                isDuplicateOfOpenTask: foldedOpen.contains(KTextFold.fold(item.title))))
-            row.reminder = item
-            return row
-        }
-        droppedLineCount = 0
-        isDeterministic = true
-        extractReason = nil
-        fromReminders = true
-        step = .review
-    }
-
     // MARK: Editing (review step)
 
     func setTicked(_ id: UUID, _ ticked: Bool) {
@@ -278,7 +237,6 @@ final class CaptureModel {
     // MARK: Back to paste
 
     func backToPaste() {
-        fromReminders = false
         step = .paste
     }
 
@@ -299,7 +257,6 @@ final class CaptureModel {
         }()
         var created = 0
         var merged = 0
-        var stamped: [ReminderItem] = []
         model.store.groupedUndo(String(localized: "undo.capture.create")) {
             // Rows that fold into an existing task: found again NOW (the task may have been
             // completed or deleted since the review opened; then the row becomes a new task, so
@@ -320,19 +277,11 @@ final class CaptureModel {
             for (row, task) in zip(newRows, made) where !row.subtasks.isEmpty {
                 model.store.addSubtasks(row.subtasks, to: task.id)
             }
-            // Origin stamp: the task made from a reminder row carries that reminder's identity,
-            // so a second import offers nothing twice, even when the title was edited in review.
-            for (row, task) in zip(newRows, made) {
-                guard let item = row.reminder, let ext = RemindersMapping.externalID(for: item) else { continue }
-                model.store.update(task.id) { $0.externalID = ext; $0.source = RemindersMapping.originSource }
-                stamped.append(item)
-            }
             created = made.count
         }
         model.didMutate()
         createdCount = created
         mergedCount = merged
-        createdReminders = stamped
         step = .done
     }
 

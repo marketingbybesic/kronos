@@ -14,14 +14,19 @@ enum UITestAnchors {
     static var owners: [String: UUID] = [:]
 }
 
-private struct UITestAnchorReporter: View {
+private struct UITestAnchorModifier: ViewModifier {
     let id: String
-    let frame: CGRect
     @State private var token = UUID()
-    var body: some View {
-        Color.clear
-            .onAppear { report(frame) }
-            .onChange(of: frame) { _, new in report(new) }
+    // onGeometryChange re-reads the frame whenever the view MOVES in the window. A GeometryReader inside lazy
+    // scroll content is not re-run when only content above the view changes size, so the frame stayed 40 pt
+    // stale (a drag aimed at it landed on the wrong row) or never arrived (height 0).
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { report($0) }
+            // The reader reports the first frame even when the change callback delivers none.
+            .background(GeometryReader { geo in
+                Color.clear.onAppear { if UITestAnchors.frames[id] == nil { report(geo.frame(in: .global)) } }
+            })
             .onDisappear {
                 guard UITestAnchors.owners[id] == token else { return }
                 UITestAnchors.frames[id] = nil
@@ -38,9 +43,7 @@ extension View {
     @ViewBuilder
     func uiTestAnchor(_ id: String) -> some View {
         if UITestAnchors.isOn {
-            background(GeometryReader { geo in
-                UITestAnchorReporter(id: id, frame: geo.frame(in: .global))
-            })
+            modifier(UITestAnchorModifier(id: id))
         } else {
             self
         }

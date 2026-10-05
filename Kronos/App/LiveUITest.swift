@@ -97,6 +97,7 @@ enum LiveUITest {
             }
             if let only, only.hasPrefix("group:") {
                 for n in String(only.dropFirst(5)).split(separator: ",").map(String.init) {
+                    if n == "contextmenus" { await runStep(model, scope: .all, contextMenusStep); continue }
                     await runStep(model) { await runLeafSteps($0, only: n) }
                 }
                 finish(path, fatal: nil)

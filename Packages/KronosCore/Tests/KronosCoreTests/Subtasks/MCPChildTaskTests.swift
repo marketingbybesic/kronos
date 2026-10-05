@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -90,3 +91,5 @@ struct MCPChildTaskTests {
         #expect(store.undoDepth == 0, "MCP writes push no undo step")
     }
 }
+
+#endif

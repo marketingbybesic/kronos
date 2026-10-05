@@ -20,9 +20,10 @@ struct ListDropLayer: ViewModifier {
     func body(content: Content) -> some View {
         content
             .coordinateSpace(name: DropSpace.name)
-            .onPreferenceChange(DropRowFramesKey.self) { frames in
-                MainActor.assumeIsolated { controller.setRowFrames(frames) }
-            }
+            .environment(\.dropRowSink, DropRowSink(
+                report: { [controller] in controller.reportRow($0) },
+                reportIfAbsent: { [controller] in controller.reportRowIfAbsent($0) },
+                remove: { [controller] in controller.removeRow($0) }))
             .overlay { ListDropOverlay(controller: controller, config: config) }
             .overlay { ListDropIndicators(controller: controller) }
     }

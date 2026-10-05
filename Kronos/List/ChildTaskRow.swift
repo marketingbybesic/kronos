@@ -2,8 +2,9 @@
 // One child task in the middle list, under its parent row: the same marks a task row carries,
 // compact and on ONE line at every text size (done circle, title, labels, link/notes
 // indicators, due with the source marker, priority, effort, ⓘ). It is a full task, so every mark
-// reads the child's own fields. Access points to its details: ⓘ, double-click, Return on the
-// focused row, the context menu: all call `AppModel.openDetails(taskID:)`.
+// reads the child's own fields. Access points to its details: ⓘ, double-click anywhere but the title,
+// Return on the focused row, the context menu: all call `AppModel.openDetails(taskID:)`. A
+// double-click on the title renames it in place (ChildTaskRowTitleEdit.swift).
 //
 // Geometry: the child title starts one indent step right of its parent's title, and the row
 // sits on the same rounded plate a task row uses, inset from the pane edge (ChildRowGeometry).
@@ -64,6 +65,11 @@ struct ChildTaskRow: View {
     var focus: FocusState<UUID?>.Binding
     let onSelectParent: () -> Void
     @State private var isHovering = false
+    @State var isEditingTitle = false
+    @State var editedTitle = ""
+    @FocusState var titleFieldFocused: Bool
+    @State private var titleMaxX: CGFloat = 0
+    private static let rowSpace = "childRow"
     @Environment(\.chromaMode) private var chromaMode
     @Environment(\.kAccent) private var accent
     @Environment(\.colorSchemeContrast) private var contrast
@@ -73,7 +79,7 @@ struct ChildTaskRow: View {
     private static let labelMaxCharacters = 16
 
     /// A due source or a label-filter match: the reason the parent row is in this list.
-    private var isMarked: Bool { isDriver || isLabelMatch }
+    var isMarked: Bool { isDriver || isLabelMatch }
     private var isInspected: Bool { model.selectedTaskID == parent.id && model.inspectedSubtaskID == child.id }
     private var isFocused: Bool { focus.wrappedValue == child.id }
     /// The quiet marks (ⓘ, the source underline) show only while the row has attention.
@@ -90,15 +96,10 @@ struct ChildTaskRow: View {
                     let format = wasDone ? String(localized: "undo.uncompleted.name") : String(localized: "undo.completed.name")
                     model.commit(String(format: format, child.title))
                 }
-                Text(child.title)
-                    .font(Typo.meta)
-                    .foregroundStyle(child.isDone ? Tok.textTertiary : (isMarked ? Tok.textPrimary : Tok.textSecondary))
-                    .strikethrough(child.isDone)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .uiTestAnchor((isLabelMatch ? "subrow.labelmatch." : "subrow.title.") + child.title)
+                titleView
             }
             .layoutPriority(1)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.rowSpace)).maxX } action: { titleMaxX = $0 }
             Spacer(minLength: Space.x2)
             if columnMode.showsProject, !labels.isEmpty {
                 labelTags
@@ -126,16 +127,20 @@ struct ChildTaskRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
         .subtaskFocusable(child.id, focus: focus, onSelectParent: onSelectParent)
-        // Double-click: details. Simultaneous, so the single click still focuses the row and
-        // selects the parent; the checkbox and ⓘ buttons keep their own clicks.
-        .simultaneousGesture(TapGesture(count: 2).onEnded { open() })
+        .coordinateSpace(name: Self.rowSpace)
+        // Double-click: details, unless it lands on the checkbox or title (the title renames).
+        // Simultaneous, so the single click still focuses the row and selects the parent; the
+        // checkbox and ⓘ buttons keep their own clicks.
+        .simultaneousGesture(SpatialTapGesture(count: 2, coordinateSpace: .named(Self.rowSpace)).onEnded { tap in
+            if tap.location.x > titleMaxX { open() }
+        })
         // Return on the focused row: details (the row is a focus stop, not a text field).
         .onKeyPress(.return) {
             guard focus.wrappedValue == child.id, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return .ignored }
             open()
             return .handled
         }
-        .onDrag { DragOut.provider(id: child.id, title: child.title, isChild: true) }
+        .onDrag { DragOut.provider(id: child.id, title: child.title, isChild: true, dossier: TaskDragText.render(TaskDragText.Input(task: child))) }
         .reportsDropRow(id: child.id, parentID: parent.id)
         .contentShape(Rectangle())
         .kSubtaskContextMenu(child, parent: parent, model: model, place: "subrow")

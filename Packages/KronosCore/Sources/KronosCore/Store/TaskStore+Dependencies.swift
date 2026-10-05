@@ -24,6 +24,58 @@ extension TaskStore {
         return DependencyGraph.blocked(in: tasks ?? all, lookup: all)
     }
 
+    // MARK: Finishing a blocked task
+    //
+    // `complete` stays unconditional (MCP, URL scheme, Intents and synced devices must never hang
+    // on a prompt). The app's own completion paths ask `openBlockers` first and, when it is not
+    // empty, offer the choices below. Each choice is ONE undo step.
+
+    /// The tasks `id` waits on that are still open, in the order they are stored. A waited-on
+    /// task that is done, canceled, deleted or gone does not count (same rule as `isBlocked`).
+    public func openBlockers(of id: UUID) -> [KTask] {
+        guard let t = task(id), !t.waitsOnIDs.isEmpty else { return [] }
+        let byID = Dictionary(allTasksIncludingSubtasks().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var seen = Set<UUID>()
+        return t.waitsOn.compactMap { other in
+            guard seen.insert(other).inserted, let b = byID[other], KStatus.open.contains(b.status) else { return nil }
+            return b
+        }
+    }
+
+    /// True when "complete both" makes sense: `id` has open blockers and none of them is blocked
+    /// itself (completing a blocker that is still waiting on something would just move the
+    /// question one level down).
+    public func canCompleteWithBlockers(_ id: UUID) -> Bool {
+        let blockers = openBlockers(of: id)
+        return !blockers.isEmpty && blockers.allSatisfy { openBlockers(of: $0.id).isEmpty }
+    }
+
+    /// Completes every open blocker of `id`, then `id`. A blocker that is itself blocked is left
+    /// alone and `id` stays open (returns false): nothing is written then. REGISTERS UNDO: one step
+    /// that reopens everything.
+    @discardableResult
+    public func completeWithBlockers(_ id: UUID) -> Bool {
+        guard task(id) != nil, canCompleteWithBlockers(id) else { return false }
+        let blockers = openBlockers(of: id).map(\.id)
+        groupedUndo("Complete") {
+            for b in blockers { complete(b) }
+            complete(id)
+        }
+        return true
+    }
+
+    /// Drops every OPEN blocker from what `id` waits on (done ones and other ids stay), then
+    /// completes `id`. REGISTERS UNDO: one step that reopens `id` and restores the dependencies.
+    public func completeRemovingBlockers(_ id: UUID) {
+        guard let t = task(id) else { return }
+        let drop = Set(openBlockers(of: id).map(\.id))
+        let keep = t.waitsOn.filter { !drop.contains($0) }
+        groupedUndo("Complete") {
+            if !drop.isEmpty { setWaitsOn(id, keep) }
+            complete(id)
+        }
+    }
+
     /// Replace what `id` waits on. Ids that are the task itself, unknown/deleted, duplicated or
     /// would close a cycle are DROPPED (a cycle would block every task in it forever, with no
     /// way to complete any of them). Returns true when every requested id was accepted.

@@ -16,13 +16,16 @@ public struct DigestEvent: Equatable, Sendable {
     public var decision: String?
     public var editedFields: [String]
     public var reason: String?
+    /// The person's verdict ("accepted" or "rejected") and the word he gave with it.
+    public var verdict: String?
+    public var comment: String?
 
     public init(seq: Int, kind: String, at: Date, actor: String, title: String, taskID: UUID? = nil,
                 note: String? = nil, outcome: String? = nil, decision: String? = nil,
-                editedFields: [String] = [], reason: String? = nil) {
+                editedFields: [String] = [], reason: String? = nil, verdict: String? = nil, comment: String? = nil) {
         self.seq = seq; self.kind = kind; self.at = at; self.actor = actor; self.title = title
         self.taskID = taskID; self.note = note; self.outcome = outcome; self.decision = decision
-        self.editedFields = editedFields; self.reason = reason
+        self.editedFields = editedFields; self.reason = reason; self.verdict = verdict; self.comment = comment
     }
 
     /// From a log row; the title falls back to the payload when the task is gone.
@@ -31,7 +34,8 @@ public struct DigestEvent: Equatable, Sendable {
         self.init(seq: row.seq, kind: row.verb, at: row.at, actor: row.actor,
                   title: title ?? p["title"]?.string ?? "(untitled)", taskID: row.taskID,
                   note: p["note"]?.string, outcome: p["outcome"]?.string, decision: p["decision"]?.string,
-                  editedFields: (p["editedFields"]?.array ?? []).compactMap(\.string), reason: p["reason"]?.string)
+                  editedFields: (p["editedFields"]?.array ?? []).compactMap(\.string), reason: p["reason"]?.string,
+                  verdict: p["verdict"]?.string, comment: p["comment"]?.string)
     }
 }
 
@@ -53,6 +57,7 @@ public enum EventDigest {
             var s = e.title
             if e.outcome == "canceled" { s += " (canceled)" }
             if let n = e.note, !n.isEmpty { s += ". Note: \(n)" }
+            if let c = e.comment, !c.isEmpty { s += ". Alex says: \(c)" }
             return s
         }
         section(ActivityVerb.approved, { "Alex approved \($0) \(plural($0, "proposal", "proposals")):" }) { e in

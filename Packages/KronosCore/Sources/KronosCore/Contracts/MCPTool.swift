@@ -6,10 +6,14 @@
 // `kronos-mcp` bridge (Tools/kronos-mcp), which forwards every request over that same
 // loopback endpoint.
 //
-// EIGHTEEN tools: the 13 alpha tools, `list_projects` and `list_areas`, `rules_delete`, and
-// the two `upnext_*` aliases of `ordo_get` / `ordo_set` (the queue is shown as "Up next" in
-// the app; the old names keep working). Deliberately NOT built: impuls, dayplan_propose,
-// triage, breakdown_task, export_json, ordo_push, events_poll, list_labels. A client is itself
+// 34 tools: the 13 alpha tools, `list_projects` and `list_areas`, `rules_delete`, the agent loop
+// (whoami, propose_*, comment_task, events_*, next), the two `upnext_*` aliases of `ordo_get` /
+// `ordo_set` (the queue is shown as "Up next" in the app; the old names keep working), and the
+// nine tools of full control (list_labels, create_label, update_label, create_project,
+// update_project, create_area, update_area, delete_area, move_task). Everything past the read
+// tool list_labels needs the per-agent scope `write.all`, which Settings sets and MCP never can.
+// Deliberately NOT built: impuls, dayplan_propose, triage, breakdown_task, export_json,
+// ordo_push, and any tool that decides a review (Accept / Reject is the person's). A client is itself
 // the stronger model, so tools that made the app call a weaker model were cut; the internal notes
 // marks those sections as not built.
 //
@@ -49,6 +53,17 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     case eventsPoll    = "events_poll"
     case eventsAck     = "events_ack"
     case next          = "next"
+    // Full control (scope write.all, off by default, set per agent in Settings): the app's
+    // structure and any task, as the person would edit it. list_labels only reads.
+    case listLabels    = "list_labels"
+    case createLabel   = "create_label"
+    case updateLabel   = "update_label"
+    case createProject = "create_project"
+    case updateProject = "update_project"
+    case createArea    = "create_area"
+    case updateArea    = "update_area"
+    case deleteArea    = "delete_area"
+    case moveTask      = "move_task"
     // Aliases: same handler, schema and annotations as the tool they point at.
     case upnextGet     = "upnext_get"
     case upnextSet     = "upnext_set"
@@ -120,6 +135,24 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
             return "List projects (id, name, areaID, areaName, icon, colorHex, isArchived, open/total task counts). Optional areaID filter; archived projects only with includeArchived."
         case .listAreas:
             return "List areas (id, name, colorHex, icon) with the ids and names of the projects each holds and open task counts."
+        case .listLabels:
+            return "List every label (id, name, colorHex) with how many open tasks carry it."
+        case .createLabel:
+            return "Needs the write.all scope. Create a label, or return the existing one with that name (created: false). Names match ignoring case and accents."
+        case .updateLabel:
+            return "Needs the write.all scope. Rename a label or change its colour. A name another label already has is refused. A label cannot be deleted over MCP."
+        case .createProject:
+            return "Needs the write.all scope. Create a project, optionally inside an area (areaID), with an icon, emoji and colour."
+        case .updateProject:
+            return "Needs the write.all scope. Rename a project, change its icon, emoji or colour, move it to another area (areaID, null = no area) or archive / restore it (archived). A project cannot be deleted over MCP; archive it."
+        case .createArea:
+            return "Needs the write.all scope. Create an area."
+        case .updateArea:
+            return "Needs the write.all scope. Rename an area or change its colour or icon."
+        case .deleteArea:
+            return "Needs the write.all scope. Delete an area that holds no projects (move or archive them first). confirm must be true."
+        case .moveTask:
+            return "Needs the write.all scope. Move a task to a project (project, null = none), make it a subtask of another task (parentID) or a top-level task again (parentID null), or place a subtask before one of its siblings (before; omitted = last). Works on tasks the owner made too."
         }
     }
 
@@ -363,9 +396,79 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
              "properties":{"areaID":{"type":"string","format":"uuid"},
                            "includeArchived":{"type":"boolean","default":false}}}
             """#
-        case .listAreas:
+        case .listAreas, .listLabels:
             return #"""
             {"type":"object","additionalProperties":false,"properties":{}}
+            """#
+        case .createLabel:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["name"],
+             "properties":{"name":{"type":"string","minLength":1,"maxLength":80},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"}}}
+            """#
+        case .updateLabel:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["id"],
+             "properties":{"id":{"type":"string","format":"uuid"},
+                           "name":{"type":"string","minLength":1,"maxLength":80},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"}}}
+            """#
+        case .createProject:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["name"],
+             "properties":{"name":{"type":"string","minLength":1,"maxLength":120},
+                           "areaID":{"type":"string","format":"uuid"},
+                           "icon":{"type":"string","maxLength":60},
+                           "emoji":{"type":"string","maxLength":8},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"}}}
+            """#
+        case .updateProject:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["id"],
+             "properties":{"id":{"type":"string","format":"uuid"},
+                           "name":{"type":"string","minLength":1,"maxLength":120},
+                           "areaID":{"type":["string","null"],"format":"uuid"},
+                           "icon":{"type":["string","null"],"maxLength":60},
+                           "emoji":{"type":["string","null"],"maxLength":8},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"},
+                           "archived":{"type":"boolean"}}}
+            """#
+        case .createArea:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["name"],
+             "properties":{"name":{"type":"string","minLength":1,"maxLength":120},
+                           "icon":{"type":"string","maxLength":60},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"}}}
+            """#
+        case .updateArea:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["id"],
+             "properties":{"id":{"type":"string","format":"uuid"},
+                           "name":{"type":"string","minLength":1,"maxLength":120},
+                           "icon":{"type":"string","maxLength":60},
+                           "colorHex":{"type":"string","pattern":"^#?[0-9A-Fa-f]{6}$"}}}
+            """#
+        case .deleteArea:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["id","confirm"],
+             "properties":{"id":{"type":"string","format":"uuid"},
+                           "confirm":{"type":"boolean"}}}
+            """#
+        case .moveTask:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["id"],
+             "properties":{"id":{"type":"string","format":"uuid"},
+                           "project":{"type":["string","null"],"description":"Project name or id; null = no project."},
+                           "parentID":{"type":["string","null"],"format":"uuid","description":"Make this a subtask of that task; null = a top-level task again."},
+                           "before":{"type":"string","format":"uuid","description":"Place a subtask directly before this sibling. Omitted = last."}}}
             """#
         }
     }
@@ -388,7 +491,7 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     public var isMutating: Bool {
         switch self {
         case .listTasks, .getTask, .ordoGet, .upnextGet, .rulesList, .listProjects, .listAreas,
-             .whoami, .eventsPoll, .next: return false
+             .whoami, .eventsPoll, .next, .listLabels: return false
         default: return true
         }
     }
@@ -426,6 +529,15 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
         case .rulesList:     return read("List house rules")
         case .listProjects:  return read("List projects")
         case .listAreas:     return read("List areas")
+        case .listLabels:    return read("List labels")
+        case .createLabel:   return write("Create a label", destructive: false, idempotent: true)
+        case .updateLabel:   return write("Update a label", destructive: true, idempotent: true)
+        case .createProject: return write("Create a project", destructive: false, idempotent: false)
+        case .updateProject: return write("Update a project", destructive: true, idempotent: true)
+        case .createArea:    return write("Create an area", destructive: false, idempotent: false)
+        case .updateArea:    return write("Update an area", destructive: true, idempotent: true)
+        case .deleteArea:    return write("Delete an area", destructive: true, idempotent: true)
+        case .moveTask:      return write("Move a task", destructive: true, idempotent: true)
         case .createTask:    return write("Create a task", destructive: false, idempotent: false)
         case .updateTask:    return write("Update a task", destructive: true, idempotent: true)
         case .completeTask:  return write("Complete a task", destructive: false, idempotent: false)

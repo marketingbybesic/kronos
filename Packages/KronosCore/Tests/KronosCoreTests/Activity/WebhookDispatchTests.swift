@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -90,3 +91,5 @@ private final class FakeTransport: DeliveryTransport, @unchecked Sendable {
         #expect((memory["markdown"] as? String)?.hasPrefix("---\nname: kronos-") == true)
     }
 }
+
+#endif

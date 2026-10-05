@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -75,3 +76,5 @@ struct MCPLookupAndFilterTests {
         #expect(!call(d, "create_task", ["title": "y", "labels": ["Fresh"]]).isError)
     }
 }
+
+#endif

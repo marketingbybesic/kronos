@@ -250,7 +250,7 @@ extension MCPDispatcher {
                 if let c = AgentJSON.parse(task.contextJSON ?? "") { taskObj["context"] = AgentJSON.object(c).any }
             }
             var result: [String: Any] = ["by": row.actor, "completedAt": iso.string(from: row.at)]
-            for key in ["outcome", "note", "decision", "reason"] { if let v = p[key]?.string { result[key] = v } }
+            for key in ["outcome", "note", "decision", "reason", "verdict", "comment"] { if let v = p[key]?.string { result[key] = v } }
             if !event.editedFields.isEmpty { result["editedFields"] = event.editedFields }
             if let task { result["openSubtasksLeft"] = task.orderedChildren.filter { KStatus.open.contains($0.status) }.count }
             let memory = EventDigest.memory(for: event)

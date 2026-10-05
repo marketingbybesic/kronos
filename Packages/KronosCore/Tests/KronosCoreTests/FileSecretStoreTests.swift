@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Testing
 @testable import KronosCore
@@ -125,3 +126,5 @@ import Testing
         #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == [MCPEndpointFile.fileName])
     }
 }
+
+#endif

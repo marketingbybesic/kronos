@@ -34,10 +34,25 @@ enum ListBulk {
         let tasks = model.selectedIDs.compactMap { model.store.task($0) }
         let n = tasks.count
         guard n > 1, changesSomething(change, tasks) else { return }
+        // Completing skips a task that waits on an open task outside this selection: the one-task
+        // paths ask what to do about a blocker (BlockedCompletionCard), a bulk action cannot ask n times.
+        var completable = tasks.filter { $0.status != .done }
+        var skipped = 0
+        if case .toggleDone = change, !tasks.allSatisfy({ $0.status == .done }) {
+            let completing = Set(completable.map(\.id))
+            let store = model.store
+            completable = completable.filter { t in store.openBlockers(of: t.id).allSatisfy { completing.contains($0.id) } }
+            skipped = completing.count - completable.count
+            if completable.isEmpty {
+                UndoToastCenter.shared.show(blockedSkipped(skipped))
+                return
+            }
+        }
         let message: String
         switch change {
         case .toggleDone:
-            message = tasks.allSatisfy({ $0.status == .done }) ? reopened(n) : completed(n)
+            if tasks.allSatisfy({ $0.status == .done }) { message = reopened(n) }
+            else { message = skipped > 0 ? completed(completable.count) + ". " + blockedSkipped(skipped) : completed(completable.count) }
         case .delete: message = deleted(n)
         default: message = updated(n)
         }
@@ -67,7 +82,7 @@ enum ListBulk {
                 if tasks.allSatisfy({ $0.status == .done }) {
                     for t in tasks { store.reopen(t.id) }
                 } else {
-                    for t in tasks where t.status != .done { store.complete(t.id) }
+                    for t in completable { store.complete(t.id) }
                 }
             }
         }
@@ -104,6 +119,11 @@ enum ListBulk {
     static func selectedTasks(_ n: Int) -> String {
         KPlural.hr(n, one: String(localized: "list.bulk.panel.one"),
                    few: String(localized: "list.bulk.panel.few"), many: String(localized: "list.bulk.panel.many"))
+    }
+    /// "2 blocked tasks skipped": tasks a bulk completion left open because they wait on an open task.
+    static func blockedSkipped(_ n: Int) -> String {
+        KPlural.hr(n, one: String(localized: "list.bulk.blocked.one"),
+                   few: String(localized: "list.bulk.blocked.few"), many: String(localized: "list.bulk.blocked.many"))
     }
     static func completed(_ n: Int) -> String {
         KPlural.hr(n, one: String(localized: "list.bulk.done.one"),

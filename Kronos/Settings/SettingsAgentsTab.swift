@@ -19,11 +19,17 @@ struct SettingsAgentsTab: View {
         self._controller = State(initialValue: eager ? make() : nil)
     }
 
+    // The placeholder is what makes this a real view before the controller exists: a modifier on an
+    // EmptyView never fires, which left the pane blank for good.
     var body: some View {
         Group {
-            if let controller { SettingsAgentsList(controller: controller) }
+            if let controller {
+                SettingsAgentsList(controller: controller)
+            } else {
+                Color.clear.frame(height: 1)
+            }
         }
-        .onAppear { if controller == nil { controller = make() } }
+        .task { if controller == nil { controller = make() } }
     }
 }
 
@@ -37,7 +43,7 @@ struct SettingsAgentsList: View {
     @State private var invalid = false
     @State private var copied = false
 
-    private enum Confirmation: Equatable { case token(String), revert(String), remove(String) }
+    private enum Confirmation: Equatable { case token(String), revert(String), remove(String), fullControl(String) }
 
     init(controller: AgentsSettingsController) {
         self._controller = State(initialValue: controller)
@@ -51,6 +57,7 @@ struct SettingsAgentsList: View {
                     .foregroundStyle(Tok.textTertiary)
                 Spacer()
             }
+            .uiTestAnchor("settings.agents.intro")
             if controller.unavailable {
                 Text(String(localized: "agents.unavailable"))
                     .font(Typo.meta)
@@ -109,6 +116,7 @@ struct SettingsAgentsList: View {
             detail(String(format: String(localized: "agents.row.writes"), row.writesWeek))
             detail(row.isShared ? String(localized: "agents.row.legacy")
                                 : String(format: String(localized: "agents.row.scopes"), scopeList(row.scopes)))
+            if !row.isShared { fullControlRow(row) }
             if row.undelivered > 0 {
                 detail(String(format: String(localized: "agents.row.undelivered"), row.undelivered))
             }
@@ -121,6 +129,30 @@ struct SettingsAgentsList: View {
         }
         .padding(.vertical, Space.x1)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Off by default. Turning it on asks first; turning it off is immediate.
+    private func fullControlRow(_ row: AgentsSettingsController.Row) -> some View {
+        HStack(alignment: .top, spacing: Space.x3) {
+            VStack(alignment: .leading, spacing: Space.x1) {
+                Text(String(localized: "agents.fullcontrol.title"))
+                    .font(Typo.metaStrong)
+                    .foregroundStyle(Tok.textSecondary)
+                Text(String(localized: "agents.fullcontrol.help"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+            }
+            Spacer(minLength: Space.x4)
+            Toggle(isOn: Binding(get: { row.scopes.has(.writeAll) },
+                                 set: { on in
+                                     if on { confirming = .fullControl(row.slug) } else { controller.setFullControl(false, slug: row.slug) }
+                                 })) { EmptyView() }
+                .toggleStyle(.switch)
+                .tint(Tok.textPrimary)
+                .labelsHidden()
+                .accessibilityLabel(String(format: String(localized: "agents.fullcontrol.label"), row.name))
+                .uiTestAnchor("settings.agents.fullcontrol.\(row.slug)")
+        }
     }
 
     private func detail(_ s: String) -> some View {
@@ -152,7 +184,7 @@ struct SettingsAgentsList: View {
 
     @ViewBuilder
     private func confirmation(_ row: AgentsSettingsController.Row) -> some View {
-        if let c = confirming, c == .token(row.slug) || c == .revert(row.slug) || c == .remove(row.slug) {
+        if let c = confirming, c == .token(row.slug) || c == .revert(row.slug) || c == .remove(row.slug) || c == .fullControl(row.slug) {
             VStack(alignment: .leading, spacing: Space.x2) {
                 Text(confirmText(c, row))
                     .font(Typo.meta)
@@ -174,6 +206,7 @@ struct SettingsAgentsList: View {
         case .token: return String(localized: "agents.token.new.confirm")
         case .revert: return String(format: String(localized: "agents.revert.confirm"), row.name)
         case .remove: return String(format: String(localized: "agents.remove.confirm"), row.name)
+        case .fullControl: return String(format: String(localized: "agents.fullcontrol.confirm"), row.name)
         }
     }
 
@@ -182,6 +215,7 @@ struct SettingsAgentsList: View {
         case .token: return String(localized: "agents.token.new")
         case .revert: return String(localized: "agents.revert.action")
         case .remove: return String(localized: "agents.remove")
+        case .fullControl: return String(localized: "agents.fullcontrol.enable")
         }
     }
 
@@ -190,6 +224,7 @@ struct SettingsAgentsList: View {
         case .token(let slug): controller.rotateToken(slug: slug)
         case .revert(let slug): controller.revertToday(slug: slug)
         case .remove(let slug): controller.remove(slug: slug)
+        case .fullControl(let slug): controller.setFullControl(true, slug: slug)
         }
         confirming = nil
     }
@@ -335,6 +370,7 @@ struct SettingsAgentsList: View {
         if s.has(.writeOwn) { parts.append(String(localized: "agents.scope.writeown")) }
         if s.has(.comment) { parts.append(String(localized: "agents.scope.comment")) }
         if s.has(.writeTrusted) { parts.append(String(localized: "agents.scope.trusted")) }
+        if s.has(.writeAll) { parts.append(String(localized: "agents.scope.writeall")) }
         if s.has(.rulesPropose) { parts.append(String(localized: "agents.scope.rules")) }
         return parts.isEmpty ? String(localized: "agents.scope.none") : parts.joined(separator: ", ")
     }

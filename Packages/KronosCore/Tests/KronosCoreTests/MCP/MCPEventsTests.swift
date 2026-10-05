@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -179,3 +180,5 @@ import Foundation
         #expect(ctx.comments?.count == 20 && ctx.comments?.first?.text == "c6" && ctx.comments?.last?.text == "c25")
     }
 }
+
+#endif

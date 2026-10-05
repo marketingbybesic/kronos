@@ -114,7 +114,11 @@ enum PaletteCommands {
             },
             PaletteCommand(id: "create.fromtemplate", titleKey: "palette.template.new", glyph: "plus",
                             group: .create) { _ in
-                NotificationCenter.default.post(name: Notification.Name("kronosNewFromTemplate"), object: nil)
+                TemplateActions.openPicker()
+            },
+            PaletteCommand(id: "create.managetemplates", titleKey: "palette.template.manage", glyph: "list-ordered",
+                            group: .create) { _ in
+                TemplateActions.manage()
             },
         ]
     }

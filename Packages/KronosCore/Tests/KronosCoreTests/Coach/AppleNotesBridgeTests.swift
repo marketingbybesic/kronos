@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -168,3 +169,5 @@ struct AppleNotesBridgeTests {
         #expect(found?.displayName == "Projects")
     }
 }
+
+#endif

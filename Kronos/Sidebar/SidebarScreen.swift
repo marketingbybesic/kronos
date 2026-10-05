@@ -1,5 +1,6 @@
 // Kronos/Sidebar/SidebarScreen.swift
-// The sidebar: fixed scopes, areas with nested projects, saved views, archived projects.
+// The sidebar: fixed scopes, areas with nested projects (each with its saved views), the slim list of views
+// that belong to no project, archived projects.
 // Both display modes (icons-only rail / icons+text) via KSidebarRow/KSectionHeader, which
 // read the display mode from `\.kSidebarMode` set by the app shell. Selection = `model.scope`;
 // arrow keys move it.
@@ -176,6 +177,11 @@ struct SidebarScreen: View {
         // Reading `model.version` here (unused otherwise) makes @Observable re-evaluate this
         // computed property — and therefore `areas`/counts below — on every store mutation.
         let _ = model.version
+        // One fetch for every project's views (each is drawn under the project it belongs to).
+        var viewsByProject: [UUID: [KSavedView]] = [:]
+        for view in model.store.allSavedViews() {
+            if let home = view.homeProjectID { viewsByProject[home, default: []].append(view) }
+        }
         return Group {
             KSectionHeader(String(localized: "sidebar.section.areas"), trailingIcon: "plus",
                            trailingLabel: String(localized: "sidebar.add.area"),
@@ -188,6 +194,7 @@ struct SidebarScreen: View {
                 if expanded(area.id) {
                     ForEach(area.orderedProjects.filter { !$0.isArchived }) { project in
                         projectRow(project, indent: 1)
+                        SidebarProjectViewRows(model: model, views: viewsByProject[project.id] ?? [], indent: 2, tasks: cachedTasks)
                     }
                 }
             }
@@ -205,6 +212,7 @@ struct SidebarScreen: View {
             }
             ForEach(projectsWithoutArea) { project in
                 projectRow(project, indent: 0)
+                SidebarProjectViewRows(model: model, views: viewsByProject[project.id] ?? [], indent: 1, tasks: cachedTasks)
             }
         }
     }

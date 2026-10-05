@@ -131,6 +131,14 @@ struct AppShellView: View {
                         .transition(.opacity)
                 }
 
+                // "Finish <B> first": a completion asked for on a task that waits on open tasks.
+                // Same plain scrim + card as the overlays above; the card owns the keyboard.
+                if let pending = model.pendingBlockedCompletion {
+                    overlayScrim { model.resolveBlockedCompletion(.cancel) }
+                    BlockedCompletionCard(model: model, pending: pending)
+                        .transition(.opacity)
+                }
+
                 if let toast = undoCenter.current {
                     KUndoPill(state: toast, onUndo: {
                         model.store.undo(); model.didMutate(); undoCenter.dismiss()
@@ -244,6 +252,7 @@ struct AppShellView: View {
             // close on their own, so reaching here means one of those was open, or nothing
             // was: close whichever overlay is open, else clear selection.
             if TourCenter.shared.isRunning { TourCenter.shared.end() }
+            else if model.pendingBlockedCompletion != nil { model.resolveBlockedCompletion(.cancel) }
             else if model.isKeymapOpen { model.isKeymapOpen = false }
             else if model.isPaletteOpen { model.isPaletteOpen = false }
             else if model.isCaptureOpen { model.isCaptureOpen = false }

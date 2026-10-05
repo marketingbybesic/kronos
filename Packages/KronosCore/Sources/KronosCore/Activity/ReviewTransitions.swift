@@ -17,6 +17,16 @@ public enum ReviewState {
 @MainActor
 public enum AgentReview {
 
+    /// The person's verdict, as `AgentTaskResult.verdict` carries it.
+    public static let accepted = "accepted"
+    public static let rejectedVerdict = "rejected"
+
+    private static func record(_ result: inout AgentTaskResult, _ verdict: String, comment: String?, at: Date) {
+        result.verdict = verdict
+        result.verdictComment = comment
+        result.verdictAt = at
+    }
+
     /// Approves a pending proposal. A proposed update applies its patch to the target; the task
     /// itself simply becomes visible. `editedFields` names what the person changed on the card.
     @discardableResult
@@ -26,6 +36,7 @@ public enum AgentReview {
         var result = AgentTaskResult()
         result.by = "me"
         result.decision = editedFields.isEmpty ? "approve" : "edit"
+        record(&result, accepted, comment: nil, at: Date())
         result.editedFields = editedFields.isEmpty ? nil : editedFields
         store.groupedUndo("Approve") {
             if let u = ctx?.update, ctx?.isUpdate == true {
@@ -59,6 +70,8 @@ public enum AgentReview {
         result.outcome = "rejected"
         result.decision = "reject"
         result.reason = reason?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let why = result.reason
+        record(&result, rejectedVerdict, comment: why, at: Date())
         store.groupedUndo("Reject") {
             store.update(id) { $0.reviewRaw = ReviewState.rejected; $0.resultJSON = result.encoded() }
             store.softDelete(id)
@@ -79,6 +92,8 @@ public enum AgentReview {
         result.decision = "merge"
         result.mergedInto = targetID
         result.reason = reason?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let why = result.reason
+        record(&result, accepted, comment: why, at: Date())
         store.groupedUndo("Merge") {
             store.update(id) { $0.reviewRaw = ReviewState.approved; $0.resultJSON = result.encoded() }
             store.softDelete(id)
@@ -86,16 +101,22 @@ public enum AgentReview {
         return true
     }
 
-    /// Accepts what an agent reports as done: the task closes with the agent's own note.
+    /// Accepts what an agent reports as done: the task closes with the agent's own note. An optional
+    /// `comment` is the person's word with the verdict; the agent reads it in `get_task` and `events_poll`.
     @discardableResult
-    public static func acceptAgentDone(_ id: UUID, store: any TaskStoring) -> Bool {
+    public static func acceptAgentDone(_ id: UUID, comment: String? = nil, store: any TaskStoring, now: Date = Date()) -> Bool {
         guard let t = store.task(id), t.reviewRaw == ReviewState.awaitingCheck else { return false }
+        let text = comment?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         var result = AgentTaskResult.decode(t.resultJSON) ?? AgentTaskResult()
         result.by = "me"
         result.outcome = "done"
-        result.completedAt = Date()
+        result.completedAt = now
+        record(&result, accepted, comment: text, at: now)
+        var ctx = AgentContext.decode(t.contextJSON) ?? AgentContext()
+        if let text { ctx.append(comment: .init(at: now, by: "me", text: text)) }
+        let context = text == nil ? t.contextJSON : ctx.encoded()
         store.groupedUndo("Accept") {
-            store.update(id) { $0.reviewRaw = ReviewState.approved; $0.resultJSON = result.encoded() }
+            store.update(id) { $0.reviewRaw = ReviewState.approved; $0.resultJSON = result.encoded(); $0.contextJSON = context }
             store.complete(id)
         }
         return true
@@ -110,6 +131,7 @@ public enum AgentReview {
         result.by = "me"
         result.outcome = "reopened"
         result.note = text
+        record(&result, rejectedVerdict, comment: text, at: now)
         var ctx = AgentContext.decode(t.contextJSON) ?? AgentContext()
         if let text { ctx.append(comment: .init(at: now, by: "me", text: text)) }
         store.groupedUndo("Reopen") {

@@ -1,3 +1,4 @@
+#if os(macOS)
 import Testing
 import Foundation
 @testable import KronosCore
@@ -57,3 +58,5 @@ import Foundation
         #expect(rig.store.task(proposal)?.reviewRaw == ReviewState.pending, "one undo brings the proposal back")
     }
 }
+
+#endif

@@ -59,6 +59,11 @@ extension PaletteCommands {
                 guard let id = model.inspectedTaskID else { return }
                 PaletteCommit.duplicate(id, model: model)
             },
+            PaletteCommand(id: "task.savetemplate", titleKey: "ctx.task.savetemplate", glyph: "copy",
+                           group: .selected, isAvailable: hasTopLevel) { model in
+                guard let id = model.inspectedTaskID else { return }
+                TemplateActions.save(taskID: id, model: model)
+            },
             PaletteCommand(id: "task.copylink", titleKey: "ctx.task.copylink", glyph: "link",
                            group: .selected, isAvailable: hasSelection) { model in
                 guard let id = model.inspectedTaskID else { return }

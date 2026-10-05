@@ -261,7 +261,20 @@ private struct TimeBlockTaskRow: View {
     var body: some View {
         HStack(spacing: Space.x2) {
             KCheckbox(isChecked: task.status == .done, size: Metrics.listCheckboxSize, label: task.title) {
-                if task.status == .done { model.store.reopen(task.id) } else { model.store.complete(task.id) }
+                if task.status == .done {
+                    model.store.reopen(task.id)
+                    model.didMutate()
+                    return
+                }
+                // A task that waits on an open task asks first ("Finish <B> first"); the chosen
+                // write comes back through `finish`.
+                let model = model, title = task.title
+                let blocked = model.interceptBlockedCompletion(of: task) { write in
+                    write()
+                    model.commit(String(format: String(localized: "undo.completed.name"), title))
+                }
+                guard !blocked else { return }
+                model.store.complete(task.id)
                 model.didMutate()
             }
             VStack(alignment: .leading, spacing: Space.x1) {
