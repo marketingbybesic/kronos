@@ -50,6 +50,7 @@ final class AgentsSettingsController {
 
     func refresh() {
         guard !fixture, let hub else { return }
+        hub.adoptTokenFiles()   // token-file agents (Connect all) are listed with their own token
         rows = hub.agents().map { a in
             let d = hub.undelivered(agentID: a.id)
             return Row(slug: a.slug, name: a.displayName, glyph: a.glyph.isEmpty ? String(a.displayName.prefix(1)) : a.glyph,
@@ -65,8 +66,9 @@ final class AgentsSettingsController {
         refresh()
     }
 
-    /// Full control (scope write.all): off by default, decided here and never over MCP. The shared
-    /// legacy token cannot hold it (its identity is pinned to read + propose), so it is refused.
+    /// Full control (scope write.all): off by default, decided here and never over MCP. Only an agent
+    /// that still has no token of its own (the shared legacy token, pinned to read + propose) is
+    /// refused; the row shows the switch disabled with the fix (Connect all).
     func setFullControl(_ on: Bool, slug: String) {
         guard !fixture, let hub, let agent = hub.agent(slug: slug), !agent.tokenHash.isEmpty else { return }
         var scopes = AgentScopes(csv: agent.scopesRaw)
@@ -174,7 +176,7 @@ final class AgentsSettingsController {
     // MARK: fixtures
 
     // Proper names of the snapshot fixture agents.
-    private static let fixtureNames = ["Claude Code", "Research agent", "Unnamed agent"]
+    private static let fixtureNames = ["Claude Code", "Research agent", "Unnamed agent", "pi"]
 
     private static func fixtureRows() -> [Row] {
         let names = fixtureNames
@@ -188,6 +190,9 @@ final class AgentsSettingsController {
                 target: "https://agent.example.com/ingest", undelivered: 2, dead: 1),
             Row(slug: "unnamed", name: names[2], glyph: "U", isEnabled: false, isShared: true,
                 lastSeen: nil, writesWeek: 0, scopes: .legacy, target: nil, undelivered: 0, dead: 0),
+            // Made by Connect all (token file only): its own token, so it holds Full control like the rest.
+            Row(slug: "pi", name: names[3], glyph: "P", isEnabled: true, isShared: false,
+                lastSeen: now.addingTimeInterval(-3_600), writesWeek: 1, scopes: .standard, target: nil, undelivered: 0, dead: 0),
         ]
     }
 }

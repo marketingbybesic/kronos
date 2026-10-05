@@ -116,7 +116,7 @@ struct SettingsAgentsList: View {
             detail(String(format: String(localized: "agents.row.writes"), row.writesWeek))
             detail(row.isShared ? String(localized: "agents.row.legacy")
                                 : String(format: String(localized: "agents.row.scopes"), scopeList(row.scopes)))
-            if !row.isShared { fullControlRow(row) }
+            fullControlRow(row)
             if row.undelivered > 0 {
                 detail(String(format: String(localized: "agents.row.undelivered"), row.undelivered))
             }
@@ -138,7 +138,7 @@ struct SettingsAgentsList: View {
                 Text(String(localized: "agents.fullcontrol.title"))
                     .font(Typo.metaStrong)
                     .foregroundStyle(Tok.textSecondary)
-                Text(String(localized: "agents.fullcontrol.help"))
+                Text(row.isShared ? String(localized: "agents.fullcontrol.shared") : String(localized: "agents.fullcontrol.help"))
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
             }
@@ -150,6 +150,8 @@ struct SettingsAgentsList: View {
                 .toggleStyle(.switch)
                 .tint(Tok.textPrimary)
                 .labelsHidden()
+                .disabled(row.isShared)
+                .opacity(row.isShared ? 0.4 : 1)
                 .accessibilityLabel(String(format: String(localized: "agents.fullcontrol.label"), row.name))
                 .uiTestAnchor("settings.agents.fullcontrol.\(row.slug)")
         }

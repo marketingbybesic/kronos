@@ -172,6 +172,30 @@ public final class AgentHub {
         return nil
     }
 
+    /// Brings the registry in line with the token files on disk, so every agent that holds a token
+    /// is listed and can hold scopes: a file with no row gets a row (standard rights), and a row
+    /// that was registered through the shared token (no hash of its own) takes the file's hash and,
+    /// if it still carried only the legacy rights, the standard ones. Returns true when anything changed.
+    @discardableResult
+    public func adoptTokenFiles() -> Bool {
+        guard let tokenFiles else { return false }
+        var changed = false
+        for slug in tokenFiles.allSlugs() {
+            guard let token = tokenFiles.read(slug) else { continue }
+            let hash = AgentTokenFiles.hash(token)
+            if let row = agent(slug: slug) {
+                guard row.tokenHash != hash else { continue }
+                if row.tokenHash.isEmpty, AgentScopes(csv: row.scopesRaw) == .legacy { row.scopesRaw = AgentScopes.standard.csv }
+                row.tokenHash = hash
+            } else {
+                register(slug: slug, scopes: .standard, tokenHash: hash)
+            }
+            changed = true
+        }
+        if changed { save() }
+        return changed
+    }
+
     private func touch(_ row: KAgent) {
         let t = now()
         if let last = row.lastSeenAt, t.timeIntervalSince(last) < 30 { return }

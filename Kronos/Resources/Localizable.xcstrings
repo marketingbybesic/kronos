@@ -24176,6 +24176,23 @@
         }
       }
     },
+    "agents.fullcontrol.shared": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs its own token. Press Connect all local AI tools in Settings > MCP, then this switch works."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Treba vlastiti token. Pritisni Poveži sve lokalne AI alate u Postavke > MCP, pa ovaj prekidač radi."
+          }
+        }
+      }
+    },
     "agents.fullcontrol.confirm": {
       "extractionState": "manual",
       "localizations": {
