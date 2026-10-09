@@ -247,6 +247,7 @@ struct InspectorScreen: View {
                     focusPinControl(task)
                     InspectorRetriageControl(model: model, task: task)
                     markReviewedControl(task)
+                    delegateControl(task)
                 }
             }
         }
@@ -305,6 +306,44 @@ struct InspectorScreen: View {
         .buttonStyle(.plain)
         .kTooltip(String(localized: isReviewed ? "detail.help.reviewed.unmark" : "detail.help.reviewed.mark"))
         .uiTestAnchor("inspector.reviewed.toggle")
+    }
+
+    /// Quiet text control, same family as `focusPinControl`/`markReviewedControl`: hands this
+    /// task to a configured agent, or takes it back. Reads/writes `KTask.agentID` +
+    /// `assigneeRaw` directly (the same pair `complete_task` already reads — no new field),
+    /// the same write TaskMenu.nodes's "Delegate to…" submenu uses
+    /// (Kronos/List/TaskContextMenu.swift's `TaskDelegation`), so the two can't drift.
+    /// Disabled, with a tooltip explaining why, only when there is no agent to offer AND this
+    /// task is not already delegated — never a control that silently does nothing.
+    private func delegateControl(_ task: KTask) -> some View {
+        let all = ReviewedMarkHub.shared?.agents() ?? []
+        let pickable = all.filter(\.isEnabled)
+        let current = task.assigneeRaw == 1 ? all.first { $0.id == task.agentID } : nil
+        let isInert = pickable.isEmpty && current == nil
+        return Menu {
+            ForEach(pickable, id: \.id) { (agent: KAgent) in
+                Button(agent.displayName) { TaskDelegation.delegate(task.id, to: agent, model: model) }
+            }
+            if current != nil {
+                if !pickable.isEmpty { Divider() }
+                Button(String(localized: "ctx.task.delegate.remove")) { TaskDelegation.undelegate(task.id, model: model) }
+            }
+        } label: {
+            HStack(spacing: Space.x1) {
+                Icon("arrowshape.turn.up.right", size: Metrics.iconXS)
+                Text(current.map { String(format: String(localized: "detail.delegate.current"), $0.displayName) }
+                     ?? String(localized: "ctx.task.delegate"))
+            }
+            .font(Typo.meta)
+            .foregroundStyle(current != nil ? Tok.textSecondary : Tok.textTertiary)
+            .frame(height: Metrics.minHit, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isInert)
+        .opacity(isInert ? 0.4 : 1)
+        .kTooltip(isInert ? String(localized: "detail.help.delegate.none") : String(localized: "detail.help.delegate"))
+        .uiTestAnchor("inspector.delegate")
     }
 
     private func toggleDone(_ task: KTask) {

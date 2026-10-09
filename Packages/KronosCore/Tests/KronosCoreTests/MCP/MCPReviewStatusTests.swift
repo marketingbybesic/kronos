@@ -4,8 +4,9 @@ import Foundation
 import SwiftData
 @testable import KronosCore
 
-/// `review_status` (finish-round-1 B3): read-only, ids or project input, state/verdict/reviewedAt
-/// shape, and scope enforcement (covered table-wide in MCPScopeTests; this file covers the shape).
+/// `review_status` (finish-round-1 B3; feedbackNote: ReviewFeedbackLoop): read-only, ids or
+/// project input, state/verdict/reviewedAt/feedbackNote shape, and scope enforcement (covered
+/// table-wide in MCPScopeTests; this file covers the shape).
 @MainActor
 struct MCPReviewStatusTests {
 
@@ -114,6 +115,41 @@ struct MCPReviewStatusTests {
         // anywhere in MCPDispatcher+Review.swift); `isMutating` is the wire contract a client
         // and the app rely on, so this is the behavioural half of that promise.
         #expect(MCPTool.reviewStatus.isMutating == false)
+    }
+
+    @Test func feedbackNoteReportsTheOwnersWordOnAReopenedTask() throws {
+        let (store, d) = try makeDispatcher()
+        let t = store.createNoUndo(title: "Agent task")
+        store.updateNoUndo(t.id) { $0.reviewRaw = ReviewState.awaitingCheck }
+        #expect(AgentReview.reopen(t.id, comment: "The link is missing", store: store))
+
+        let r = call(d, ["ids": [t.id.uuidString]])
+        #expect(!r.isError)
+        let tasks = r.body["tasks"] as? [[String: Any]] ?? []
+        #expect(tasks.first?["verdict"] as? String == "none", "reopen clears the proposal-style reviewRaw back to none")
+        #expect(tasks.first?["feedbackNote"] as? String == "The link is missing")
+    }
+
+    @Test func feedbackNoteIsReachableOnARejectedProposalAfterItLeavesTheStore() throws {
+        let (store, d) = try makeDispatcher()
+        let proposal = store.createNoUndo(title: "Spam idea")
+        store.updateNoUndo(proposal.id) { $0.reviewRaw = ReviewState.pending }
+        #expect(AgentReview.reject(proposal.id, reason: "Not this quarter", store: store))
+        #expect(store.task(proposal.id) == nil, "a rejected proposal leaves the live store")
+
+        let r = call(d, ["ids": [proposal.id.uuidString]])
+        #expect(!r.isError, "an agent checking back on its own rejected proposal must not get notFound")
+        let tasks = r.body["tasks"] as? [[String: Any]] ?? []
+        #expect(tasks.first?["verdict"] as? String == "rejected")
+        #expect(tasks.first?["feedbackNote"] as? String == "Not this quarter")
+    }
+
+    @Test func feedbackNoteIsNilWithoutAnOwnerComment() throws {
+        let (store, d) = try makeDispatcher()
+        let plain = store.createNoUndo(title: "Untouched task")
+        let r = call(d, ["ids": [plain.id.uuidString]])
+        let tasks = r.body["tasks"] as? [[String: Any]] ?? []
+        #expect(tasks.first?["feedbackNote"] is NSNull || tasks.first?["feedbackNote"] == nil)
     }
 }
 #endif

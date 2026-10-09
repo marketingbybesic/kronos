@@ -61,6 +61,30 @@ enum TaskMenu {
             model.didMutate()
             UndoToastCenter.shared.showNotice(String(format: String(localized: isReviewed ? "undo.unreviewed.name" : "undo.reviewed.name"), task.title))
         }, at: reviewedAt3)
+        // "Delegate to…" (person-agent delegation): hands the task to a configured agent via
+        // the same agentID + assigneeRaw pair `complete_task` already reads (no new KTask
+        // field — see Contracts.swift). Any task, child or top-level: a step can be worked by
+        // an agent the same as its parent. Hidden entirely (not dimmed) when there is nothing
+        // to offer: no enabled agent and this task is not currently delegated — same "hide,
+        // don't dim" rule every other submenu here follows.
+        let pickableAgents = TaskDelegation.enabledAgents()
+        let isDelegated = task.assigneeRaw == 1 && task.agentID != nil
+        if !pickableAgents.isEmpty || isDelegated {
+            var kids: [CtxNode] = pickableAgents.map { (agent: KAgent) -> CtxNode in
+                .action("delegate.\(agent.slug)", agent.displayName,
+                        checked: task.agentID == agent.id && task.assigneeRaw == 1) {
+                    TaskDelegation.delegate(task.id, to: agent, model: model)
+                }
+            }
+            if isDelegated {
+                if !pickableAgents.isEmpty { kids.append(.divider("delegate.div")) }
+                kids.append(.action("delegate.none", String(localized: "ctx.task.delegate.remove")) {
+                    TaskDelegation.undelegate(task.id, model: model)
+                })
+            }
+            let delegateAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+            nodes.insert(.submenu(delegateNodeID, String(localized: "ctx.task.delegate"), kids), at: delegateAt)
+        }
         return nodes
     }
 
@@ -68,6 +92,8 @@ enum TaskMenu {
     static let saveTemplateNodeID = "savetemplate"
     /// Node id of "Mark reviewed" / "Unmark reviewed".
     static let markReviewedNodeID = "reviewed"
+    /// Node id of the "Delegate to…" submenu.
+    static let delegateNodeID = "delegate"
 
     /// Node id of the "Avoiding it" toggle.
     static let dreadNodeID = TaskMenuItem.dread.rawValue
@@ -248,6 +274,36 @@ enum TaskMenu {
                 model.commit(ListPills.due(nil, title: task.title))
             },
         ]
+    }
+}
+
+/// Hands a task to a configured agent, or takes it back — the same `agentID` + `assigneeRaw`
+/// pair `complete_task` already reads to route a finished agent task to the person
+/// (awaitingCheck) instead of closing it outright (no new KTask field; see Contracts.swift's
+/// reviewRaw/assigneeRaw doc comment). One implementation for the row's "Delegate to…"
+/// submenu above and the inspector's matching control (InspectorScreen.swift), so the write
+/// and its undo pill can't drift between the two.
+@MainActor
+enum TaskDelegation {
+    static func delegate(_ id: UUID, to agent: KAgent, model: AppModel) {
+        let store = model.store
+        guard let task = store.task(id), !(task.agentID == agent.id && task.assigneeRaw == 1) else { return }
+        store.update(id) { $0.agentID = agent.id; $0.assigneeRaw = 1 }
+        ReviewedMarkHub.shared?.append(actor: "me", verb: ActivityVerb.assigned, taskID: id, agentID: agent.id,
+                                       payload: ["title": .string(task.title)])
+        model.commit(String(format: String(localized: "undo.delegated.name"), task.title, agent.displayName))
+    }
+
+    static func undelegate(_ id: UUID, model: AppModel) {
+        let store = model.store
+        guard let task = store.task(id), task.assigneeRaw == 1 else { return }
+        store.update(id) { $0.agentID = nil; $0.assigneeRaw = 0 }
+        model.commit(String(format: String(localized: "undo.undelegated.name"), task.title))
+    }
+
+    /// Enabled agents the person can hand a task to, the same source Settings > Agents shows.
+    static func enabledAgents() -> [KAgent] {
+        (ReviewedMarkHub.shared?.agents() ?? []).filter(\.isEnabled)
     }
 }
 

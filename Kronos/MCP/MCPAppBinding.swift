@@ -1,6 +1,8 @@
-// What only the whole app can supply to the MCP server: the list on screen (for `next`) and
-// webhook delivery. `MCPLiveController` finds this class by its Objective-C name when the server
-// starts, so the controller itself (compiled alone by the self-tests) knows nothing of the app.
+// What only the whole app can supply to the MCP server: the list on screen (for `next`), webhook
+// delivery, and the three per-agent feeds (working status, the away digest, agent-completion
+// notifications) that only make sense while the real app and its store are alive.
+// `MCPLiveController` finds this class by its Objective-C name when the server starts, so the
+// controller itself (compiled alone by the self-tests) knows nothing of the app.
 
 import AppKit
 import KronosCore
@@ -21,11 +23,21 @@ final class MCPAppBinding: NSObject {
             d.start()
             delivery = d
         }
+        if let hub = live.hub {
+            AgentWorkingIndex.shared.start(hub: hub)
+            AwayDigest.shared.start(hub: hub)
+            if let store = AppDelegate.shared?.store {
+                AgentDoneNotifications.shared.start(hub: hub, store: store)
+            }
+        }
     }
 
     @objc(detachController:) static func detach(_ controller: AnyObject) {
         delivery?.stop()
         delivery = nil
+        AgentWorkingIndex.shared.stop()
+        AwayDigest.shared.stop()
+        AgentDoneNotifications.shared.stop()
         (controller as? MCPLiveController)?.nextProvider = nil
     }
 

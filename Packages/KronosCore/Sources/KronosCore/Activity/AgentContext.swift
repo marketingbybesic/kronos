@@ -205,8 +205,10 @@ public struct AgentTaskResult: Codable, Equatable, Sendable {
     public var openSubtasksLeft: Int?
     /// The open task a proposal was merged into (decision "merge").
     public var mergedInto: UUID?
-    /// The person's verdict on what the agent did or proposed: "accepted" or "rejected". Written by
-    /// the person's review actions only; no MCP tool can set it.
+    /// The person's verdict on what the agent did or proposed: "accepted" or "rejected". Set by
+    /// the person's review actions, or (only when the person granted this agent the `done.trusted`
+    /// scope) by `complete_task` itself on a task handed to it, with `decision == "auto"`. No
+    /// other MCP tool, and no agent lacking that person-granted scope, can set it.
     public var verdict: String?
     /// What the person said with the verdict (optional).
     public var verdictComment: String?

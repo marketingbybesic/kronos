@@ -199,6 +199,8 @@ public enum Metrics {
     public static let listCheckboxSize: CGFloat  = 16   // style G: 16pt, quiet ring (was 18)
     public static let priorityGlyph              = CGSize(width: 14, height: 12)
     public static let projectDot: CGFloat        = 6
+    public static let capMeterWidth: CGFloat = 120
+    public static let capMeterHeight: CGFloat = 4
     public static let hitSlop: CGFloat           = 4
     public static let minHit: CGFloat            = 24
 

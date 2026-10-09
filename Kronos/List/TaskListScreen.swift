@@ -55,6 +55,7 @@ struct TaskListScreen: View {
                     .padding(.horizontal, Space.x4)
                     .padding(.top, Space.x2)
             }
+            AwayDigestBanner(model: model)
             CoachBannerSlot(model: model, previewSuggestion: previewBlockSuggestion, isCalm: isCalm)
             // "Start here" (Kronos/Welcome/OnboardingCard.swift): renders nothing unless a tour runs.
             OnboardingCard(model: model)

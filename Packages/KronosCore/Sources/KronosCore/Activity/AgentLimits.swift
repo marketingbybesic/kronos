@@ -30,6 +30,15 @@ public final class AgentLimiter {
         return (false, Int((missing * 60 / capacity).rounded(.up)))
     }
 
+    /// Calls taken from the bucket so far this window, without consuming one (Settings display).
+    public func used(slug: String, perMinute: Int) -> Int {
+        guard let b = buckets[slug] else { return 0 }
+        let capacity = Double(max(perMinute, 1))
+        let elapsed = max(0, now().timeIntervalSince(b.at))
+        let refilled = min(capacity, b.tokens + elapsed * capacity / 60)
+        return max(0, Int((capacity - refilled).rounded()))
+    }
+
     public func reset(slug: String) { buckets[slug] = nil }
 }
 

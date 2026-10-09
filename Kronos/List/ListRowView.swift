@@ -167,6 +167,9 @@ struct ListRowView: View {
                 titleView
                 attachmentIndicators
                 blockedGlyph
+                agentDoneGlyph
+                delegatedGlyph
+                workingGlyph
             }
         } trailing: {
             trailingSlots
@@ -198,6 +201,7 @@ struct ListRowView: View {
                 .uiTestAnchor("row.blocked." + task.title)
         }
     }
+
 
     // MARK: - Trailing slots (fixed order: priority · effort · deadline · project · subtasks ·
     // recurrence). Each slot has a fixed width (`SlotWidth`) so columns align down the list

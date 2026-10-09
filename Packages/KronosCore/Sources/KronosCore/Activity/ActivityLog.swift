@@ -93,6 +93,13 @@ extension AgentHub {
         return (try? context.fetch(d)) ?? []
     }
 
+    public var latestSeq: Int { maxSeq() }
+
+    public func rows(from date: Date) -> [KActivity] {
+        let d = FetchDescriptor<KActivity>(predicate: #Predicate { $0.at >= date }, sortBy: [SortDescriptor(\.seq)])
+        return (try? context.fetch(d)) ?? []
+    }
+
     public nonisolated static func payload(_ row: KActivity) -> [String: AgentJSON] { AgentJSON.parse(row.payloadJSON) ?? [:] }
 
     /// Events the agent should hear: about its tasks, never its own writes, never bookkeeping.
@@ -133,6 +140,16 @@ extension AgentHub {
         guard let a = agent(id: agentID) else { return 0 }
         let since = now().addingTimeInterval(-Double(days) * 86_400)
         return rows().filter { $0.actor == "agent:\(a.slug)" && ActivityVerb.writes.contains($0.verb) && $0.at >= since }.count
+    }
+
+    /// Everything concerning one agent, newest first: its own writes plus what the person (or
+    /// another agent sharing one of its tasks) did to it — approved/rejected/commented/
+    /// reviewed/... Bookkeeping (`cursor.ack`) is excluded: never useful in a human-facing feed.
+    /// Settings > Agents' per-agent activity view (finish-round-1 AgentLedgerView).
+    public func activity(forAgentSlug slug: String) -> [KActivity] {
+        guard let a = agent(slug: slug) else { return [] }
+        return rows().filter { ($0.actor == "agent:\(slug)" || $0.agentID == a.id) && $0.verb != ActivityVerb.ack }
+            .sorted { $0.seq > $1.seq }
     }
 
     /// Events not delivered yet to an agent's webhook, and those given up on.

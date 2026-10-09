@@ -22,6 +22,12 @@ final class AgentsSettingsController {
         let target: String?
         let undelivered: Int
         let dead: Int
+        let createdToday: Int
+        let dailyCap: Int
+        let pending: Int
+        let pendingCap: Int
+        let callsMinute: Int
+        let perMinute: Int
     }
 
     enum DeliveryKind: String, CaseIterable { case off, webhook, ntfy, command }
@@ -53,10 +59,15 @@ final class AgentsSettingsController {
         hub.adoptTokenFiles()   // token-file agents (Connect all) are listed with their own token
         rows = hub.agents().map { a in
             let d = hub.undelivered(agentID: a.id)
+            let created = hub.identity(slug: a.slug).map { hub.createsToday(agent: $0) } ?? 0
+            let pendingCount = store.map { hub.pendingProposals(agentID: a.id, store: $0) } ?? 0
+            let calls = hub.callsThisMinute(slug: a.slug, perMinute: a.rateLimitPerMinute)
             return Row(slug: a.slug, name: a.displayName, glyph: a.glyph.isEmpty ? String(a.displayName.prefix(1)) : a.glyph,
                        isEnabled: a.isEnabled, isShared: a.tokenHash.isEmpty, lastSeen: a.lastSeenAt,
                        writesWeek: hub.writeCount(agentID: a.id, days: 7), scopes: AgentScopes(csv: a.scopesRaw),
-                       target: a.webhookURL, undelivered: d.pending, dead: d.dead)
+                       target: a.webhookURL, undelivered: d.pending, dead: d.dead,
+                       createdToday: created, dailyCap: a.dailyCreateCap, pending: pendingCount,
+                       pendingCap: a.maxPendingProposals, callsMinute: calls, perMinute: a.rateLimitPerMinute)
         }
     }
 
@@ -73,6 +84,14 @@ final class AgentsSettingsController {
         guard !fixture, let hub, let agent = hub.agent(slug: slug), !agent.tokenHash.isEmpty else { return }
         var scopes = AgentScopes(csv: agent.scopesRaw)
         if on { scopes.set.insert(.writeAll) } else { scopes.set.remove(.writeAll) }
+        hub.setScopes(scopes, slug: slug)
+        refresh()
+    }
+
+    func setAutoApprove(_ on: Bool, slug: String) {
+        guard !fixture, let hub, let agent = hub.agent(slug: slug) else { return }
+        var scopes = AgentScopes(csv: agent.scopesRaw)
+        if on { scopes.set.insert(.doneTrusted) } else { scopes.set.remove(.doneTrusted) }
         hub.setScopes(scopes, slug: slug)
         refresh()
     }
@@ -183,16 +202,20 @@ final class AgentsSettingsController {
         let now = Date(timeIntervalSince1970: 1_790_000_000)
         return [
             Row(slug: "claude-code", name: names[0], glyph: "C", isEnabled: true, isShared: false,
-                lastSeen: now.addingTimeInterval(-600), writesWeek: 12, scopes: .standard, target: nil, undelivered: 0, dead: 0),
+                lastSeen: now.addingTimeInterval(-600), writesWeek: 12, scopes: .standard, target: nil, undelivered: 0, dead: 0,
+                createdToday: 3, dailyCap: 40, pending: 1, pendingCap: 15, callsMinute: 2, perMinute: 60),
             Row(slug: "research", name: names[1], glyph: "R", isEnabled: true, isShared: false,
                 lastSeen: now.addingTimeInterval(-86_400), writesWeek: 3,
                 scopes: AgentScopes([.read, .propose, .writeOwn, .comment, .writeTrusted]),
-                target: "https://agent.example.com/ingest", undelivered: 2, dead: 1),
+                target: "https://agent.example.com/ingest", undelivered: 2, dead: 1,
+                createdToday: 12, dailyCap: 40, pending: 4, pendingCap: 15, callsMinute: 0, perMinute: 60),
             Row(slug: "unnamed", name: names[2], glyph: "U", isEnabled: false, isShared: true,
-                lastSeen: nil, writesWeek: 0, scopes: .legacy, target: nil, undelivered: 0, dead: 0),
+                lastSeen: nil, writesWeek: 0, scopes: .legacy, target: nil, undelivered: 0, dead: 0,
+                createdToday: 0, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60),
             // Made by Connect all (token file only): its own token, so it holds Full control like the rest.
             Row(slug: "pi", name: names[3], glyph: "P", isEnabled: true, isShared: false,
-                lastSeen: now.addingTimeInterval(-3_600), writesWeek: 1, scopes: .standard, target: nil, undelivered: 0, dead: 0),
+                lastSeen: now.addingTimeInterval(-3_600), writesWeek: 1, scopes: .standard, target: nil, undelivered: 0, dead: 0,
+                createdToday: 1, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60),
         ]
     }
 }

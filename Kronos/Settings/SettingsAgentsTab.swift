@@ -42,8 +42,9 @@ struct SettingsAgentsList: View {
     @State private var text = ""
     @State private var invalid = false
     @State private var copied = false
+    @State private var viewingActivity: AgentsSettingsController.Row?
 
-    private enum Confirmation: Equatable { case token(String), revert(String), remove(String), fullControl(String) }
+    private enum Confirmation: Equatable { case token(String), revert(String), remove(String), fullControl(String), autoApprove(String) }
 
     init(controller: AgentsSettingsController) {
         self._controller = State(initialValue: controller)
@@ -58,6 +59,7 @@ struct SettingsAgentsList: View {
                 Spacer()
             }
             .uiTestAnchor("settings.agents.intro")
+            AgentNotifyRow()
             if controller.unavailable {
                 Text(String(localized: "agents.unavailable"))
                     .font(Typo.meta)
@@ -84,6 +86,11 @@ struct SettingsAgentsList: View {
             }
         }
         .onAppear { controller.refresh() }
+        .sheet(item: $viewingActivity) { row in
+            SettingsAgentActivityView(slug: row.slug, displayName: row.name,
+                                      live: AppDelegate.shared?.mcpLive,
+                                      store: AppDelegate.shared?.store)
+        }
     }
 
     // MARK: one agent
@@ -116,7 +123,9 @@ struct SettingsAgentsList: View {
             detail(String(format: String(localized: "agents.row.writes"), row.writesWeek))
             detail(row.isShared ? String(localized: "agents.row.legacy")
                                 : String(format: String(localized: "agents.row.scopes"), scopeList(row.scopes)))
+            AgentCapMeters(row: row)
             fullControlRow(row)
+            autoApproveRow(row)
             if row.undelivered > 0 {
                 detail(String(format: String(localized: "agents.row.undelivered"), row.undelivered))
             }
@@ -157,6 +166,31 @@ struct SettingsAgentsList: View {
         }
     }
 
+    private func autoApproveRow(_ row: AgentsSettingsController.Row) -> some View {
+        HStack(alignment: .top, spacing: Space.x3) {
+            VStack(alignment: .leading, spacing: Space.x1) {
+                Text(String(localized: "agents.autoapprove.title"))
+                    .font(Typo.metaStrong)
+                    .foregroundStyle(Tok.textSecondary)
+                Text(row.isShared ? String(localized: "agents.fullcontrol.shared") : String(localized: "agents.autoapprove.help"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+            }
+            Spacer(minLength: Space.x4)
+            Toggle(isOn: Binding(get: { row.scopes.has(.doneTrusted) },
+                                 set: { on in
+                                     if on { confirming = .autoApprove(row.slug) } else { controller.setAutoApprove(false, slug: row.slug) }
+                                 })) { EmptyView() }
+                .toggleStyle(.switch)
+                .tint(Tok.textPrimary)
+                .labelsHidden()
+                .disabled(row.isShared)
+                .opacity(row.isShared ? 0.4 : 1)
+                .accessibilityLabel(String(format: String(localized: "agents.autoapprove.label"), row.name))
+                .uiTestAnchor("settings.agents.autoapprove.\(row.slug)")
+        }
+    }
+
     private func detail(_ s: String) -> some View {
         Text(s)
             .font(Typo.meta)
@@ -169,6 +203,9 @@ struct SettingsAgentsList: View {
             Button(String(localized: "agents.delivery")) { toggleEditor(row) }
                 .kButton(.secondary, size: .compact)
                 .uiTestAnchor("settings.agents.delivery.\(row.slug)")
+            Button(String(localized: "agents.activity")) { viewingActivity = row }
+                .kButton(.secondary, size: .compact)
+                .uiTestAnchor("settings.agents.activity.\(row.slug)")
             if !row.isShared {
                 Button(String(localized: "agents.token.new")) { confirming = .token(row.slug) }
                     .kButton(.secondary, size: .compact)
@@ -186,7 +223,7 @@ struct SettingsAgentsList: View {
 
     @ViewBuilder
     private func confirmation(_ row: AgentsSettingsController.Row) -> some View {
-        if let c = confirming, c == .token(row.slug) || c == .revert(row.slug) || c == .remove(row.slug) || c == .fullControl(row.slug) {
+        if let c = confirming, c == .token(row.slug) || c == .revert(row.slug) || c == .remove(row.slug) || c == .fullControl(row.slug) || c == .autoApprove(row.slug) {
             VStack(alignment: .leading, spacing: Space.x2) {
                 Text(confirmText(c, row))
                     .font(Typo.meta)
@@ -209,6 +246,7 @@ struct SettingsAgentsList: View {
         case .revert: return String(format: String(localized: "agents.revert.confirm"), row.name)
         case .remove: return String(format: String(localized: "agents.remove.confirm"), row.name)
         case .fullControl: return String(format: String(localized: "agents.fullcontrol.confirm"), row.name)
+        case .autoApprove: return String(format: String(localized: "agents.autoapprove.confirm"), row.name)
         }
     }
 
@@ -218,6 +256,7 @@ struct SettingsAgentsList: View {
         case .revert: return String(localized: "agents.revert.action")
         case .remove: return String(localized: "agents.remove")
         case .fullControl: return String(localized: "agents.fullcontrol.enable")
+        case .autoApprove: return String(localized: "agents.autoapprove.enable")
         }
     }
 
@@ -227,6 +266,7 @@ struct SettingsAgentsList: View {
         case .revert(let slug): controller.revertToday(slug: slug)
         case .remove(let slug): controller.remove(slug: slug)
         case .fullControl(let slug): controller.setFullControl(true, slug: slug)
+        case .autoApprove(let slug): controller.setAutoApprove(true, slug: slug)
         }
         confirming = nil
     }
@@ -370,6 +410,7 @@ struct SettingsAgentsList: View {
         if s.has(.read) { parts.append(String(localized: "agents.scope.read")) }
         if s.has(.propose) { parts.append(String(localized: "agents.scope.propose")) }
         if s.has(.writeOwn) { parts.append(String(localized: "agents.scope.writeown")) }
+        if s.has(.doneTrusted) { parts.append(String(localized: "agents.scope.donetrusted")) }
         if s.has(.comment) { parts.append(String(localized: "agents.scope.comment")) }
         if s.has(.writeTrusted) { parts.append(String(localized: "agents.scope.trusted")) }
         if s.has(.writeAll) { parts.append(String(localized: "agents.scope.writeall")) }

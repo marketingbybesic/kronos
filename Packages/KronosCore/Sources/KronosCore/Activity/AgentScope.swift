@@ -14,6 +14,8 @@ public enum AgentScope: String, CaseIterable, Sendable {
     case writeOwn = "write.own"
     /// Created tasks skip review. Off by default, set per agent in Settings only.
     case writeTrusted = "write.trusted"
+    /// Finished work on a task handed to this agent closes without the person's check (auto-approve). Off by default, set per agent in Settings only.
+    case doneTrusted = "done.trusted"
     /// comment_task on any task.
     case comment
     /// Reserved: reordering foreign tasks is refused outright for now.

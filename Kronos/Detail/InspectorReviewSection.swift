@@ -16,8 +16,15 @@ struct InspectorReviewSection: View {
             if task.reviewRaw == ReviewState.awaitingCheck {
                 decision
             } else if task.agentID != nil, let result = AgentTaskResult.decode(task.resultJSON),
-                      result.by == "me", let verdict = result.verdict {
+                      result.by == "me" || result.decision == "auto", let verdict = result.verdict {
                 recap(result, verdict: verdict)
+            } else if let c = AgentWorkingIndex.shared.claim(for: task) {
+                Text(String(format: String(localized: "review.inspector.working"), c.name, relative(c.at)))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .padding(.vertical, Space.x2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .uiTestAnchor("inspector.review.working")
             }
         }
         .id(task.id)
@@ -74,7 +81,7 @@ struct InspectorReviewSection: View {
 
     private func recap(_ result: AgentTaskResult, verdict: String) -> some View {
         VStack(alignment: .leading, spacing: Space.x1) {
-            Text(String(localized: verdict == AgentReview.accepted ? "review.inspector.accepted" : "review.inspector.rejected"))
+            Text(String(localized: verdict == AgentReview.accepted ? (result.decision == "auto" ? "review.inspector.autoaccepted" : "review.inspector.accepted") : "review.inspector.rejected"))
                 .font(Typo.metaStrong)
                 .foregroundStyle(Tok.textSecondary)
             if let text = result.verdictComment, !text.isEmpty {
@@ -83,9 +90,32 @@ struct InspectorReviewSection: View {
                     .foregroundStyle(Tok.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // Persistent provenance record: once the person accepts an agent's "done", this
+            // stays visible so the person can see who actually did the work without re-opening
+            // Review. Gated on `task.completedAt` (not `result.completedAt`, which `acceptAgentDone`
+            // overwrites to accept-time): nil only if the task was later reopened plainly, at
+            // which point "completed by" is no longer true.
+            if verdict == AgentReview.accepted, let completedAt = task.completedAt {
+                Text(String(format: String(localized: "review.inspector.completedby"), agentName, relative(completedAt)))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .uiTestAnchor("inspector.review.provenance")
+            }
         }
         .padding(.vertical, Space.x2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .uiTestAnchor("inspector.review.verdict")
     }
+
+    private func relative(_ date: Date) -> String {
+        Self.formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private static let formatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.calendar = KronosLocale.calendar
+        f.locale = KronosLocale.current
+        f.dateTimeStyle = .named
+        return f
+    }()
 }

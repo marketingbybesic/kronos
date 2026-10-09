@@ -78,6 +78,14 @@ struct AppShellView: View {
                         .transition(.opacity)
                 }
 
+                if model.isReviewNextOpen {
+                    overlayScrim { model.isReviewNextOpen = false }
+                    // Same centred, single-focused-card treatment as isTriageOpen above.
+                    ReviewNextView(model: model, onClose: { model.isReviewNextOpen = false })
+                        .padding(.horizontal, Space.x4)
+                        .transition(.opacity)
+                }
+
                 if model.isTimeBlocksOpen {
                     overlayScrim { model.isTimeBlocksOpen = false }
                     TimeBlocksScreen(model: model)
@@ -257,6 +265,7 @@ struct AppShellView: View {
             else if model.isPaletteOpen { model.isPaletteOpen = false }
             else if model.isCaptureOpen { model.isCaptureOpen = false }
             else if model.isTriageOpen { model.isTriageOpen = false }
+            else if model.isReviewNextOpen { model.isReviewNextOpen = false }
             else if model.isTimeBlocksOpen { model.isTimeBlocksOpen = false }
             else if model.isImpulsOpen { model.isImpulsOpen = false }
             else if model.inspectedSubtaskID != nil { model.closeChildDetails() }   // child mode: back to the parent first

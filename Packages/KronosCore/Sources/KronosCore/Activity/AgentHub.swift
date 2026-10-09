@@ -88,6 +88,8 @@ public final class AgentHub {
         save()
     }
 
+    public func callsThisMinute(slug: String, perMinute: Int) -> Int { limiter.used(slug: slug, perMinute: perMinute) }
+
     /// Creates an agent with a fresh token file and returns the token (shown once in the UI).
     @discardableResult
     public func addAgent(displayName: String, scopes: AgentScopes = .standard) -> (agent: KAgent, token: String)? {

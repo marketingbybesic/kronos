@@ -104,6 +104,44 @@ import Foundation
                 "a trusted create is not a proposal, so the backlog does not apply")
         _ = a
     }
+
+    // MARK: used (round 2 #13 cap meters: a non-mutating read of the bucket)
+
+    @Test func usedIsZeroForASlugThatNeverConsumed() {
+        let limiter = AgentLimiter(now: { Date(timeIntervalSince1970: 0) })
+        #expect(limiter.used(slug: "codex", perMinute: 60) == 0)
+    }
+
+    @Test func usedCountsCallsTakenThisWindow() {
+        let limiter = AgentLimiter(now: { Date(timeIntervalSince1970: 0) })
+        for _ in 1...3 { _ = limiter.consume(slug: "codex", perMinute: 60) }
+        #expect(limiter.used(slug: "codex", perMinute: 60) == 3)
+    }
+
+    @Test func usedFallsBackTowardZeroAsTheClockAdvances() {
+        var t = Date(timeIntervalSince1970: 0)
+        let limiter = AgentLimiter(now: { t })
+        for _ in 1...6 { _ = limiter.consume(slug: "codex", perMinute: 6) }
+        #expect(limiter.used(slug: "codex", perMinute: 6) == 6)
+        t = t.addingTimeInterval(30)
+        #expect(limiter.used(slug: "codex", perMinute: 6) == 3, "half the refill window frees half the bucket")
+        t = t.addingTimeInterval(30)
+        #expect(limiter.used(slug: "codex", perMinute: 6) == 0, "a full refill window frees the whole bucket")
+    }
+
+    @Test func usedNeverMutatesTheBucket() {
+        let watched = AgentLimiter(now: { Date(timeIntervalSince1970: 0) })
+        let unwatched = AgentLimiter(now: { Date(timeIntervalSince1970: 0) })
+        for _ in 1...60 {
+            let w = watched.consume(slug: "codex", perMinute: 60)
+            let u = unwatched.consume(slug: "codex", perMinute: 60)
+            #expect(w.allowed == u.allowed)
+            _ = watched.used(slug: "codex", perMinute: 60)
+        }
+        let wRefused = watched.consume(slug: "codex", perMinute: 60)
+        let uRefused = unwatched.consume(slug: "codex", perMinute: 60)
+        #expect(wRefused.allowed == uRefused.allowed && wRefused.retryAfter == uRefused.retryAfter)
+    }
 }
 
 #endif

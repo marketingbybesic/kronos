@@ -28,10 +28,21 @@ struct BlockStartRequest: Equatable {
     let fireDate: Date
 }
 
+/// One "an agent finished a task" notification, fully described.
+struct AgentDoneRequest: Equatable {
+    let id: String
+    let taskID: UUID
+    let title: String
+    let body: String
+}
+
 @MainActor
 protocol NotificationCentering: AnyObject {
     /// Called with the person's choice on a delivered notification.
     var onAction: ((BlockStartAction, UUID) -> Void)? { get set }
+    /// Called when the person acts on (or simply taps) an agent-completion notification.
+    var onReviewOpen: ((UUID) -> Void)? { get set }
+    func deliver(_ request: AgentDoneRequest) async
     func authorization() async -> NotificationAuth
     /// Shows the system prompt (only ever from the Settings toggle). True when allowed.
     func requestAuthorization() async -> Bool
@@ -45,12 +56,14 @@ protocol NotificationCentering: AnyObject {
 @MainActor
 final class RecordingNotificationCenter: NotificationCentering {
     var onAction: ((BlockStartAction, UUID) -> Void)?
+    var onReviewOpen: ((UUID) -> Void)?
     var status: NotificationAuth
     /// What the next system prompt answers.
     var grantsOnRequest: Bool
     private(set) var requestCount = 0
     private(set) var scheduled: [String: BlockStartRequest] = [:]
     private(set) var scheduleCount = 0
+    private(set) var delivered: [AgentDoneRequest] = []
 
     init(status: NotificationAuth = .notDetermined, grantsOnRequest: Bool = true) {
         self.status = status
@@ -70,6 +83,8 @@ final class RecordingNotificationCenter: NotificationCentering {
         scheduled[request.id] = request
     }
 
+    func deliver(_ request: AgentDoneRequest) async { delivered.append(request) }
+
     func pendingIDs() async -> [String] { scheduled.keys.sorted() }
 
     func removePending(ids: [String]) async {
@@ -78,4 +93,7 @@ final class RecordingNotificationCenter: NotificationCentering {
 
     /// Plays the person tapping an action on a delivered notification.
     func simulate(_ action: BlockStartAction, taskID: UUID) { onAction?(action, taskID) }
+
+    /// Plays the person tapping (or acting on) a delivered agent-done notification.
+    func simulateReviewOpen(taskID: UUID) { onReviewOpen?(taskID) }
 }

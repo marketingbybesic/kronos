@@ -102,6 +102,21 @@ enum ReviewQueue {
         items(in: tasks, snoozed: snoozed, today: today).count
     }
 
+    /// Agent-done first, then everything else — each group kept in its existing oldest-first
+    /// order (see `items` above). An agent waiting on its next move should not sit behind an
+    /// older person-authored proposal. Additive: `items`/`ordered` — and every test built on
+    /// them — still read plain chronological order; only the "Review next" single-card fast
+    /// path (`ReviewNextView.swift`) calls this.
+    static func focusItems(in tasks: [KTask], snoozed: [UUID: Int], today: Int) -> [ReviewItem] {
+        let all = items(in: tasks, snoozed: snoozed, today: today)
+        var agentDone: [ReviewItem] = []
+        var rest: [ReviewItem] = []
+        for item in all {
+            if item.kind == .agentDone { agentDone.append(item) } else { rest.append(item) }
+        }
+        return agentDone + rest
+    }
+
     /// Held while any member's comeback day is still ahead.
     private static func isHeld(_ t: KTask, group: [KTask], _ snoozed: [UUID: Int], _ today: Int) -> Bool {
         group.contains { (snoozed[$0.id] ?? Int.min) > today }

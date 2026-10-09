@@ -25,7 +25,9 @@ extension MCPDispatcher {
             return .error(.invalidParams, message: "result.note is \(note.count) characters; the limit is 280", data: ["field": "result.note"])
         }
         if let bad = linkError(extras.result?.links?.map(\.url)) { return bad }
-        // A task handed to an agent is not closed by the agent: it goes back to the person to check.
+        // A task handed to an agent is not closed by the agent: it goes back to the person to
+        // check, unless the agent holds the person-granted done.trusted scope, in which case it
+        // closes the task itself and the person's check is skipped.
         if let me = identity, t.assigneeRaw == 1, t.agentID == me.agentID {
             var result = AgentTaskResult()
             result.outcome = "done"
@@ -33,6 +35,21 @@ extension MCPDispatcher {
             result.note = extras.result?.note
             result.links = extras.result?.links
             result.completedAt = Date()
+            if me.scopes.has(.doneTrusted) {
+                result.verdict = AgentReview.accepted
+                result.verdictAt = result.completedAt
+                result.decision = "auto"
+                store.updateNoUndo(params.id) { $0.reviewRaw = ReviewState.approved; $0.resultJSON = result.encoded() }
+                store.completeNoUndo(params.id)
+                hub?.append(actor: me.actor, verb: ActivityVerb.doneByAgent, taskID: params.id, agentID: me.agentID,
+                            payload: ["title": .string(t.title), "auto": .bool(true)])
+                guard let final = store.task(params.id) else {
+                    return .error(.internalError, message: "task vanished during completion")
+                }
+                struct AutoAccepted: Encodable { let completed: Bool; let review: String; let task: MCPTaskFull }
+                return .ok(AutoAccepted(completed: true, review: "autoApproved",
+                                        task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id))))
+            }
             store.updateNoUndo(params.id) { $0.reviewRaw = ReviewState.awaitingCheck; $0.resultJSON = result.encoded() }
             hub?.append(actor: me.actor, verb: ActivityVerb.doneByAgent, taskID: params.id, agentID: me.agentID,
                         payload: ["title": .string(t.title)])

@@ -180,6 +180,11 @@ private struct KronosCommands: Commands {
             }
             .hotkey("window.triage")
 
+            Button(String(localized: "menu.task.reviewnext")) {
+                model.isReviewNextOpen = true
+            }
+            .hotkey("window.reviewnext")
+
             Button(String(localized: "menu.task.capture")) {
                 model.isCaptureOpen = true
             }

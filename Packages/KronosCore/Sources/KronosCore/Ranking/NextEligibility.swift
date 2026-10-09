@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 /// Which tasks may be offered as "next": the menu bar label, the Now card, the MCP `next` pick.
 /// Pure and fetch-free like `RankingEngine`; the store entry points only gather the pool.
@@ -71,11 +72,40 @@ public enum NextFallback {
     @MainActor
     public static func todayHead(store: TaskStore, today: Int, limit: Int) -> [UUID] {
         guard limit > 0 else { return [] }
-        let all = store.allTasks()
+        // Launch fires several back-to-back menu-bar/MCP renders before the list mounts
+        // (UserDefaults-change-driven re-renders, step trace: a dozen+ calls within the same
+        // launch, all with nothing in the store having changed between them), each repeating
+        // the full scan below. A short time-boxed cache (keyed to this store + the exact
+        // question asked) collapses a burst into one real fetch. This is a read-time cache
+        // only — nothing invalidates it early on a write — so it trades up to half a second of
+        // "today" staleness on this cold-launch/no-list-mounted fallback path specifically
+        // (never the live list, which always re-derives its own head), the same ballpark
+        // MenuBarQuiet's own minute tick already accepts for the bar's other quiet-line data.
+        let key = ObjectIdentifier(store)
+        let now = Date()
+        if let c = cache, c.key == key, c.today == today, c.limit == limit, now.timeIntervalSince(c.at) < cacheWindow {
+            return c.result
+        }
+        // `isToday` reads `effectiveDue`, which reads `children` (a to-many relationship) for
+        // every candidate, to check for an open subtask pulling the due day earlier. A plain
+        // `store.allTasks()` fetch never prefetches relationships, so that touch faulted each
+        // task's children in its own round trip — prefetching keeps the exact same rule, batched
+        // into one query instead of thousands (step PERF: both this and the cache above were
+        // needed — at 5,000 tasks the base fetch+decode alone still costs ~230 ms, and this
+        // launch-time fallback was being asked the identical question a dozen times per launch).
+        var d = FetchDescriptor<KTask>(predicate: TaskStore.topLevelPredicate)
+        d.relationshipKeyPathsForPrefetching = [\.children]
+        let all = (try? store.context.fetch(d)) ?? []
         let members = all.filter { isToday($0, today: today) }
         let sorted = KTaskSorter.sorted(members, by: KSortDescriptor.default)
-        return Array(sorted.lazy.filter { NextEligibility.isEligible($0, lookup: all) }.prefix(limit).map(\.id))
+        let result = Array(sorted.lazy.filter { NextEligibility.isEligible($0, lookup: all) }.prefix(limit).map(\.id))
+        cache = Cache(key: key, today: today, limit: limit, at: now, result: result)
+        return result
     }
+
+    private struct Cache { let key: ObjectIdentifier; let today: Int; let limit: Int; let at: Date; let result: [UUID] }
+    @MainActor private static var cache: Cache?
+    private static let cacheWindow: TimeInterval = 0.5
 
     static func isToday(_ task: KTask, today: Int) -> Bool {
         DueScope.isToday(task, today: today)

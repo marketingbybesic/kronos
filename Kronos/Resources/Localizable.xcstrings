@@ -2,6 +2,501 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "menu.task.reviewnext": {
+      "comment": "View menu item opening the Review-next fast path (uniform Approve/Request changes/Skip).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review Next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj sljedeće"
+          }
+        }
+      }
+    },
+    "agents.activity": {
+      "comment": "Settings > Agents row button opening that agent's read-only activity feed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivnost"
+          }
+        }
+      }
+    },
+    "agents.activity.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activity — %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivnost — %@"
+          }
+        }
+      }
+    },
+    "agents.activity.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The activity log could not be opened."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zapisnik aktivnosti nije moguće otvoriti."
+          }
+        }
+      }
+    },
+    "agents.activity.week.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last 7 days"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadnjih 7 dana"
+          }
+        }
+      }
+    },
+    "agents.activity.week.empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No activity in the last 7 days."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema aktivnosti u zadnjih 7 dana."
+          }
+        }
+      }
+    },
+    "agents.activity.feed.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All activity"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sva aktivnost"
+          }
+        }
+      }
+    },
+    "agents.activity.empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No activity yet."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema aktivnosti."
+          }
+        }
+      }
+    },
+    "agents.activity.actor.owner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ti"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.created": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stvoreno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.updated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ažurirano"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.donebyagent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed (awaiting review)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovršeno (čeka pregled)"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.restored": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restored"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vraćeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.reverted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reverted"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poništeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed a project, area or label"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Promijenjen projekt, područje ili oznaka"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.completed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovršeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.approved": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approved"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odobreno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.rejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rejected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odbijeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.reopened": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reopened"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponovno otvoreno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.deleted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbrisano"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.assigned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assigned"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodijeljeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.commented": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commented"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komentirano"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.edited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edited"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uređeno"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.reviewed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marked reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označeno pregledano"
+          }
+        }
+      }
+    },
+    "agents.activity.verb.unreviewed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review mark removed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oznaka pregledano uklonjena"
+          }
+        }
+      }
+    },
+    "review.next.empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing waiting on you."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ništa te ne čeka."
+          }
+        }
+      }
+    },
+    "review.next.note.prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What needs to change? One line, or skip"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Što treba promijeniti? Jedan redak ili preskoči"
+          }
+        }
+      }
+    },
+    "review.next.request": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request changes"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatraži izmjenu"
+          }
+        }
+      }
+    },
+    "review.next.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sljedeće za pregled"
+          }
+        }
+      }
+    },
     "a11y.carry.count.few": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8512,6 +9007,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Čeka na „%@”"
+          }
+        }
+      }
+    },
+    "list.row.agentdone": {
+      "comment": "Tooltip/accessibility label of the inline glyph on a list row whose completion credit belongs to an agent (reviewRaw 2 approved or 4 awaiting the owner's check). %@ = the agent's display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed by %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovršio agent %@"
           }
         }
       }
@@ -25694,6 +26207,24 @@
         }
       }
     },
+    "review.inspector.completedby": {
+      "comment": "Persistent provenance line in the Inspector once the owner accepts an agent's done (reviewRaw 2). %1$@ = agent display name, %2$@ = relative completion time.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed by %1$@ · %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovršio agent %1$@ · %2$@"
+          }
+        }
+      }
+    },
     "review.reopen.prompt": {
       "extractionState": "manual",
       "localizations": {
@@ -26504,6 +27035,546 @@
           "stringUnit": {
             "state": "translated",
             "value": "„%1$@” oznaka pregledano uklonjena"
+          }
+        }
+      }
+    },
+    "agents.notify.title": {
+      "comment": "Agents tab: owner-facing notification preference (placeholder — see agents.notify.help).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notify on agent completions"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obavijesti kad agent dovrši zadatak"
+          }
+        }
+      }
+    },
+    "agents.notify.help": {
+      "comment": "Settings > Agents notification-channel help text: a notification when an agent finishes a task handed to it, suppressed while Kronos is frontmost.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A notification when an agent finishes a task you handed it. Nothing is sent while Kronos is in front."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obavijest kad agent dovrši zadatak koji si mu predao. Dok je Kronos u prvom planu, ništa se ne šalje."
+          }
+        }
+      }
+    },
+    "agents.notify.pre.title": {
+      "comment": "Pre-permission explanation shown before macOS asks for notification permission (agent-completion channel).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let Kronos notify you when an agent finishes?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smije li te Kronos obavijestiti kad agent završi?"
+          }
+        }
+      }
+    },
+    "agents.notify.pre.body": {
+      "comment": "Pre-permission body text, agent-completion notification channel.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS asks for permission next. Kronos only tells you about finished agent work, with Review on it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS će zatim tražiti dopuštenje. Kronos javlja samo gotov posao agenata, s gumbom Pregledaj."
+          }
+        }
+      }
+    },
+    "agents.notify.done.title": {
+      "comment": "Notification title for a single agent-completion: %1$@ is the agent's display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished by %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dovršio agent %1$@"
+          }
+        }
+      }
+    },
+    "agents.notify.done.many": {
+      "comment": "Notification title when multiple agent completions batch into one notification: %1$lld is the count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents finished %1$lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenti su dovršili zadataka: %1$lld"
+          }
+        }
+      }
+    },
+    "agents.notify.action.review": {
+      "comment": "Notification action button opening Review next, on an agent-completion notification.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj"
+          }
+        }
+      }
+    },
+    "agents.autoapprove.title": {
+      "comment": "Settings > Agents per-agent row title: the done.trusted scope toggle (auto-approve finished work).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip review for finished work"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči pregled gotovog posla"
+          }
+        }
+      }
+    },
+    "agents.autoapprove.help": {
+      "comment": "Settings > Agents per-agent row help text for the auto-approve toggle.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When this agent finishes a task you handed it, the task closes at once instead of waiting in Review. Turn it on only for an agent you trust."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kad ovaj agent dovrši zadatak koji si mu predao, zadatak se odmah zatvara umjesto da čeka u Pregledu. Uključi samo za agenta kojem vjeruješ."
+          }
+        }
+      }
+    },
+    "agents.autoapprove.label": {
+      "comment": "Accessibility label for the auto-approve toggle: %1$@ is the agent's name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip review for %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči pregled za %1$@"
+          }
+        }
+      }
+    },
+    "agents.autoapprove.confirm": {
+      "comment": "Confirmation text shown before turning auto-approve on for an agent: %1$@ is the agent's name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let %1$@ close its finished tasks without your review?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopustiti da %1$@ zatvara gotove zadatke bez tvog pregleda?"
+          }
+        }
+      }
+    },
+    "agents.autoapprove.enable": {
+      "comment": "Confirm button turning auto-approve on.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uključi"
+          }
+        }
+      }
+    },
+    "agents.scope.donetrusted": {
+      "comment": "Scope list entry (Settings > Agents) describing the done.trusted scope.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "closes finished work without review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "zatvara gotov posao bez pregleda"
+          }
+        }
+      }
+    },
+    "agents.caps.created": {
+      "comment": "Cap meter line: tasks created today vs the daily cap. %1$lld used, %2$lld cap.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created today: %1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stvoreno danas: %1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "agents.caps.pending": {
+      "comment": "Cap meter line: unreviewed proposals vs the pending cap. %1$lld used, %2$lld cap.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for your review: %1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka tvoj pregled: %1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "agents.caps.calls": {
+      "comment": "Cap meter line: MCP calls this minute vs the per-minute rate limit. %1$lld used, %2$lld cap.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calls this minute: %1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozivi ove minute: %1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "agents.digest.line": {
+      "comment": "Away-digest banner line: %1$lld tasks finished, %2$lld proposed while the owner was away.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While you were away, agents finished %1$lld and proposed %2$lld."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dok te nije bilo, agenti su dovršili %1$lld i predložili %2$lld."
+          }
+        }
+      }
+    },
+    "agents.digest.review": {
+      "comment": "Away-digest banner button opening Review next.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj sljedeće"
+          }
+        }
+      }
+    },
+    "agents.digest.dismiss": {
+      "comment": "Away-digest banner button dismissing the card.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zatvori"
+          }
+        }
+      }
+    },
+    "list.row.working": {
+      "comment": "List row working-status glyph tooltip/accessibility label: %1$@ is the agent's display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ is working on this"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent %1$@ radi na ovome"
+          }
+        }
+      }
+    },
+    "review.inspector.working": {
+      "comment": "Inspector review section: an agent is currently working on this task. %1$@ agent name, %2$@ relative start time.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ is working on this (started %2$@)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent %1$@ radi na ovome (počelo %2$@)"
+          }
+        }
+      }
+    },
+    "review.inspector.autoaccepted": {
+      "comment": "Inspector review recap title when a done.trusted agent's work was auto-approved (decision == \"auto\"), distinct from the owner's own Accept.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepted automatically"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatski prihvaćeno"
+          }
+        }
+      }
+    },
+    "ctx.task.delegate": {
+      "comment": "Owner hands a task to a configured agent: the row's context-menu submenu title and the inspector's matching control label (idle state).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegate to…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegiraj agentu…"
+          }
+        }
+      }
+    },
+    "ctx.task.delegate.remove": {
+      "comment": "Clears a task's agent delegation (context-menu submenu and the inspector's delegate menu).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove delegation"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni delegiranje"
+          }
+        }
+      }
+    },
+    "detail.delegate.current": {
+      "comment": "Inspector delegate control label once a task is delegated. %@ = the agent's display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegated: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegirano: %@"
+          }
+        }
+      }
+    },
+    "detail.help.delegate": {
+      "comment": "Tooltip of the inspector's delegate control when at least one agent is configured.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands this task to a configured agent. It stays open until the agent reports back, or you take it back here."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaje ovaj zadatak konfiguriranom agentu. Ostaje otvoren dok agent ne javi rezultat, ili ga ovdje uzmeš natrag."
+          }
+        }
+      }
+    },
+    "detail.help.delegate.none": {
+      "comment": "Tooltip of the inspector's delegate control when it is disabled: no agents configured and this task is not delegated.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No agents configured yet — connect one in Settings > Agents first."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Još nema konfiguriranih agenata — prvo poveži jednog u Postavke > Agenti."
+          }
+        }
+      }
+    },
+    "list.row.delegated": {
+      "comment": "Tooltip/accessibility label of the inline glyph on a list row delegated to an agent and still open (reviewRaw not yet approved/awaitingCheck). %@ = the agent's display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegated to %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegirano agentu %@"
+          }
+        }
+      }
+    },
+    "undo.delegated.name": {
+      "comment": "Undo pill after delegating a task to an agent. %1$@ = task title, %2$@ = agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegated “%1$@” to %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” delegirano agentu %2$@"
+          }
+        }
+      }
+    },
+    "undo.undelegated.name": {
+      "comment": "Undo pill after removing a task's agent delegation. %1$@ = task title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” delegation removed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delegiranje „%1$@” uklonjeno"
           }
         }
       }

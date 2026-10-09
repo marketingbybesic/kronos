@@ -9,6 +9,16 @@
 // (InspectorScreen.swift / TaskContextMenu.swift). `need(_:)` in MCPDispatcher+Scopes.swift maps
 // this tool to `.read`, same as get_task — no write authorization path exists for it, so it is
 // mechanically impossible for any scope, including write.all, to mutate state through this call.
+//
+// `feedbackNote` (ReviewFeedbackLoop): the person's word with his latest verdict on the task —
+// `AgentTaskResult.verdictComment`, the same text `get_task`'s `verdict.comment` and the live
+// `events_poll` row already carry (set by `AgentReview.reopen(comment:)` / `.reject(reason:)` /
+// `.acceptAgentDone(comment:)` / `.merge(reason:)` in ReviewTransitions.swift — no new field was
+// needed, so none was added). Surfaced here too because a rejected proposal is soft-deleted the
+// moment the person decides: `get_task` (live tasks only) can no longer see it, so an `ids` lookup
+// here falls back to `taskIncludingDeleted` — the one durable way an agent that proposed something
+// can still learn why it was turned down. `project` listing stays live-only on purpose: a bulk
+// view should not fill up with every proposal ever rejected under it.
 
 import Foundation
 
@@ -25,6 +35,9 @@ extension MCPDispatcher {
         /// `awaitingCheck` (4, done by the agent, awaiting the person's check) reads as "pending":
         /// from the agent's side both mean "the person has not decided yet".
         let verdict: String
+        /// The person's word with his latest verdict (same text as `get_task`'s `verdict.comment`
+        /// and the live `events_poll` event); nil until he has said something with a decision.
+        let feedbackNote: String?
         let reviewedAt: Date?
         let reviewedBy: String?
     }
@@ -36,6 +49,14 @@ extension MCPDispatcher {
         case ReviewState.rejected: return "rejected"
         default: return "none"
         }
+    }
+
+    /// The person's word with his latest verdict on the task (same text `get_task`'s
+    /// `verdict.comment` and the live `events_poll` event already carry); nil until he has said
+    /// something with a decision — only his own review actions ever set it.
+    private static func feedbackNote(_ resultJSON: String?) -> String? {
+        let result = AgentTaskResult.decode(resultJSON)
+        return result?.by == "me" ? result?.verdictComment : nil
     }
 
     /// The newest `reviewed`/`unreviewed` row's timestamp per task id, across every task named —
@@ -64,6 +85,7 @@ extension MCPDispatcher {
         ReviewStatusEntry(id: t.id,
                           state: KStatus.closed.contains(t.status) ? "done" : "todo",
                           verdict: Self.verdictName(t.reviewRaw),
+                          feedbackNote: Self.feedbackNote(t.resultJSON),
                           reviewedAt: reviewedAt,
                           reviewedBy: reviewedAt != nil ? "owner" : nil)
     }
@@ -79,7 +101,7 @@ extension MCPDispatcher {
         if let ids = params.ids {
             var found: [KTask] = []
             for id in ids {
-                guard let t = store.task(id) else {
+                guard let t = store.task(id) ?? store.taskIncludingDeleted(id) else {
                     return .error(.notFound, message: "no task \(id)", data: ["id": id.uuidString])
                 }
                 found.append(t)

@@ -55,9 +55,16 @@ final class BlockStartNotifications {
         }
     }
 
-    /// The real center only outside hermetic runs.
+    private static var processCenter: NotificationCentering?
+
+    /// The real center only outside hermetic runs — shared across every caller (BlockStart,
+    /// AgentDoneNotifications, ...): UNUserNotificationCenter allows exactly one delegate, so a
+    /// second independently-constructed SystemNotificationCenter would silently steal it.
     static func defaultCenter() -> NotificationCentering {
-        KronosEnv.isHermetic ? RecordingNotificationCenter() : SystemNotificationCenter()
+        if let processCenter { return processCenter }
+        let created: NotificationCentering = KronosEnv.isHermetic ? RecordingNotificationCenter() : SystemNotificationCenter()
+        processCenter = created
+        return created
     }
 
     /// Created on first use, so an app with the channel off never touches the system center.

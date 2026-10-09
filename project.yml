@@ -74,6 +74,11 @@ targets:
         CFBundleDisplayName: Kronos
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Opts the app out of macOS 26's Liquid Glass chrome. Kronos's custom pure-black
+        # chrome (no NavigationSplitView, no Material) is intentional; without this key the
+        # system may apply Liquid Glass surfaces to standard controls regardless. Declarative
+        # only, no code path reads it.
+        UIDesignRequiresCompatibility: true
         # The development language is English; bundled languages are
         # en + hr, declared here so macOS itself offers both under System Settings > General >
         # Language & Region > Applications (per-app language), independent of Settings' own

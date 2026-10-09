@@ -125,6 +125,10 @@ final class AppModel {
     var isImpulsOpen: Bool = false
     /// Triage flow (one task at a time, suggestion prefilled): Kronos/Triage/TriageFlowView.swift.
     var isTriageOpen: Bool = false
+    /// Review-next fast path (uniform Approve/Request changes/Skip, agent items first):
+    /// Kronos/Triage/ReviewNextView.swift. Separate from isTriageOpen's existing single-card
+    /// Review mode — this is an additive, simpler entry point, not a replacement.
+    var isReviewNextOpen: Bool = false
     /// Time Blocks overlay (Kronos/TimeBlocks/**): only reachable when
     /// `TimeBlocksPrefs.isEnabled`; the sidebar row and its own hotkey both just set this.
     var isTimeBlocksOpen: Bool = false
@@ -227,7 +231,24 @@ final class AppModel {
     }
 
     static func next(from head: ShownListHead, pinned: UUID?, store: TaskStore) -> KTask? {
-        let lookup = store.allTasks()
+        // `head.ids` is capped at `ShownListHead.maxIDs` (8): fetch exactly those rows, plus the
+        // pin, by id (the same bounded lookup every other launch-time call site uses —
+        // TaskStore+Lookups.swift's `task(_:)`) instead of `allTasks()`'s full-table fetch and
+        // decode, which this call paid on every render regardless of list size (step trace: ~520 ms
+        // of this call's own gap at 5,000 tasks, ~13 ms at 60 — the allTasks() narrowing B5 left
+        // open for an Impuls/menu-bar-specific fetch).
+        var candidateIDs = Set(head.ids)
+        if let pinned { candidateIDs.insert(pinned) }
+        guard !candidateIDs.isEmpty else { return nil }
+        func liveTopLevel(_ id: UUID) -> KTask? {
+            guard let t = store.task(id), t.parentID == nil else { return nil }
+            return t
+        }
+        var lookup = candidateIDs.compactMap(liveTopLevel)
+        // Dependencies are rare (NextEligibility.exclusion's own perf note): widen the pool only
+        // with the few ids an actual candidate waits on, never the whole table.
+        let waitedOn = Set(lookup.flatMap(\.waitsOn)).subtracting(candidateIDs)
+        if !waitedOn.isEmpty { lookup += waitedOn.compactMap(liveTopLevel) }
         let rows = head.ids.compactMap { id in lookup.first { $0.id == id } }
         return NextEligibility.pick(pinned: pinned, rows: rows, lookup: lookup)
     }

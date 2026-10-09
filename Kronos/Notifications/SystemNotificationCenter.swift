@@ -8,12 +8,15 @@ import UserNotifications
 @MainActor
 final class SystemNotificationCenter: NSObject, NotificationCentering, UNUserNotificationCenterDelegate {
     var onAction: ((BlockStartAction, UUID) -> Void)?
+    var onReviewOpen: ((UUID) -> Void)?
 
     nonisolated private static let categoryID = "kronos.blockstart"
     nonisolated private static let doneID = "kronos.action.done"
     nonisolated private static let notNowID = "kronos.action.notnow"
     nonisolated private static let openID = "kronos.action.open"
     nonisolated private static let taskKey = "taskID"
+    nonisolated private static let agentDoneCategoryID = "kronos.agentdone"
+    nonisolated private static let reviewActionID = "kronos.action.review"
 
     private let center = UNUserNotificationCenter.current()
 
@@ -26,7 +29,9 @@ final class SystemNotificationCenter: NSObject, NotificationCentering, UNUserNot
                                         options: [.foreground])
         let category = UNNotificationCategory(identifier: Self.categoryID, actions: [done, notNow, open],
                                               intentIdentifiers: [], options: [])
-        center.setNotificationCategories([category])
+        let reviewAction = UNNotificationAction(identifier: Self.reviewActionID, title: String(localized: "agents.notify.action.review"), options: [.foreground])
+        let agentDone = UNNotificationCategory(identifier: Self.agentDoneCategoryID, actions: [reviewAction], intentIdentifiers: [], options: [])
+        center.setNotificationCategories([category, agentDone])
     }
 
     func authorization() async -> NotificationAuth {
@@ -54,6 +59,16 @@ final class SystemNotificationCenter: NSObject, NotificationCentering, UNUserNot
         try? await center.add(UNNotificationRequest(identifier: request.id, content: content, trigger: trigger))
     }
 
+    func deliver(_ request: AgentDoneRequest) async {
+        let content = UNMutableNotificationContent()
+        content.title = request.title
+        content.body = request.body
+        content.categoryIdentifier = Self.agentDoneCategoryID
+        content.threadIdentifier = Self.agentDoneCategoryID
+        content.userInfo = [Self.taskKey: request.taskID.uuidString]
+        try? await center.add(UNNotificationRequest(identifier: request.id, content: content, trigger: nil))
+    }
+
     func pendingIDs() async -> [String] {
         await center.pendingNotificationRequests().map(\.identifier)
     }
@@ -69,6 +84,10 @@ final class SystemNotificationCenter: NSObject, NotificationCentering, UNUserNot
         let raw = response.notification.request.content.userInfo[Self.taskKey] as? String
         let actionID = response.actionIdentifier
         guard let raw, let taskID = UUID(uuidString: raw) else { return }
+        if response.notification.request.content.categoryIdentifier == Self.agentDoneCategoryID {
+            await MainActor.run { self.onReviewOpen?(taskID) }
+            return
+        }
         let action: BlockStartAction
         switch actionID {
         case Self.doneID: action = .done
