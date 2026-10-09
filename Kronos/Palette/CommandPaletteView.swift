@@ -233,11 +233,10 @@ struct CommandPaletteView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Space.x2) {
-            Text("palette.empty").font(Typo.row).foregroundStyle(Tok.textTertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Space.x6)
+        KEmptyState(icon: "search", title: String(localized: "palette.empty"),
+                    action: query.isEmpty ? nil : KEmptyState.Action(title: String(localized: "palette.empty.clear")) { query = "" })
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Space.x6)
     }
 
     /// Decorative recap of the active keys — purely a visual aid, so it is hidden from

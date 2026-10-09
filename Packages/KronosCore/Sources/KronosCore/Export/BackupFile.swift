@@ -26,12 +26,16 @@ public enum BackupFile {
 
     /// Atomic write: `Data.write(options: .atomic)` writes to a temp file in
     /// the same directory and renames it over the target, so a crash or a
-    /// full disk mid-write never leaves a half-written backup on disk.
+    /// full disk mid-write never leaves a half-written backup on disk. The
+    /// envelope holds full plaintext task titles/notes, so the file is
+    /// locked to the person only — 0600 — the same explicit lockdown
+    /// `SingleInstanceLock.acquire` applies to its own lock file.
     public static func write(_ envelope: KronosExportEnvelope, to url: URL) throws {
         let data = try KronosExportCodec.makeEncoder().encode(envelope)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     /// Read and sanity-check without fully decoding into models: cheap

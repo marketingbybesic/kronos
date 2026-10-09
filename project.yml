@@ -163,11 +163,14 @@ targets:
         # *Snapshots.swift registry — 2,725 lines that exist to drive hand-testing, never to
         # ship) so neither their code nor their strings end up in the binary a stranger builds.
         #
-        # Signing defaults to ad hoc ("-": no certificate, no team) so anyone can build and run
-        # this without an Apple Developer account, matching Alpha's own unsigned posture. An
-        # untracked Local.xcconfig (see Local.xcconfig.example) lets a signed build override
-        # CODE_SIGN_IDENTITY/DEVELOPMENT_TEAM without editing this file or committing a
-        # personal identity.
+        # Signing defaults to ad hoc ("-": no certificate, no team) for Release — that's this
+        # section's own default, set by Release.xcconfig below, so anyone can build and run a
+        # Release build without an Apple Developer account. Alpha (above) signs Manual with a
+        # maintainer-only named identity ("Kronos Dev") instead: it is the config `swift test`,
+        # the gate scripts and `scripts/build-signed.sh` all build against, and that identity is
+        # load-bearing for those signed/gate builds. An outside contributor building Alpha per
+        # CONTRIBUTING.md needs the `CODE_SIGNING_ALLOWED=NO` override documented there — Alpha
+        # itself is not ad hoc.
         Release:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
           SWIFT_COMPILATION_MODE: wholemodule

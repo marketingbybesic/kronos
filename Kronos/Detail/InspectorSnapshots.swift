@@ -32,7 +32,7 @@ private struct DeadlinePopoverSnapshotHost: View {
         Group {
             if let task {
                 InspectorDeadlinePopover(model: model, task: task)
-                    .overlay(Rectangle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))   // popover edge, so the insets can be read
+                    .overlay(Rectangle().strokeBorder(Tok.borderActive, lineWidth: Metrics.ringWidth))   // popover edge, so the insets can be read
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 Color.clear

@@ -9,8 +9,11 @@ import Foundation
 struct RealSeedImportTests {
     /// Walk up from this source file to the repo root (the directory that
     /// contains "seed/kronos-seed.json"), so the test works regardless of
-    /// scratch-path or working directory.
-    private static func repoSeedURL() -> URL {
+    /// scratch-path or working directory. `seed/kronos-seed.json` holds Alex's real
+    /// company/client names and is deliberately NEVER shipped in the public export
+    /// (`scripts/private/export-public.mjs`'s `NEVER` list) — a public clone has nothing
+    /// to import here, so every test below skips (returns, not fails) when it's absent.
+    private static func repoSeedURL() -> URL? {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<10 {
             let candidate = dir.appendingPathComponent("seed/kronos-seed.json")
@@ -19,11 +22,11 @@ struct RealSeedImportTests {
             }
             dir = dir.deletingLastPathComponent()
         }
-        fatalError("seed/kronos-seed.json not found by walking up from \(#filePath)")
+        return nil
     }
 
-    private static func loadSeedData() throws -> (data: Data, file: SeedFile) {
-        let url = repoSeedURL()
+    private static func loadSeedData() throws -> (data: Data, file: SeedFile)? {
+        guard let url = repoSeedURL() else { return nil }
         let data = try Data(contentsOf: url)
         let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
         let file = try dec.decode(SeedFile.self, from: data)
@@ -31,7 +34,7 @@ struct RealSeedImportTests {
     }
 
     @Test func importsRealSeedWithMatchingCounts() throws {
-        let (data, file) = try Self.loadSeedData()
+        guard let (data, file) = try Self.loadSeedData() else { return }
         let store = try TaskStore(inMemory: true)
         let importer = JSONImporter(store: store)
 
@@ -44,7 +47,7 @@ struct RealSeedImportTests {
     }
 
     @Test func secondImportIsIdempotentWithNoDuplicateExternalIDs() throws {
-        let (data, file) = try Self.loadSeedData()
+        guard let (data, file) = try Self.loadSeedData() else { return }
         let store = try TaskStore(inMemory: true)
         let importer = JSONImporter(store: store)
 
@@ -61,7 +64,7 @@ struct RealSeedImportTests {
     }
 
     @Test func noImportedTaskDroppedForBeingUntriaged() throws {
-        let (data, file) = try Self.loadSeedData()
+        guard let (data, file) = try Self.loadSeedData() else { return }
         let store = try TaskStore(inMemory: true)
         let importer = JSONImporter(store: store)
 

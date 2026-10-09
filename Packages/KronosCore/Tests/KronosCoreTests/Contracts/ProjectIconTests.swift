@@ -135,7 +135,11 @@ struct ProjectIconTests {
         "globe", "wallet", "users", "graduation-cap",
     ]
 
-    private static func repoSeedURL() -> URL {
+    /// `seed/kronos-seed.json` holds Alex's real company/client names and is deliberately NEVER
+    /// shipped in the public export (`scripts/private/export-public.mjs`'s `NEVER` list) — this
+    /// is a private-repo-only consistency check on that data file, not a check on app code, so a
+    /// public clone (no seed file) has nothing to verify here. Returns nil rather than crashing.
+    private static func repoSeedURL() -> URL? {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<10 {
             let candidate = dir.appendingPathComponent("seed/kronos-seed.json")
@@ -144,11 +148,11 @@ struct ProjectIconTests {
             }
             dir = dir.deletingLastPathComponent()
         }
-        fatalError("seed/kronos-seed.json not found by walking up from \(#filePath)")
+        return nil
     }
 
     @Test func seedProjectsAllHaveIcons() throws {
-        let url = Self.repoSeedURL()
+        guard let url = Self.repoSeedURL() else { return }   // private seed absent (public export): nothing to check
         let data = try Data(contentsOf: url)
         let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
         let file = try dec.decode(SeedFile.self, from: data)

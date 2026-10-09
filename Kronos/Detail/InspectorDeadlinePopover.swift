@@ -133,7 +133,7 @@ struct InspectorDeadlinePopover: View {
                 .foregroundStyle(isSelected ? Tok.textOnAccent : (inMonth ? Tok.textPrimary : Tok.textTertiary))
                 .frame(width: Metrics.controlCompact, height: Metrics.controlCompact)
                 .background(Circle().fill(isSelected ? Tok.textPrimary : Color.clear))
-                .overlay(Circle().strokeBorder(isToday && !isSelected ? Tok.textSecondary : Color.clear, lineWidth: 1))
+                .overlay(Circle().strokeBorder(isToday && !isSelected ? Tok.textSecondary : Color.clear, lineWidth: Metrics.ringWidth))
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
         }
@@ -145,8 +145,7 @@ struct InspectorDeadlinePopover: View {
 
     private func navButton(_ symbol: String, label: String, small: Bool = false, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: small ? 6 : 11, weight: .semibold))
+            Icon(symbol, size: small ? 6 : 11, weight: .semibold)
                 .foregroundStyle(Tok.textSecondary)
                 .frame(width: Metrics.controlCompact, height: Metrics.controlCompact)
                 .contentShape(Rectangle())

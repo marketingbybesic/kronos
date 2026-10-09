@@ -1,4 +1,4 @@
-// kronos-mcp: stdio <-> HTTP bridge between an MCP client (Claude Code, Codex, Hermes, Claude
+// kronos-mcp: stdio <-> HTTP bridge between an MCP client (Claude Code, Codex, Relay, Claude
 // Desktop, Cursor) and the Kronos app's loopback MCP server. Lives at
 // Kronos.app/Contents/MacOS/kronos-mcp so it always talks to ITS OWN host app (the demo
 // bridge only ever opens the demo). Foundation only; does not import KronosCore on purpose:
@@ -110,7 +110,7 @@ func headerSafe(_ s: String) -> String {
 }
 
 if args.contains("--whoami") {
-    // Answers without launching the app: `ssh <mac> kronos-mcp --agent hermes --whoami` is how
+    // Answers without launching the app: `ssh <mac> kronos-mcp --agent relay --whoami` is how
     // a remote agent checks that the whole path (ssh, bridge, app) is wired.
     print("kronos-mcp \(version)")
     print("agent: \(clientName.map(headerSafe) ?? "none (taken from the client's initialize)")")

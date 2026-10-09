@@ -65,6 +65,43 @@ import Foundation
         #expect(r.hub.revertToday(agentID: a.agentID, store: r.store).total == 0)
     }
 
+    /// DA-006: the whole bulk revert is ONE Cmd-Z step, and undo brings every reverted task back
+    /// — matching `TaskStore+Mutations.swift`'s `complete(_:)`, "REGISTERS UNDO".
+    @Test func revertTodayIsOneUndoStepAndUndoRestoresEverything() throws {
+        let (r, a) = try rig()
+        let t1 = try r.taskID(r.call("create_task", ["title": "A"], as: a))
+        let t2 = try r.taskID(r.call("create_task", ["title": "B"], as: a))
+        let depth = r.store.undoDepth
+        let s = r.hub.revertToday(agentID: a.agentID, store: r.store)
+        #expect(s.total == 2)
+        #expect(r.store.task(t1) == nil && r.store.task(t2) == nil)
+        #expect(r.store.undoDepth == depth + 1, "the whole bulk revert collapses into one undo step")
+
+        r.store.undo()
+        #expect(r.store.task(t1) != nil && r.store.task(t2) != nil, "Cmd-Z brings both tasks back")
+        #expect(r.store.undoDepth == depth)
+    }
+
+    /// A field restore and a completion-undo on the SAME task, in the SAME revert, still
+    /// collapse into one step; undoing that step puts the agent's own edits back.
+    @Test func revertedFieldsAndCompletionRoundTripThroughUndo() throws {
+        let (r, a) = try rig()
+        let id = try r.taskID(r.call("create_task", ["title": "Original", "priority": "low", "due": "2026-10-20"], as: a))
+        r.hub.rows().filter { $0.verb == ActivityVerb.created }.forEach { $0.at = r.clock.addingTimeInterval(-90_000) }
+        try r.call("update_task", ["id": id.uuidString, "title": "Renamed", "priority": "high", "due": "2026-10-25"], as: a)
+        try r.call("complete_task", ["id": id.uuidString], as: a)
+        let depth = r.store.undoDepth
+        let s = r.hub.revertToday(agentID: a.agentID, store: r.store)
+        #expect(s.updated == 1 && s.completed == 1)
+        #expect(r.store.undoDepth == depth + 1, "field restore + status restore collapse into one step")
+
+        r.store.undo()
+        let t = try #require(r.store.task(id))
+        #expect(t.title == "Renamed" && t.priority == .high && t.dueDay == Day.parseISO("2026-10-25"),
+                "undo puts the agent's edits back")
+        #expect(t.status == .done, "undo re-completes the task")
+    }
+
     @Test func yesterdaysWritesAreNotRevertedAndAnotherAgentIsNotTouched() throws {
         let (r, a) = try rig()
         let other = r.agent("relay", scopes: AgentScopes([.read, .propose, .writeOwn, .writeTrusted]))

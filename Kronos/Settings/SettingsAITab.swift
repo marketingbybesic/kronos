@@ -87,28 +87,50 @@ struct SettingsAITab: View {
                     .uiTestAnchor("settings.ai.provider")
                 }
 
-                SettingsRow(label: String(localized: "settings.ai.url")) {
-                    KTextField(AppSettingsStore.defaultBaseURL, text: $controller.baseURLText)
-                        .frame(width: SettingsMetrics.trailingColumn)
-                        .disabled(controller.provider != .custom)
-                        .onChange(of: controller.baseURLText) { _, _ in controller.markConfigChanged() }
-                        .uiTestAnchor("settings.ai.url")
+                if controller.provider.usesSubprocess {
+                    SettingsHelpRow {
+                        Text(String(localized: "settings.ai.provider.claudecode.help"))
+                            .font(Typo.meta)
+                            .foregroundStyle(Tok.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                    }
+                }
+
+                if controller.provider.usesSubprocess {
+                    SettingsRow(label: String(localized: "settings.ai.executablepath")) {
+                        Text(controller.provider.executablePath ?? "")
+                            .font(Typo.body)
+                            .foregroundStyle(Tok.textSecondary)
+                            .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
+                            .uiTestAnchor("settings.ai.executablepath")
+                    }
+                } else {
+                    SettingsRow(label: String(localized: "settings.ai.url")) {
+                        KTextField(AppSettingsStore.defaultBaseURL, text: $controller.baseURLText)
+                            .frame(width: SettingsMetrics.trailingColumn)
+                            .disabled(controller.provider != .custom)
+                            .onChange(of: controller.baseURLText) { _, _ in controller.markConfigChanged() }
+                            .uiTestAnchor("settings.ai.url")
+                    }
                 }
 
                 SettingsRow(label: String(localized: "settings.ai.model")) {
                     modelControl
                 }
 
-                SettingsRow(label: String(localized: "settings.ai.key")) {
-                    keyControl
-                }
-                // Key status is a caption under the row, never squeezed next to the
-                // buttons — a button label must never truncate, and this text can wrap.
-                SettingsHelpRow {
-                    Text(controller.hasKey ? String(localized: "settings.ai.key.saved") : String(localized: "settings.ai.key.none"))
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
-                    Spacer()
+                if !controller.provider.usesSubprocess {
+                    SettingsRow(label: String(localized: "settings.ai.key")) {
+                        keyControl
+                    }
+                    // Key status is a caption under the row, never squeezed next to the
+                    // buttons — a button label must never truncate, and this text can wrap.
+                    SettingsHelpRow {
+                        Text(controller.hasKey ? String(localized: "settings.ai.key.saved") : String(localized: "settings.ai.key.none"))
+                            .font(Typo.meta)
+                            .foregroundStyle(Tok.textTertiary)
+                        Spacer()
+                    }
                 }
 
                 // Shown only when this app has no key of its own yet AND one already exists
@@ -177,6 +199,7 @@ struct SettingsAITab: View {
         switch p {
         #if !KRONOS_PUBLIC
         case .ghostCLI:   return String(localized: "settings.ai.provider.ghostcli")
+        case .claudeCode: return String(localized: "settings.ai.provider.claudecode")
         #endif
         case .openRouter: return String(localized: "settings.ai.provider.openrouter")
         case .custom:     return String(localized: "settings.ai.provider.custom")

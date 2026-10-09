@@ -127,7 +127,8 @@ struct PalettePromptView: View {
     }
 
     private var emptyState: some View {
-        Text("palette.empty").font(Typo.row).foregroundStyle(Tok.textTertiary)
+        KEmptyState(icon: "search", title: String(localized: "palette.empty"),
+                    action: query.isEmpty ? nil : KEmptyState.Action(title: String(localized: "palette.empty.clear")) { query = "" })
             .frame(maxWidth: .infinity)
             .padding(.vertical, Space.x6)
     }

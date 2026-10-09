@@ -11,13 +11,18 @@ public struct KOrdoPopover: View {
     let firstMove: String?
     let remaining: Int
     let onComplete: () -> Void
+    /// The empty state's "New task" action, or nil to show the message alone. Nil in the
+    /// design gallery preview (this component has no production caller — see file header).
+    let onNewTask: (() -> Void)?
     @State private var isPressed = false
 
-    public init(taskTitle: String?, firstMove: String?, remaining: Int, onComplete: @escaping () -> Void) {
+    public init(taskTitle: String?, firstMove: String?, remaining: Int, onComplete: @escaping () -> Void,
+                onNewTask: (() -> Void)? = nil) {
         self.taskTitle = taskTitle
         self.firstMove = firstMove
         self.remaining = remaining
         self.onComplete = onComplete
+        self.onNewTask = onNewTask
     }
 
     public var body: some View {
@@ -69,7 +74,8 @@ public struct KOrdoPopover: View {
                 }
                 .padding(.vertical, Space.x4)
             } else {
-                KEmptyState(icon: "list-ordered", title: String(localized: "bar.empty"))
+                KEmptyState(icon: "list-ordered", title: String(localized: "bar.empty"),
+                            action: onNewTask.map { KEmptyState.Action(title: String(localized: "list.new"), run: $0) })
                     .padding(.vertical, Space.x4)
             }
         }

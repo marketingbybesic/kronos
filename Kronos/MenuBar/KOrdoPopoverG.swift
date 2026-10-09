@@ -27,6 +27,9 @@ struct KOrdoPopoverG: View {
     var actions: PopoverFocusActions?
     /// The shared "where I left off" line, or nil.
     var leftOff: String?
+    /// What tapping the empty state's "New task" action does — the host switches the
+    /// popover to its Capture zone and focuses the field. Nil hides the action.
+    var onEmptyAction: (() -> Void)?
     @State private var isHoveringComplete = false
     @FocusState private var isCompleteFocused: Bool
     @Environment(\.chromaMode) private var chromaMode
@@ -42,7 +45,8 @@ struct KOrdoPopoverG: View {
             if let task {
                 content(for: task)
             } else {
-                KEmptyState(icon: "list-ordered", title: String(localized: "bar.empty"))
+                KEmptyState(icon: "list-ordered", title: String(localized: "bar.empty"),
+                            action: onEmptyAction.map { KEmptyState.Action(title: String(localized: "list.new"), run: $0) })
                     .padding(.vertical, Space.x5)
             }
         }

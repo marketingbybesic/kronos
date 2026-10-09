@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import KronosCore
 
-/// Opt-in live tests against the real GhostCLI gateway with the real
+/// Opt-in live tests against the real OpenAICompatible gateway with the real
 /// Keychain key. Skipped unless `KRONOS_LIVE_AI=1` is set, so `swift test`
 /// never makes a network call by default (a fixture
 /// pass + live fail is reported as AI provider down, not a build failure).
@@ -11,7 +11,7 @@ import Foundation
 ///   KRONOS_LIVE_AI=1 swift test --package-path Packages/KronosCore \
 ///     --scratch-path build/spm-3a --filter LiveProbeTests
 ///
-/// Requires the Keychain entry `ghostcli_api` to already hold a valid
+/// Requires the Keychain entry `openaicompatible_legacy` to already hold a valid
 /// bearer token. The key is read by
 /// `KeychainKeyProvider` and is never printed, logged, or included in any
 /// assertion or print statement below. Test fixtures below use neutral

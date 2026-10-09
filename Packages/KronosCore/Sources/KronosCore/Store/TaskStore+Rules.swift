@@ -1,6 +1,8 @@
 // Part of TaskStore: the house-rule list (triage and Impuls read it).
 //
-// Rules are managed in their own list, never with Cmd-Z, so nothing here pushes an undo step.
+// Rules are managed in their own list, never with Cmd-Z for add/toggle, so neither pushes an
+// undo step. Delete is the exception (DA-018): a deleted row is gone with no recovery short of
+// retyping it, so it REGISTERS UNDO like deleteSubtask/deleteSavedView.
 // A rule is identified for dedupe by its folded text (case, accents and surrounding spaces
 // ignored) plus its scope: triage on two devices learning the same rule, or an agent proposing
 // one the person already has, must not leave two copies.
@@ -29,7 +31,8 @@ extension TaskStore {
         insertRuleUnlessEqual(text: text, scope: scope, source: source, active: active)
     }
 
-    /// Delete the rule with this id. False when there is none. NO UNDO.
+    /// Delete the rule with this id. False when there is none. REGISTERS UNDO (one step);
+    /// undo rebuilds an equivalent row — mirrors deleteSubtask's reversible delete.
     @discardableResult
     public func deleteRule(_ id: UUID) -> Bool { removeRule(id) }
 
@@ -59,11 +62,26 @@ extension TaskStore {
 
     func removeRule(_ id: UUID) -> Bool {
         let d = FetchDescriptor<KRule>(predicate: #Predicate { $0.id == id })
-        let rows = (try? context.fetch(d)) ?? []
-        guard !rows.isEmpty else { return false }
-        for r in rows { context.delete(r) }
-        saveContext()
+        guard let r = (try? context.fetch(d))?.first else { return false }
+        deleteUndoable("Delete Rule", r, rebuild: ruleRebuilder(r))
         return true
+    }
+
+    /// A factory that reproduces `r` — id and every persisted field — so an undo/redo step can
+    /// rebuild the row rather than resurrect the deleted instance (see `deleteUndoable`). The
+    /// values are read now, while the row is alive.
+    private func ruleRebuilder(_ r: KRule) -> () -> KRule {
+        let id = r.id, text = r.text, scopeRaw = r.scopeRaw, sourceRaw = r.sourceRaw
+        let isActive = r.isActive, createdAt = r.createdAt, updatedAt = r.updatedAt
+        return {
+            let rebuilt = KRule(text: text, scope: KRuleScope(rawValue: scopeRaw) ?? .all,
+                                source: KRuleSource(rawValue: sourceRaw) ?? .manual)
+            rebuilt.id = id
+            rebuilt.isActive = isActive
+            rebuilt.createdAt = createdAt
+            rebuilt.updatedAt = updatedAt
+            return rebuilt
+        }
     }
 
     func writeRuleActive(_ id: UUID, _ active: Bool) -> Bool {

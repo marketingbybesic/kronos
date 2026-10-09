@@ -15,18 +15,49 @@ extension TaskStore {
     }
 
     /// Removes the junk lines a broken 28.09.2026 build wrote into task notes on every drop
-    /// (`ContextLink.corruptLines`). Idempotent and cheap, so it runs every launch with no
-    /// marker; touches only notes that contain them, never `updatedAt`, one save, no undo.
+    /// (`ContextLink.corruptLines`). Scoped to that one historical-build bug, so it runs ONCE per
+    /// store: marker-gated the same way as `UndatedSomedayMigration`/`SubtaskToTaskMigration`
+    /// (`MigrationGate.decide` + a `KStoreMeta` row), not on every launch forever.
     @discardableResult
-    public static func stripCorruptContextLinkLines(store: TaskStore) -> Int {
-        let fixes = store.allTasksIncludingSubtasks().compactMap { t in ContextLink.strippingCorruptLines(t.notes).map { (t, $0) } }
-        guard !fixes.isEmpty else { return 0 }
-        let wasMachine = store.isMachineWrite
-        store.isMachineWrite = true
-        for (t, clean) in fixes { t.notes = clean }
-        store.isMachineWrite = wasMachine
-        store.saveContext()
-        return fixes.count
+    public static func stripCorruptContextLinkLines(store: TaskStore, now: Date = Date(),
+                                                     syncEnabled: Bool = KronosStore.isSyncEnabled) -> Int {
+        stripCorruptContextLinkLines(store: store,
+                                     marker: KronosStore.containerDirectory().appendingPathComponent(markerRelativePath),
+                                     now: now, syncEnabled: syncEnabled)
+    }
+
+    /// Relative to `KronosStore.containerDirectory()`, the same KRONOS_STORE_DIR-hermetic root
+    /// every store/backup path uses.
+    static let markerRelativePath = "migrations/stripCorruptContextLinkLines.v1"
+
+    /// As above with an explicit marker file (tests).
+    @discardableResult
+    static func stripCorruptContextLinkLines(store: TaskStore, marker: URL, now: Date = Date(),
+                                              syncEnabled: Bool) -> Int {
+        let key = StoreMetaKey.corruptContextLinkLines
+        switch MigrationGate.decide(storeMarked: store.metaValue(key) != nil,
+                                    fileMarked: FileManager.default.fileExists(atPath: marker.path),
+                                    syncEnabled: syncEnabled) {
+        case .skipSyncEnabled, .alreadyDone:
+            return 0
+        case .adoptFileMarker:
+            store.setMeta(key, "1", now: now)
+            return 0
+        case .run:
+            let fixes = store.allTasksIncludingSubtasks().compactMap { t in ContextLink.strippingCorruptLines(t.notes).map { (t, $0) } }
+            if !fixes.isEmpty {
+                let wasMachine = store.isMachineWrite
+                store.isMachineWrite = true
+                for (t, clean) in fixes { t.notes = clean }
+                store.isMachineWrite = wasMachine
+                store.saveContext()
+            }
+            try? FileManager.default.createDirectory(at: marker.deletingLastPathComponent(),
+                                                      withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: marker.path, contents: Data("1".utf8))
+            store.setMeta(key, "1", now: now)
+            return fixes.count
+        }
     }
 }
 

@@ -85,6 +85,7 @@ enum UIRequests {
     static let focusList = Notification.Name("kronosFocusListRequested")
 }
 
+/// Sort + filter + display options of one scope.
 // `ViewOptions` (sort + filter + display options of one scope, and the rules for editing them) lives
 // in KronosCore/Contracts/ViewOptions.swift; the model persists one per scope. All evaluation goes
 // through Core (`KTaskSorter`, `KFilter.matches`).

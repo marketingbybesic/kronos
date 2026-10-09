@@ -69,8 +69,28 @@ struct ListDropIndicators: View {
     private static let lineHeight: CGFloat = 2
     private static let dot: CGFloat = 8
 
+    /// One brief pulse the moment a NEW row becomes the nest/move-under merge target — reuses
+    /// `KCheckbox`'s own completion-ripple constants and gating (`Motion.ripple`,
+    /// `Motion.completeRippleScale/Opacity`, `Motion.ripples(reduceMotion:)`, Kronos/DesignSystem/
+    /// Tokens.swift + KCheckbox.swift) so "you just acquired a merge target" reads as the same
+    /// family of feedback as "this task just completed" — not a new effect. Holding the pointer
+    /// within the SAME target does not re-trigger it; only acquiring a DIFFERENT row does, so a
+    /// steady hover over one row stays calm.
+    @State private var nestRippleTargetID: UUID?
+    @State private var nestRippleProgress: CGFloat = 0
+    @State private var isNestRippling = false
+    @State private var nestRippleGeneration = 0
+
+    /// The row currently offered as a nest/move-under merge target, or nil — drives the ripple.
+    private var currentNestTarget: UUID? {
+        guard let f = controller.feedback, let hint = f.hint, hint == .nest || hint == .moveUnder else { return nil }
+        return f.resolution.rowID
+    }
+
     // Every piece is placed with `.position` (layout), never `.offset`, so the frames the live UI
-    // test reads off the anchors are the real on-screen frames.
+    // test reads off the anchors are the real on-screen frames. The ripple below is additive
+    // decoration only (opacity/scale on its OWN overlay shape) and never changes any other
+    // piece's `.position()`, so it cannot disturb those frames.
     var body: some View {
         ZStack(alignment: .topLeading) {
             if let feedback = controller.feedback {
@@ -94,6 +114,25 @@ struct ListDropIndicators: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
+        .onChange(of: currentNestTarget) { old, new in
+            guard let new, new != old else { return }
+            nestRippleTargetID = new
+            startNestRipple()
+        }
+    }
+
+    /// Nothing runs under Reduce Motion — same gate `KCheckbox.startRipple()` uses.
+    private func startNestRipple() {
+        guard Motion.ripples(reduceMotion: Motion.reduceMotion) else { return }
+        nestRippleGeneration += 1
+        let generation = nestRippleGeneration
+        nestRippleProgress = 0
+        isNestRippling = true
+        withAnimation(Motion.ripple) { nestRippleProgress = 1 } completion: {
+            guard generation == nestRippleGeneration else { return }
+            isNestRippling = false
+            nestRippleProgress = 0
+        }
     }
 
     @ViewBuilder
@@ -110,6 +149,7 @@ struct ListDropIndicators: View {
             switch hint {
             case .nest, .moveUnder:
                 outline(frame, dashed: false)
+                if isNestRippling { nestRipple(frame) }
                 ghost(frame)
                 hintPill(text(for: hint), in: frame, anchor: "drop.hint")
             case .attachLink:
@@ -119,6 +159,20 @@ struct ListDropIndicators: View {
                 EmptyView()
             }
         }
+    }
+
+    /// The one-shot pulse described above: a ring that grows from the target row's own frame
+    /// and fades — purely additive decoration (no `.position()` truth changes for the outline
+    /// itself), so it never disturbs the frames the live UI test reads off `drop.outline`.
+    private func nestRipple(_ frame: CGRect) -> some View {
+        RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
+            .strokeBorder(accent, lineWidth: Metrics.ringWidth)
+            .frame(width: frame.width, height: frame.height)
+            .scaleEffect(1 + (Motion.completeRippleScale - 1) * nestRippleProgress)
+            .opacity(Motion.completeRippleOpacity * (1 - nestRippleProgress))
+            .position(x: frame.midX, y: frame.midY)
+            .allowsHitTesting(false)
+            .uiTestAnchor("drop.nest.ripple")
     }
 
     // MARK: Pieces

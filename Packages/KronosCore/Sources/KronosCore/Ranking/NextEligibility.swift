@@ -24,7 +24,15 @@ public enum NextEligibility {
         if !KStatus.open.contains(task.status) { return .closed }
         if task.isProjectArchived { return .projectArchived }
         if task.reviewRaw == reviewPending { return .reviewPending }
-        if !DependencyGraph.blocked(in: [task], lookup: lookup).isEmpty { return .blocked }
+        // Perf: `DependencyGraph.blocked` builds an id->open Set over the WHOLE `lookup`
+        // pool on every call, even though its own inner loop only ever looks at tasks with a
+        // non-empty `waitsOnIDs`. Most tasks have none (dependencies are rare), so skip the
+        // call — and the Set build — entirely when this task carries no dependency at all;
+        // `blocked(in: [task], lookup:)` would return empty in that case anyway (confirmed by
+        // reading its body: `for t in tasks where !t.waitsOnIDs.isEmpty`). At launch this is
+        // called once per Today-list candidate (`NextFallback.todayHead`), so at scale it was
+        // an O(candidates × lookup) cost for work that never changes the answer.
+        if !task.waitsOnIDs.isEmpty, !DependencyGraph.blocked(in: [task], lookup: lookup).isEmpty { return .blocked }
         return nil
     }
 

@@ -158,12 +158,9 @@ struct KeymapReferenceView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Space.x2) {
-            Text(String(localized: "palette.empty"))
-                .font(Typo.row)
-                .foregroundStyle(Tok.textTertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        KEmptyState(icon: "search", title: String(localized: "palette.empty"),
+                    action: query.isEmpty ? nil : KEmptyState.Action(title: String(localized: "palette.empty.clear")) { query = "" })
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// "hotkey.scope.window" / "hotkey.scope.popover" / "hotkey.scope.editor" do not exist in

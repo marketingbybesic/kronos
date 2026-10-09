@@ -1,4 +1,4 @@
-// Opt-in live tests against the real GhostCLI gateway, mirroring
+// Opt-in live tests against the real OpenAICompatible gateway, mirroring
 // LiveProbeTests.swift's pattern: skipped unless KRONOS_LIVE_AI=1, calling
 // OpenAICompatibleClient DIRECTLY (no router, no fallback) so a down gateway or
 // expired key fails the test instead of silently passing through the

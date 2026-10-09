@@ -77,9 +77,15 @@ public struct RankingEngine: Sendable {
         var pool = tasks.filter { t in
             KStatus.active.contains(t.status) && !t.isProjectArchived && !Self.isPendingProposal(t)
         }
+        // Perf: `DependencyGraph.blocked` builds an id->open Set over the whole `tasks` pool
+        // (thousands of rows at scale) even when nothing in `pool` has a dependency at all —
+        // the common case. Skip the call entirely then; its own inner loop only ever examines
+        // tasks with a non-empty `waitsOnIDs`, so the result would be empty regardless.
         // w22e: a task waiting on an open task is not a next action. `tasks` is the caller's
         // full live pool, so it also answers "is the blocker still open".
-        let blocked = DependencyGraph.blocked(in: pool, lookup: tasks)
+        let blocked: Set<UUID> = pool.contains(where: { !$0.waitsOnIDs.isEmpty })
+            ? DependencyGraph.blocked(in: pool, lookup: tasks)
+            : []
         if !blocked.isEmpty { pool = pool.filter { !blocked.contains($0.id) } }
         if !maxDeep {
             // Low/Mid energy: exclude deep tasks outright.
@@ -92,7 +98,11 @@ public struct RankingEngine: Sendable {
         //  High: everything allowed, priority and due date.
         // Dread never changes a score or a reason: the only dread rule is the once-a-day
         // serving applied after the sort.
-        var ranked: [(t: KTask, score: Int, reason: String)]
+        // Perf: `due` is computed here, once per pool task, instead of inside the sort
+        // comparator below — `effectiveDue` walks `orderedChildren` (a SwiftData relationship
+        // fault + filter + sort), so calling it twice per comparison made an O(n log n)-times
+        // cost out of what only needs to be O(n).
+        var ranked: [(t: KTask, score: Int, due: Int, reason: String)]
         switch energy {
         case .low:
             let shallow = pool.filter {
@@ -101,18 +111,19 @@ public struct RankingEngine: Sendable {
             let rest = pool.filter { !shallow.contains($0) }
             let shallowSorted = shallow.sorted(by: Ordering.manual)
             if shallowSorted.isEmpty {
-                ranked = rest.map { ($0, 0, "Nothing shallow left") }
+                ranked = rest.map { ($0, 0, $0.effectiveDue ?? Int.max, "Nothing shallow left") }
             } else {
-                ranked = shallowSorted.map { ($0, 0, "Shallow and quick") }
+                ranked = shallowSorted.map { ($0, 0, $0.effectiveDue ?? Int.max, "Shallow and quick") }
             }
         case .mid:
             ranked = pool.map { t in
-                return (t, t.priorityRaw * 10, "Next by priority")
+                return (t, t.priorityRaw * 10, t.effectiveDue ?? Int.max, "Next by priority")
             }
         case .high:
             ranked = pool.map { t in
-                let s = t.priorityRaw * 10 + (t.effectiveDue.map { 100 - ($0 - today) } ?? 0)
-                return (t, s, "Good energy match")
+                let due = t.effectiveDue
+                let s = t.priorityRaw * 10 + (due.map { 100 - ($0 - today) } ?? 0)
+                return (t, s, due ?? Int.max, "Good energy match")
             }
         }
 
@@ -120,9 +131,7 @@ public struct RankingEngine: Sendable {
         // manual order chain (§5.3) so equal scores never shuffle.
         let ordered = ranked.sorted { a, b in
             if a.score != b.score { return a.score > b.score }
-            let ad = a.t.effectiveDue ?? Int.max
-            let bd = b.t.effectiveDue ?? Int.max
-            if ad != bd { return ad < bd }
+            if a.due != b.due { return a.due < b.due }
             return Ordering.manual(a.t, b.t)
         }
         var result = ordered.map { Candidate(taskID: $0.t.id, reason: $0.reason, isDread: $0.t.dread) }

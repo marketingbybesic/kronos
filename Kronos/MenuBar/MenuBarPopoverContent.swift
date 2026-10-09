@@ -132,7 +132,8 @@ struct PopoverContent: View {
     private var nowZone: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             KOrdoPopoverG(task: resolved, isPinned: isPinned, onComplete: complete, onUnpin: unpin,
-                          actions: focusActions, leftOff: leftOffText)
+                          actions: focusActions, leftOff: leftOffText,
+                          onEmptyAction: { zone = .capture; focusedField = .capture })
             if let line = quiet.popoverText {
                 Text(line)
                     .font(Typo.meta)

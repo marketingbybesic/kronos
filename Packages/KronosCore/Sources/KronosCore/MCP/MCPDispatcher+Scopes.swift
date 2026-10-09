@@ -13,7 +13,7 @@ extension MCPDispatcher {
 
     private func need(_ tool: MCPTool) -> Need {
         switch tool.canonical {
-        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas, .listLabels, .whoami, .eventsPoll, .eventsAck, .next:
+        case .listTasks, .getTask, .ordoGet, .rulesList, .listProjects, .listAreas, .listLabels, .whoami, .eventsPoll, .eventsAck, .next, .reviewStatus:
             return .read
         case .createTask, .proposeTasks, .proposeUpdate: return .propose
         case .commentTask: return .comment

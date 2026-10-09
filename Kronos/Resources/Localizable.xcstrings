@@ -3098,6 +3098,24 @@
         }
       }
     },
+    "ctx.task.duplicate": {
+      "comment": "Spec 3.14 Context menus.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dupliciraj"
+          }
+        }
+      }
+    },
     "ctx.task.effort": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -8804,6 +8822,24 @@
         }
       }
     },
+    "menu.task.morning": {
+      "comment": "Command palette: reopens the inline Morning plan above Today.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Morning plan"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jutarnji plan"
+          }
+        }
+      }
+    },
     "menu.task.title": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -10189,6 +10225,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ništa ne odgovara."
+          }
+        }
+      }
+    },
+    "palette.empty.clear": {
+      "comment": "Spec 3.18 Command palette (⌘K). Clears the search field from a zero-match empty state.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Očisti pretragu"
           }
         }
       }
@@ -12524,6 +12578,24 @@
         }
       }
     },
+    "settings.ai.executablepath": {
+      "comment": "Spec 3.15 Settings.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CLI path"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putanja do CLI-ja"
+          }
+        }
+      }
+    },
     "settings.ai.key": {
       "comment": "Spec 3.15 Settings.",
       "extractionState": "manual",
@@ -12585,13 +12657,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No key saved"
+            "value": "No key saved — an API key works like a password that lets Kronos talk to this AI service for you."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ključ nije spremljen"
+            "value": "Ključ nije spremljen — API ključ djeluje poput lozinke koja Kronosu omogućuje razgovor s ovom AI uslugom u tvoje ime."
           }
         }
       }
@@ -12700,6 +12772,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pružatelj"
+          }
+        }
+      }
+    },
+    "settings.ai.provider.claudecode": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude (subscription)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude (pretplata)"
+          }
+        }
+      }
+    },
+    "settings.ai.provider.claudecode.help": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your Claude Code CLI subscription, not an API key. Requires /opt/homebrew/bin/claude signed in."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koristi tvoju pretplatu na Claude Code CLI, ne API ključ. Zahtijeva prijavljen /opt/homebrew/bin/claude."
           }
         }
       }
@@ -14205,13 +14313,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Export JSON…"
+            "value": "Export…"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Izvezi JSON…"
+            "value": "Izvezi…"
           }
         }
       }
@@ -14277,13 +14385,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Import JSON…"
+            "value": "Import…"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uvezi JSON…"
+            "value": "Uvezi…"
           }
         }
       }
@@ -15087,13 +15195,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Let an AI assistant read and change tasks"
+            "value": "Let an AI assistant (like Claude or ChatGPT) read and change your tasks"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dopusti AI asistentu čitanje i izmjenu zadataka"
+            "value": "Dopusti AI asistentu (npr. Claude ili ChatGPT) čitanje i izmjenu tvojih zadataka"
           }
         }
       }
@@ -15105,13 +15213,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kronos starts itself when an AI tool asks. Point the tool at this helper, no token needed:"
+            "value": "Kronos starts itself automatically when an AI assistant needs it — no password or key required. Paste this into the assistant's settings:"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kronos se sam pokrene kad ga AI alat zatraži. Usmjeri alat na ovaj pomoćnik, token nije potreban:"
+            "value": "Kronos se sam pokrene kad god ga AI asistent zatreba — nije potrebna lozinka ni ključ. Zalijepi ovo u postavke asistenta:"
           }
         }
       }
@@ -23995,13 +24103,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shared token: read and propose only"
+            "value": "Shared access key (not personal) — can read and suggest changes only"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zajednički token: samo čitanje i prijedlozi"
+            "value": "Zajednički pristupni ključ (nije osoban) — može samo čitati i predlagati izmjene"
           }
         }
       }
@@ -24352,13 +24460,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Webhook (HTTPS)"
+            "value": "Webhook (send to a web address)"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Webhook (HTTPS)"
+            "value": "Webhook (pošalji na web adresu)"
           }
         }
       }
@@ -24369,13 +24477,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ntfy message"
+            "value": "ntfy (push notification app)"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ntfy poruka"
+            "value": "ntfy (aplikacija za obavijesti)"
           }
         }
       }
@@ -24437,13 +24545,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ssh myhost /opt/agent/bin/ingest-kronos"
+            "value": "e.g. ssh myhost /opt/agent/bin/ingest-kronos"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ssh myhost /opt/agent/bin/ingest-kronos"
+            "value": "npr. ssh myhost /opt/agent/bin/ingest-kronos"
           }
         }
       }
@@ -24488,13 +24596,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Runs the command with the event as JSON on standard input. No shell is used: words are split at spaces."
+            "value": "Runs a command on this Mac whenever something happens — handy if you already have a script or automation. Kronos sends the event details as JSON on standard input (no shell is used: words are split at spaces)."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pokreće naredbu s događajem kao JSON-om na standardnom ulazu. Ljuska se ne koristi: riječi se dijele po razmacima."
+            "value": "Pokreće naredbu na ovom Macu kad god se nešto dogodi — korisno ako već imaš skriptu ili automatizaciju. Kronos šalje podatke o događaju kao JSON na standardnom ulazu (ljuska se ne koristi: riječi se dijele po razmacima)."
           }
         }
       }
@@ -26252,6 +26360,150 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uredi predloške…"
+          }
+        }
+      }
+    },
+    "detail.reviewed.mark": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označi pregledano"
+          }
+        }
+      }
+    },
+    "detail.reviewed.unmark": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmark reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni oznaku pregledano"
+          }
+        }
+      }
+    },
+    "detail.help.reviewed.mark": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marks this task reviewed — a phase gate an agent can read with review_status."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označava zadatak kao pregledan — vrata faze koja agent može pročitati preko review_status."
+          }
+        }
+      }
+    },
+    "detail.help.reviewed.unmark": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removes the reviewed mark."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uklanja oznaku pregledano."
+          }
+        }
+      }
+    },
+    "ctx.task.reviewed": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Označi pregledano"
+          }
+        }
+      }
+    },
+    "ctx.task.unreviewed": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unmark reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni oznaku pregledano"
+          }
+        }
+      }
+    },
+    "undo.reviewed.name": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” marked reviewed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” označeno kao pregledano"
+          }
+        }
+      }
+    },
+    "undo.unreviewed.name": {
+      "comment": "Review surface (Phase 3 B3): owner marks a task reviewed, a phase gate agents read via review_status.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” reviewed mark removed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” oznaka pregledano uklonjena"
           }
         }
       }

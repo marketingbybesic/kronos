@@ -7,6 +7,13 @@ import Foundation
 @MainActor
 struct ContextLinkMultiTests {
 
+    private func scratchDirectory() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kronos-contextlink-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     @Test func encodedLineIsOneLiteralLine() {
         let link = ContextLink(kind: .email, reference: "message:%3Cabc@x.com%3E", displayName: "Re: Offer | v2")
         #expect(link.encodedLine == "link://email|Re: Offer %7C v2|message:%253Cabc@x.com%253E")
@@ -53,6 +60,11 @@ struct ContextLinkMultiTests {
     }
 
     @Test func storeStripsCorruptLinesOnlyWhereTheyAre() throws {
+        let dir = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        setenv("KRONOS_STORE_DIR", dir.path, 1)
+        defer { unsetenv("KRONOS_STORE_DIR") }
+
         let store = try TaskStore(inMemory: true)
         let bad = store.create(title: "Bad", notes: "Keep me\n(Self.scheme)\n(kind.rawValue)|\n(Self.escape(displayName))|\n(Self.escape(reference))",
                                project: nil, status: .todo, priority: .none, dueDay: nil)
@@ -64,6 +76,32 @@ struct ContextLinkMultiTests {
         #expect(store.task(good.id)?.notes == "(Self.scheme) is mentioned inline")
         #expect(store.undoDepth == depth)
         #expect(TaskStore.stripCorruptContextLinkLines(store: store) == 0)
+    }
+
+    /// SD-003: marker-gated like every other launch migration — it runs once per store, not on
+    /// every launch. A note that turns corrupt AFTER the marker is set is left alone: the second
+    /// call skips the scan entirely rather than happening to find nothing new.
+    @Test func storeScansOnlyOnceNotOnEveryLaunch() throws {
+        let dir = try scratchDirectory()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        setenv("KRONOS_STORE_DIR", dir.path, 1)
+        defer { unsetenv("KRONOS_STORE_DIR") }
+
+        let store = try TaskStore(inMemory: true)
+        let bad1 = store.create(title: "Bad 1", notes: "Keep me\n(Self.scheme)\n(kind.rawValue)|\n(Self.escape(displayName))|\n(Self.escape(reference))",
+                                project: nil, status: .todo, priority: .none, dueDay: nil)
+        #expect(TaskStore.stripCorruptContextLinkLines(store: store) == 1)
+        #expect(store.task(bad1.id)?.notes == "Keep me")
+        let marker = dir.appendingPathComponent(TaskStore.markerRelativePath)
+        #expect(FileManager.default.fileExists(atPath: marker.path))
+        #expect(store.metaValue(StoreMetaKey.corruptContextLinkLines) == "1")
+
+        // A later launch on the same store: a fresh dirty note written after the marker was set
+        // is left alone — the gate skips the scan entirely rather than finding nothing to fix.
+        let bad2 = store.create(title: "Bad 2", notes: "Keep me too\n(Self.scheme)\n(kind.rawValue)|\n(Self.escape(displayName))|\n(Self.escape(reference))",
+                                project: nil, status: .todo, priority: .none, dueDay: nil)
+        #expect(TaskStore.stripCorruptContextLinkLines(store: store) == 0)
+        #expect(store.task(bad2.id)?.notes != "Keep me too", "the gate skipped the scan: junk written after the marker is still there")
     }
 
     @Test func subtaskNotesHoldAttachmentsWithUndoAndSurviveExportImport() throws {

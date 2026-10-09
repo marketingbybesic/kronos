@@ -48,6 +48,16 @@ extension TaskStore {
         return (try? context.fetch(d))?.first
     }
 
+    /// Any live top-level task at all — `fetchLimit = 1` against the same predicate `allTasks()`
+    /// uses, so a fresh-install check never fetches and decodes the whole table just to answer a
+    /// boolean (`seedIfEmpty()`'s old body: `allTasks().isEmpty`).
+    public func hasAnyTask() -> Bool {
+        countFetch("hasAnyTask()")
+        var d = FetchDescriptor<KTask>(predicate: Self.topLevelPredicate)
+        d.fetchLimit = 1
+        return !((try? context.fetch(d))?.isEmpty ?? true)
+    }
+
     /// Inclusive of soft-deleted rows — same `fetchLimit = 1` shape as `task(_:)`.
     public func taskIncludingDeleted(_ id: UUID) -> KTask? {
         countFetch("taskIncludingDeleted(_:)")

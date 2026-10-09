@@ -11,6 +11,8 @@ enum StoreCrashBackup {
     enum Method: Equatable { case sqlite, fileCopy }
 
     /// Returns the backup file and how it was made, or nil when there was nothing to copy / nothing worked.
+    /// The copy holds full plaintext task titles/notes, so it is locked to the person only — 0600 —
+    /// the same explicit lockdown `SingleInstanceLock.acquire` applies to its own lock file.
     static func make(store: URL, into directory: URL, now: Date = Date(),
                      sqliteTool: String = "/usr/bin/sqlite3") -> (url: URL, method: Method)? {
         let fm = FileManager.default
@@ -21,19 +23,30 @@ enum StoreCrashBackup {
 
         if fm.isExecutableFile(atPath: sqliteTool), runBackup(tool: sqliteTool, store: store, dest: dest),
            fm.fileExists(atPath: dest.path) {
+            lockDown(dest, fm: fm)
             return (dest, .sqlite)
         }
         try? fm.removeItem(at: dest)
         do {
             try fm.copyItem(at: store, to: dest)
+            lockDown(dest, fm: fm)
             for suffix in ["-wal", "-shm"] {
                 let side = URL(fileURLWithPath: store.path + suffix)
-                if fm.fileExists(atPath: side.path) { try? fm.copyItem(at: side, to: URL(fileURLWithPath: dest.path + suffix)) }
+                if fm.fileExists(atPath: side.path) {
+                    let sideDest = URL(fileURLWithPath: dest.path + suffix)
+                    try? fm.copyItem(at: side, to: sideDest)
+                    lockDown(sideDest, fm: fm)
+                }
             }
             return (dest, .fileCopy)
         } catch {
             return nil
         }
+    }
+
+    /// Best-effort: a failed chmod must not sacrifice an otherwise-good crash backup.
+    private static func lockDown(_ url: URL, fm: FileManager) {
+        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     static func stamp(_ date: Date) -> String {

@@ -94,6 +94,7 @@ import Foundation
         Case(label: "update_area", tool: "update_area", args: { _ in ["id": UUID().uuidString, "name": "Renamed"] }, allowed: [false, false, false, false, false, true]),
         Case(label: "delete_area", tool: "delete_area", args: { _ in ["id": UUID().uuidString, "confirm": true] }, allowed: [false, false, false, false, false, true]),
         Case(label: "move_task foreign", tool: "move_task", args: { ["id": $0.foreign.uuidString, "project": NSNull()] }, allowed: [false, false, false, false, false, true]),
+        Case(label: "review_status", tool: "review_status", args: { ["ids": [$0.mine.uuidString]] }, allowed: [false, true, true, true, true, true]),
     ]
 
     @Test func everyToolAgainstEverySetAnswersAsTheTableSays() throws {

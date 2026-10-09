@@ -23,11 +23,20 @@ public enum ActivityVerb {
     public static let assigned = "task.assigned"
     public static let commented = "task.commented"
     public static let edited = "task.edited"
+    /// The person marked, or unmarked, a task reviewed (finish-round-1 phase-gate). Independent
+    /// of `approved`/`rejected`: those report the agent-proposal verdict; these report the
+    /// person's own "I looked at this" mark, which exists on any task and is derived — for
+    /// `review_status` and `events_poll` alike — from the LATEST of these two rows per task in
+    /// this device-local, non-syncing activity log (no separate KTask field: a schema change
+    /// there would break every already-persisted V2 store's entity-hash match, see
+    /// SchemaV1Frozen.swift's header).
+    public static let reviewed = "task.reviewed"
+    public static let unreviewed = "task.unreviewed"
     // Bookkeeping.
     public static let ack = "cursor.ack"
 
     /// Verbs an agent may hear about.
-    public static let delivered: Set<String> = [completed, approved, rejected, reopened, deleted, assigned, commented, edited]
+    public static let delivered: Set<String> = [completed, approved, rejected, reopened, deleted, assigned, commented, edited, reviewed, unreviewed]
     /// Verbs that count as a write by an agent (the 7-day figure in Settings).
     public static let writes: Set<String> = [created, updated, completed, deleted, restored, doneByAgent, commented, structure]
 }
@@ -54,6 +63,29 @@ extension AgentHub {
         context.insert(row)
         save()
         return row
+    }
+
+    // MARK: - Reviewed mark (finish-round-1 B3)
+
+    /// Whether the person's "reviewed" phase-gate mark is currently set for this task: the
+    /// newest of a `reviewed`/`unreviewed` row for it. Device-local, not synced, not a KTask
+    /// field (see ActivityVerb.reviewed's doc comment for why).
+    public func isReviewed(_ taskID: UUID) -> Bool {
+        var latestSeq = -1, latestReviewed = false
+        for row in rows() where row.taskID == taskID {
+            guard row.verb == ActivityVerb.reviewed || row.verb == ActivityVerb.unreviewed else { continue }
+            if row.seq > latestSeq { latestSeq = row.seq; latestReviewed = row.verb == ActivityVerb.reviewed }
+        }
+        return latestReviewed
+    }
+
+    /// Marks or unmarks a task reviewed. person-only by construction: called from the inspector
+    /// and the task context menu, never from MCPDispatcher (review_status is read-only; no tool
+    /// calls this). Not part of TaskStore's undo stack — the activity log is a device-local audit
+    /// trail, not app state the store tracks.
+    @discardableResult
+    public func setReviewed(_ reviewed: Bool, taskID: UUID, agentID: UUID?) -> KActivity {
+        append(actor: "me", verb: reviewed ? ActivityVerb.reviewed : ActivityVerb.unreviewed, taskID: taskID, agentID: agentID)
     }
 
     public func rows(since seq: Int = 0) -> [KActivity] {

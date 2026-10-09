@@ -135,7 +135,7 @@ extension LiveUITest {
     // MARK: Keyboard paths
 
     private static func ea11yHost<V: View>(_ view: V, width: CGFloat = 520, height: CGFloat = 220) -> NSWindow {
-        let host = NSHostingController(rootView: view.padding(16).frame(width: width, height: height, alignment: .topLeading).background(Tok.bg))
+        let host = NSHostingController(rootView: view.padding(Space.x4).frame(width: width, height: height, alignment: .topLeading).background(Tok.bg))
         let w = EA11yKeyableWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
         w.contentViewController = host
         w.setContentSize(NSSize(width: width, height: height))

@@ -151,7 +151,8 @@ struct NotesPickerSheet: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if filteredFolders.isEmpty {
-                    KEmptyState(icon: "folder", title: String(localized: "capture.notes.picker.empty"))
+                    KEmptyState(icon: "folder", title: String(localized: "capture.notes.picker.empty"),
+                                action: query.isEmpty ? nil : KEmptyState.Action(title: String(localized: "palette.empty.clear")) { query = "" })
                         .padding(.top, Space.x5)
                         .uiTestAnchor("notespicker.empty")
                 }
@@ -180,7 +181,8 @@ struct NotesPickerSheet: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if filteredNotes.isEmpty {
-                    KEmptyState(icon: "mail", title: String(localized: "capture.notes.picker.empty"))
+                    KEmptyState(icon: "mail", title: String(localized: "capture.notes.picker.empty"),
+                                action: query.isEmpty ? nil : KEmptyState.Action(title: String(localized: "palette.empty.clear")) { query = "" })
                         .padding(.top, Space.x5)
                         .uiTestAnchor("notespicker.empty")
                 }

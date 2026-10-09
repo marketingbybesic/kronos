@@ -182,7 +182,7 @@ extension LiveUITest {
         #if KRONOS_PUBLIC
         var expected = ["openRouter"]
         #else
-        var expected = ["ghostCLI", "openRouter"]
+        var expected = ["ghostCLI", "claudeCode", "openRouter"]
         #endif
         if breakMode { expected.append("custom") }
         let listed = AIProvider.presets.map(\.rawValue)

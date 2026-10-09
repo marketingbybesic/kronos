@@ -19,6 +19,7 @@ import KronosCore
 enum AIProvider: String, CaseIterable, Identifiable {
     #if !KRONOS_PUBLIC
     case ghostCLI
+    case claudeCode
     #endif
     case openRouter
     case custom
@@ -33,6 +34,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
         switch self {
         #if !KRONOS_PUBLIC
         case .ghostCLI:   return "https://ghostcli.dev/v1"
+        case .claudeCode: return ""   // subprocess, not a gateway
         #endif
         case .openRouter: return "https://openrouter.ai/api/v1"
         case .custom:     return ""
@@ -45,6 +47,13 @@ enum AIProvider: String, CaseIterable, Identifiable {
         switch self {
         #if !KRONOS_PUBLIC
         case .ghostCLI:   return ["claude-opus-5", "claude-sonnet-5", "claude-fable-5.1", "gpt-6-astra"]
+        // Measured live 2026-10-09 via `claude -p --model <id> --output-format json`: this
+        // machine's org has subscription CLI access disabled (api_error_code
+        // "oauth_not_allowed_for_organization"), identically for claude-sonnet-5 and
+        // claude-haiku-4-5 — a policy block, not a per-model rejection, so model validity
+        // itself could not be confirmed live here. Falls back to the plan's own
+        // known-valid list (claude-sonnet-5, claude-fable-5-1) rather than guessing.
+        case .claudeCode: return ["claude-sonnet-5", "claude-fable-5-1"]
         #endif
         case .openRouter: return ["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "nex-agi/nex-n2.5-pro:free"]
         case .custom:     return []
@@ -58,10 +67,14 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// created by this running app, so later launches read it with no Keychain dialog. Kept
     /// as `keychainService` (not renamed) because `Kronos/App/AIWiring.swift` (a different
     /// leaf's file) already reads this property by that name to build the live AI client.
+    ///
+    /// `.claudeCode` never reads a Keychain entry: the CLI holds its own OAuth session, so
+    /// this resolves to `""` and `AISettingsController` never calls `store.read`/`write` for it.
     var keychainService: String {
         switch self {
         #if !KRONOS_PUBLIC
         case .ghostCLI:   return GhostCLIClient.keychainService   // "ai.ghostcli"
+        case .claudeCode: return ""
         #endif
         case .openRouter: return "ai.openrouter"
         case .custom:     return "ai.custom"
@@ -77,6 +90,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
         switch self {
         #if !KRONOS_PUBLIC
         case .ghostCLI:   return GhostCLIClient.legacyKeychainService
+        case .claudeCode: return ""   // no key, nothing to adopt
         #endif
         case .openRouter: return "OPENROUTER_API_KEY"
         case .custom:     return "kronos.ai.custom_key"
@@ -86,6 +100,27 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// The legacy items were written with `kSecAttrService` only, no `kSecAttrAccount` — the
     /// account for `readLegacy` must be nil, not "", to match the exact query that finds them.
     var legacyKeychainAccount: String? { nil }
+
+    /// The CLI binary path shown (read-only) in Settings for `.claudeCode`; `nil` for every
+    /// other provider, which the view reads to decide whether to show it at all.
+    var executablePath: String? {
+        #if !KRONOS_PUBLIC
+        self == .claudeCode ? "/opt/homebrew/bin/claude" : nil
+        #else
+        nil
+        #endif
+    }
+
+    /// True for a provider that talks to a local subprocess instead of an HTTP gateway —
+    /// `SettingsAITab` reads this once to hide the URL/key controls and show `executablePath`
+    /// instead, so the view never needs its own `#if !KRONOS_PUBLIC` guard around `.claudeCode`.
+    var usesSubprocess: Bool {
+        #if !KRONOS_PUBLIC
+        self == .claudeCode
+        #else
+        false
+        #endif
+    }
 
     /// OpenRouter asks for these on every request (harmless elsewhere; only OpenRouter gets them).
     var extraHeaders: [String: String] {
@@ -223,14 +258,30 @@ final class AISettingsController {
             return
         }
 
+        let client: any AIClient
+        #if !KRONOS_PUBLIC
+        if provider == .claudeCode {
+            client = ClaudeCodeClient(modelID: modelID)
+        } else {
+            guard let baseURL = URL(string: baseURLText), !modelID.isEmpty else {
+                lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
+                                       servedBy: nil, dataPolicy: .unknown, failure: .badJSON(prefix: "invalid URL or empty model"))
+                testPassedForCurrentConfig = false
+                return
+            }
+            client = OpenAICompatibleClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
+                                            extraHeaders: provider.extraHeaders)
+        }
+        #else
         guard let baseURL = URL(string: baseURLText), !modelID.isEmpty else {
             lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
                                    servedBy: nil, dataPolicy: .unknown, failure: .badJSON(prefix: "invalid URL or empty model"))
             testPassedForCurrentConfig = false
             return
         }
-        let client = OpenAICompatibleClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
-                                            extraHeaders: provider.extraHeaders)
+        client = OpenAICompatibleClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
+                                        extraHeaders: provider.extraHeaders)
+        #endif
         let request = AIRequest(model: modelID,
                                  messages: [.user("Return only this JSON and nothing else: {\"ok\":true}")],
                                  kind: .triage,
@@ -242,9 +293,11 @@ final class AISettingsController {
             let elapsed = (ContinuousClock.now - started).components
             let ms = Int(elapsed.seconds) * 1000 + Int(elapsed.attoseconds / 1_000_000_000_000_000)
             let ok = response.content.contains("\"ok\"") && response.content.contains("true")
+            // Truncate to the same 200-char contract `AIError.badJSON(prefix:)` documents
+            // elsewhere (AI-003) — a live CLI/gateway reply can run far longer than that.
             lastTest = AISettingsTestResult(modelID: modelID, ok: ok, milliseconds: ms,
                                    servedBy: response.modelServed ?? modelID,
-                                   dataPolicy: .unknown, failure: ok ? nil : .badJSON(prefix: response.content))
+                                   dataPolicy: .unknown, failure: ok ? nil : .badJSON(prefix: String(response.content.prefix(200))))
             testPassedForCurrentConfig = ok
         } catch let error as AIError {
             lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
@@ -280,7 +333,10 @@ enum AppSettingsStore {
     static let defaultProvider = AIProvider.openRouter
     static let defaultModel = AIProvider.openRouter.models[0]
     #else
-    static let defaultProvider = AIProvider.ghostCLI
+    // Was .ghostCLI: GhostCLI's gateway is dead (B1, FINDINGS-FINISH.md). Claude-subscription
+    // CLI is the new default for the unset/stale-stored case only — an explicitly stored
+    // openRouter/custom/ghostCLI choice in UserDefaults is read as-is below, never overridden.
+    static let defaultProvider = AIProvider.claudeCode
     static let defaultModel = "claude-sonnet-5"
     #endif
     static var defaultBaseURL: String { defaultProvider.defaultBaseURL }

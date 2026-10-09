@@ -91,6 +91,27 @@ struct HouseRuleStoreTests {
         #expect(!store.deleteRule(drop.id))
     }
 
+    /// DA-018: deleteRule REGISTERS UNDO (one step), mirroring deleteSubtask — a two-tap-confirm
+    /// delete is no longer unrecoverable short of retyping the rule.
+    @Test func deleteRuleIsOneUndoStepAndUndoBringsItBack() throws {
+        let store = try makeStore()
+        let keep = store.addRule(text: "Calls are people work.", scope: .all, source: .manual)
+        let drop = store.addRule(text: "Invoices are admin work.", scope: .triage, source: .manual)
+        store.setRuleActive(drop.id, false)   // non-default field, to prove it round-trips too
+        let depth = store.undoDepth
+
+        #expect(store.deleteRule(drop.id))
+        #expect(store.allRules(includeInactive: true).map(\.id) == [keep.id])
+        #expect(store.undoDepth == depth + 1, "the delete registers exactly one undo step")
+
+        store.undo()
+        let restored = try #require(store.allRules(includeInactive: true).first { $0.id == drop.id })
+        #expect(restored.text == "Invoices are admin work.")
+        #expect(restored.scope == .triage)
+        #expect(restored.isActive == false, "the rule comes back exactly as it was")
+        #expect(store.undoDepth == depth)
+    }
+
     @Test func aHandWrittenRuleIsNotMarkedAsFromAnAgent() throws {
         let store = try makeStore()
         let rule = store.addRule(text: "Calls are people work.", scope: .all, source: .manual)

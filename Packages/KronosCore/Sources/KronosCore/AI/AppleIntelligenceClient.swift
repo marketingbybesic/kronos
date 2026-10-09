@@ -117,15 +117,21 @@ public struct AppleIntelligenceClient: AIClient {
 
         let start = Date()
         do {
-            try await Task.sleep(for: .seconds(0))   // yield point so cancellation is observed before the call
-            try Task.checkCancellation()
-            let response = try await session.respond(to: user)
+            // AI-002: `LanguageModelSession.respond` has no native deadline, and FoundationModels
+            // can hang well past `request.budgetSeconds` on-device. Self-enforce the same race
+            // `ClaudeCodeClient` and the router's `triage`/`retriage` chains use, rather than
+            // trusting a caller-side wrapper to exist (Impuls's own chain only gained one via AI-001).
+            let response = try await AIRouter.raced(seconds: request.budgetSeconds) {
+                try await session.respond(to: user)
+            }
             let latency = Int(Date().timeIntervalSince(start) * 1000)
             return AIResponse(content: response.content, finishReason: .stop,
                               modelRequested: request.model, modelServed: modelID,
                               latencyMS: latency)
         } catch is CancellationError {
             throw AIError.timeout(budgetSeconds: request.budgetSeconds)
+        } catch let error as AIError {
+            throw error   // .timeout from the race above
         } catch {
             // FoundationModels' own error taxonomy (guardrail violation,
             // unsupported language, context window) has no analogue in

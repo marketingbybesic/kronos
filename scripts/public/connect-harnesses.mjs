@@ -46,7 +46,14 @@ function ensureToken(slug) {
   return "token created";
 }
 
+/** True when `file` ITSELF is a symlink (lstat, never followed) — a pre-planted symlink at a harness
+ * config path must never be read, backed up, or written through; the caller skips that harness instead. */
+function isUnsafeSymlink(file) {
+  try { return fs.lstatSync(file).isSymbolicLink(); } catch { return false; }
+}
+
 function backup(file) {
+  if (isUnsafeSymlink(file)) return; // callers already guard first; defensive no-op
   const dst = `${file}.bak-${stamp}`;
   fs.copyFileSync(file, dst);
   fs.chmodSync(dst, fs.statSync(file).mode & 0o777);
@@ -54,6 +61,7 @@ function backup(file) {
 
 /** Writes `next` to `file` (backup first) unless identical. Returns the status word. */
 function writeIfChanged(file, prev, next, created = false, existed = prev.includes(name)) {
+  if (isUnsafeSymlink(file)) return "skipped: config path is a symlink, refusing to follow";
   if (prev === next) return "already connected";
   if (dry) return created ? "would create" : "would update";
   if (!created) backup(file);
@@ -103,6 +111,7 @@ function indentOf(text) {
 function jsonClient(h) {
   const slug = h.slug;
   const file = h.file();
+  if (isUnsafeSymlink(file)) return report(h.who, "skipped: config path is a symlink, refusing to follow");
   const present = exists(file);
   let prev = "", obj = {}, comments = false;
   if (present) {
@@ -130,6 +139,7 @@ function jsonClient(h) {
 // ---- Text-edited YAML (Goose extensions and other YAML configs) -------------------------
 function yamlClient(h) {
   const file = h.file();
+  if (isUnsafeSymlink(file)) return report(h.who, "skipped: config path is a symlink, refusing to follow");
   const present = exists(file);
   const prev = present ? fs.readFileSync(file, "utf8") : "";
   const entry = h.entry(name);
@@ -160,6 +170,7 @@ function yamlClient(h) {
 // ---- Codex (TOML, text edit) ---------------------------------------------------------
 function codex(h) {
   const file = h.file();
+  if (isUnsafeSymlink(file)) return report(h.who, "skipped: config path is a symlink, refusing to follow");
   const present = exists(file);
   const prev = present ? fs.readFileSync(file, "utf8") : "";
   const block = `[mcp_servers.${name}]\ncommand = ${JSON.stringify(bridge)}\nargs = ["--agent", "codex"]\nstartup_timeout_sec = 30\n`;
@@ -191,6 +202,7 @@ function claudeCode() {
   if (wired) return report("Claude Code", `already connected (${ensureToken("claude-code")})`);
   if (dry) return report("Claude Code", `would add (${ensureToken("claude-code")})`);
   const cfg = `${home}/.claude.json`;
+  if (exists(cfg) && isUnsafeSymlink(cfg)) return report("Claude Code", "skipped: config path is a symlink, refusing to follow");
   if (exists(cfg)) backup(cfg);
   if (got.status === 0) spawnSync(bin, ["mcp", "remove", "-s", "user", name]);
   const tokenStatus = ensureToken("claude-code");
@@ -202,6 +214,7 @@ function claudeCode() {
 // session's context at no cost to the person. Prints nothing when there is nothing to report or Kronos is off.
 function claudeHook() {
   const file = `${home}/.claude/settings.json`;
+  if (isUnsafeSymlink(file)) return report("Claude Code hook", "skipped: config path is a symlink, refusing to follow");
   const command = `${JSON.stringify(bridge)} events --agent claude-code --format md --ack`;
   let prev = "", obj = {};
   if (exists(file)) {
@@ -253,6 +266,9 @@ const HARNESSES = [
     file: () => H("Library/Application Support/Claude/claude_desktop_config.json"), key: "mcpServers", entry: std },
   { who: "Goose", slug: "goose", writer: yamlClient, detect: { dirs: [H(".config/goose")], bins: ["goose"] }, file: () => H(".config/goose/config.yaml"), key: "extensions",
     entry: (n) => [`  ${n}:`, "    enabled: true", "    type: stdio", `    name: ${n}`, `    cmd: ${JSON.stringify(bridge)}`, `    args: ["--agent", "goose"]`, "    envs: {}", "    timeout: 300"] },
+  { who: "jcode", slug: "jcode", writer: jsonClient, detect: { dirs: [H(".jcode")], bins: ["jcode"] }, file: () => H(".jcode/config.json"), key: "mcp_servers", entry: std },
+  { who: "omp", slug: "omp", writer: jsonClient, detect: { dirs: [H(".omp/agent")], bins: ["omp"] }, file: () => H(".omp/agent/mcp.json"), key: "mcpServers", entry: std },
+  { who: "prime", slug: "prime", writer: jsonClient, detect: { dirs: [H(".prime/agent")], bins: ["prime"] }, file: () => H(".prime/agent/settings.json"), key: "mcpServers", entry: std },
 ];
 
 for (const h of HARNESSES) {

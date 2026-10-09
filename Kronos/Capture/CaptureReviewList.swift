@@ -252,7 +252,8 @@ struct CaptureReviewList: View {
     }
 
     private var emptyState: some View {
-        KEmptyState(icon: "inbox", title: String(localized: "capture.review.empty"))
+        KEmptyState(icon: "inbox", title: String(localized: "capture.review.empty"),
+                    action: KEmptyState.Action(title: String(localized: "capture.action.back")) { capture.backToPaste() })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

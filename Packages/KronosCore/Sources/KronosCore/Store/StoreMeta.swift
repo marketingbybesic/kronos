@@ -17,6 +17,8 @@ public enum StoreMetaKey {
     public static let subtasksToTasks = "migration.subtasksToTasks.v1"
     /// The retired undated-to-Someday catch-up (marker only).
     public static let undatedSomeday = "migration.undatedSomeday.v1"
+    /// The corrupt-context-link cleanup (`TaskStore.stripCorruptContextLinkLines`), marker only.
+    public static let corruptContextLinkLines = "migration.corruptContextLinkLines.v1"
     /// The highest schema version any build has written to this store. An older build reads it
     /// at open and stays read-only (`SchemaGuard`, with the key-value store copy).
     public static let minSchemaVersion = "schema.minVersion"

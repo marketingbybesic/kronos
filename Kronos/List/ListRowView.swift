@@ -149,8 +149,14 @@ struct ListRowView: View {
                         Button {
                             withAnimation(Motion.curve(Motion.fast)) { subtasksExpanded.toggle() }
                         } label: {
-                            Icon(subtasksExpanded ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
+                            Icon("chevron-right", size: Metrics.iconXS)
                                 .foregroundStyle(Tok.textTertiary)
+                                // Rotates in place instead of swapping glyphs: a disclosure
+                                // triangle hinging open reads as one continuous motion (the
+                                // native macOS pattern), not a pop between two unrelated SF
+                                // Symbols. Reuses the `withAnimation` already wrapping the
+                                // toggle above — no new animation primitive.
+                                .rotationEffect(.degrees(subtasksExpanded ? 90 : 0))
                                 .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
                                 .contentShape(Rectangle())   // inside the label: the glyph alone is a 10 pt target
                         }
@@ -159,6 +165,7 @@ struct ListRowView: View {
                     }
                 }
                 titleView
+                attachmentIndicators
                 blockedGlyph
             }
         } trailing: {
@@ -184,10 +191,8 @@ struct ListRowView: View {
             let text = blockers.count == 1
                 ? String(format: String(localized: "list.row.blocked.one"), blockers[0].waitsOnDisplayName)
                 : String(format: String(localized: "list.row.blocked.many"), blockers.count)
-            Image(systemName: "lock.fill")
-                .font(.system(size: Metrics.iconXS, weight: .medium))
+            Icon("lock.fill", size: Metrics.iconXS, weight: .medium)
                 .foregroundStyle(Tok.textSecondary)
-                .fixedSize()
                 .help(text)
                 .accessibilityLabel(text)
                 .uiTestAnchor("row.blocked." + task.title)

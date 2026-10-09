@@ -1,5 +1,5 @@
 // Kronos/Settings/SettingsMCPTab.swift
-// Status, the bridge command per AI tool (Claude Code, Codex, Hermes, Claude Desktop), a
+// Status, the bridge command per AI tool (Claude Code, Codex, Relay, Claude Desktop), a
 // "Connect all local AI tools" button, Regenerate token, enable/disable.
 // The snippets carry NO token: the bridge (Contents/MacOS/kronos-mcp) reads the token and port
 // from the app's own secrets folder on every request, so nothing secret is ever shown or pasted.
@@ -21,7 +21,7 @@ struct SettingsMCPTab: View {
     private enum SnippetKind: Hashable {
         case claudeCode, codex, desktop
         #if !KRONOS_PUBLIC
-        case hermes
+        case relay
         #endif
     }
 
@@ -106,8 +106,8 @@ struct SettingsMCPTab: View {
                     snippetBlock(String(localized: "settings.mcp.snippet.codex"),
                                  MCPSettingsSnippet.bridgeCodexTOML(bridge: bridgePath, name: serverName), .codex)
                     #if !KRONOS_PUBLIC
-                    snippetBlock(String(localized: "settings.mcp.snippet.hermes"),
-                                 MCPSettingsSnippet.bridgeHermesYAML(bridge: bridgePath, name: serverName), .hermes)
+                    snippetBlock(String(localized: "settings.mcp.snippet.relay"),
+                                 MCPSettingsSnippet.bridgeRelayYAML(bridge: bridgePath, name: serverName), .relay)
                     #endif
                     snippetBlock(String(localized: "settings.mcp.snippet.desktop"),
                                  MCPSettingsSnippet.bridgeDesktopJSON(bridge: bridgePath, name: serverName), .desktop)

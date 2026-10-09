@@ -5,10 +5,11 @@ Thanks for looking. Kronos is a small, opinionated app: the bar for a change is 
 ## Before you open a pull request
 
 - **Open an issue first** for anything larger than a fix, so nobody builds something that will not be merged.
-- **Build and test:**
+- **Build and test:** Alpha (the scheme's default run/test config) signs with a maintainer-only
+  named identity; override it with `CODE_SIGNING_ALLOWED=NO` to build without that identity.
   ```sh
   xcodegen generate
-  xcodebuild -scheme Kronos -configuration Alpha -derivedDataPath build build   # must finish with zero warnings
+  xcodebuild -scheme Kronos -configuration Alpha -derivedDataPath build CODE_SIGNING_ALLOWED=NO build   # must finish with zero warnings
   cd Packages/KronosCore && swift test
   ```
 - **Logic goes in `Packages/KronosCore`** with a test. The core has no UI dependency; keep it that way.

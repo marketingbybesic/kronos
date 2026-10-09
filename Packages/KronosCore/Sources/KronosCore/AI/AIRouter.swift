@@ -225,14 +225,21 @@ public struct AIRouter: AIRouting {
                                 messages: [.system(system), .user(user)], kind: .impulsPick)
         let fastRouter = AIRouter(mode: mode, candidates: fast, houseRules: houseRules,
                                   chainBudgetSeconds: chainBudgetSeconds)
-        return try await fastRouter.hopAcrossModels(request, projectNames: [], labelNames: [], language: lang) { data in
-            let decoded: ImpulsRanking
-            do { decoded = try JSONDecoder().decode(ImpulsRanking.self, from: data) }
-            catch { throw AIError.badJSON(prefix: String(decoding: data.prefix(200), as: UTF8.self)) }
-            guard decoded.isValid(candidateCount: impulsCandidates.count) else {
-                throw AIError.badJSON(prefix: "invalid ranking permutation")
+        // AI-001: triage/retriage already wrap hopAcrossModels in Self.raced(); impulsPick had no
+        // outer deadline wrapper, so a client that ignored its own request.budgetSeconds (or hung
+        // in a subprocess/on-device session) could block Impuls's 4 s crossfade window indefinitely
+        // instead of silently dropping the mentor line. Race it the same way, capped at the
+        // impulsPick budget every candidate already gets per-request.
+        return try await Self.raced(seconds: AIBudget.seconds(for: .impulsPick)) {
+            try await fastRouter.hopAcrossModels(request, projectNames: [], labelNames: [], language: lang) { data in
+                let decoded: ImpulsRanking
+                do { decoded = try JSONDecoder().decode(ImpulsRanking.self, from: data) }
+                catch { throw AIError.badJSON(prefix: String(decoding: data.prefix(200), as: UTF8.self)) }
+                guard decoded.isValid(candidateCount: impulsCandidates.count) else {
+                    throw AIError.badJSON(prefix: "invalid ranking permutation")
+                }
+                return decoded
             }
-            return decoded
         }
     }
 

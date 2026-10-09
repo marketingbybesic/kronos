@@ -83,6 +83,7 @@ public struct Icon: View {
         // alarm glyph — priority is shape-only (KPriorityIndicator), and "!" is banned.
         "grip-vertical": "line.3.horizontal", "panel-right": "sidebar.right", "eye": "eye", "eye-off": "eye.slash",
         "bookmark-plus": "bookmark.fill", "more-horizontal": "ellipsis", "trash": "trash", "pencil": "pencil",
+        "lock": "lock.fill",
         "play": "play.fill", "copy": "doc.on.doc", "tag": "tag", "settings": "gearshape", "command": "command", "keyboard": "keyboard",
         "download": "arrow.down.circle", "upload": "arrow.up.circle", "refresh": "arrow.clockwise",
         "undo": "arrow.uturn.backward", "redo": "arrow.uturn.forward", "info": "info.circle",

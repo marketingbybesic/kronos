@@ -24,7 +24,7 @@ enum DetailSnapshots {
                     rule: .weekly(every: 1, weekdays: [1, 3], anchor: .fromDueDay),
                     locale: KronosLocale.languageCode
                 ) { _ in }
-                .overlay(Rectangle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))   // popover edge, so the insets can be read
+                .overlay(Rectangle().strokeBorder(Tok.borderActive, lineWidth: Metrics.ringWidth))   // popover edge, so the insets can be read
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .background(Tok.bg)
             ),

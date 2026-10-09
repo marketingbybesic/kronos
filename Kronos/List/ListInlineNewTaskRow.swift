@@ -14,13 +14,23 @@ struct ListInlineNewTaskRow: View {
     @State private var entry = EntryFieldModel()
 
     var body: some View {
-        // Same column geometry as a real row (KListRow.rowContent): leading inset, then a
-        // checkbox-width column, then the checkbox-title gap, then the title: so the "+" glyph
-        // sits on the checkbox centre line and the field's text sits on the task-title x.
+        // Same column geometry as a real row (KListRow.rowContent): KListRow's own outer
+        // content inset (`ChildRowGeometry.listRowContentInset`, 6pt, shared with every
+        // other row-column consumer) plus the leading-inset-to-checkbox column, then the
+        // checkbox-title gap, then the title — so the "+" glyph sits on the checkbox centre
+        // line and the field's text sits on the task-title x. `KCheckbox`'s own label frame
+        // grows to `Metrics.minHit` (see `plusButton` below, same growth) around its
+        // `Metrics.listCheckboxSize` circle, so the real checkbox column is `minHit`-wide, not
+        // circle-wide — the outer padding here must add KListRow's 6pt content inset to its
+        // own leading math to land on the same 18pt-to-column-start KListRow itself uses.
+        // (Before this fix: outer padding was `Metrics.listRowLeading` alone and the button's
+        // own frame stayed circle-wide, so the "+" and the field's text both rendered 10pt
+        // left of the checkbox/title every real row below them uses — visible in every
+        // populated-list screenshot, see FINDINGS-FINISH.md DESIGN-001.)
         EntryField(model: entry, placeholder: String(localized: "list.new"),
                    fieldAnchor: "inlineadd.field",
                    style: .row, rowLeading: { AnyView(plusButton) }, onSubmit: create)
-            .padding(.horizontal, Metrics.listRowLeading)
+            .padding(.horizontal, ChildRowGeometry.listRowContentInset + Metrics.listRowLeading)
             .contentShape(Rectangle())
             .onTapGesture { entry.requestFocus() }
             .onAppear {
@@ -36,16 +46,20 @@ struct ListInlineNewTaskRow: View {
             }
     }
 
-    /// The minimum-hit-area frame lives INSIDE the label closure: a `.buttonStyle(.plain)` button is
-    /// only pressable on its label's own opaque pixels. The label's OWN size is the checkbox
-    /// column's width (keeps column alignment); the hit area is grown past it with a negative inset
-    /// on the content shape, which affects hit testing only, never layout.
+    /// Mirrors `KCheckbox`'s own pattern (`KCheckbox.swift`'s body): the label's frame grows to
+    /// `Metrics.minHit`, centering the glyph inside it, both for layout AND hit-testing. This
+    /// has to match KCheckbox exactly, not just visually look similar — `KListRow.rowContent`
+    /// places a real `KCheckbox` directly in its HStack with no extra width override, so
+    /// `KCheckbox`'s own `minWidth: Metrics.minHit` growth (it is bigger than its own
+    /// `Metrics.listCheckboxSize` circle) is what the REAL checkbox column width actually is.
+    /// The previous version here kept the label at exactly `Metrics.listCheckboxSize` and grew
+    /// only the hit-tested `contentShape` past it (never layout) — contributing 4 of the 10pt
+    /// total misalignment the `body` comment above describes (the other 6pt came from the
+    /// outer padding missing KListRow's own content inset).
     private var plusButton: some View {
         Button { entry.text.isEmpty ? entry.requestFocus() : create(.clear) } label: {
-            let grow = (Metrics.minHit - Metrics.listCheckboxSize) / 2
             Icon("plus", size: Metrics.iconM).foregroundStyle(Tok.textTertiary)
-                .frame(width: Metrics.listCheckboxSize, height: Metrics.listCheckboxSize)
-                .contentShape(Rectangle().inset(by: -grow))
+                .frame(width: Metrics.minHit, height: Metrics.minHit)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "list.new"))

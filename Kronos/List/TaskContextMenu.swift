@@ -48,11 +48,26 @@ enum TaskMenu {
                 TemplateActions.save(taskID: task.id, model: model)
             }, at: at)
         }
+        // The person's "reviewed" phase-gate mark (finish-round-1 B3): works on any task,
+        // child or top-level, same as the inspector's markReviewedControl. Backed by the
+        // device-local activity log (ReviewedMarkHub, Detail/InspectorScreen.swift), NOT a
+        // KTask field. Right before the divider that precedes Delete.
+        let reviewedAt3 = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+        let isReviewed = ReviewedMarkHub.shared?.isReviewed(task.id) ?? false
+        nodes.insert(.action(markReviewedNodeID, String(localized: isReviewed ? "ctx.task.unreviewed" : "ctx.task.reviewed"),
+                             checked: isReviewed,
+                             help: String(localized: isReviewed ? "detail.help.reviewed.unmark" : "detail.help.reviewed.mark")) {
+            ReviewedMarkHub.shared?.setReviewed(!isReviewed, taskID: task.id, agentID: task.agentID)
+            model.didMutate()
+            UndoToastCenter.shared.showNotice(String(format: String(localized: isReviewed ? "undo.unreviewed.name" : "undo.reviewed.name"), task.title))
+        }, at: reviewedAt3)
         return nodes
     }
 
     /// Node id of "Save as Template".
     static let saveTemplateNodeID = "savetemplate"
+    /// Node id of "Mark reviewed" / "Unmark reviewed".
+    static let markReviewedNodeID = "reviewed"
 
     /// Node id of the "Avoiding it" toggle.
     static let dreadNodeID = TaskMenuItem.dread.rawValue

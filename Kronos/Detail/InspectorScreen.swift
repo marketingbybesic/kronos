@@ -22,8 +22,11 @@ struct InspectorScreen: View {
     /// Remembered across tasks and launches: a user who opens Details wants it open everywhere.
     @AppStorage("kronos.inspector.detailsOpen") private var detailsOpen = false
     /// Title, notes and first-move drafts with per-field dirty tracking (InspectorDrafts.swift).
-    @State private var drafts = InspectorDrafts()
-    @FocusState private var focus: Field?
+    @State var drafts = InspectorDrafts()
+    @FocusState var focus: Field?
+    @State var notesAutosaveWork: DispatchWorkItem?
+    /// The full stored notes the notes draft started from (see InspectorNotesSave.swift).
+    @State var notesEditBase = ""
 
     enum Field: Hashable { case title, notes, subtaskAdd, firstMove }
 
@@ -39,7 +42,7 @@ struct InspectorScreen: View {
     /// The task the inspector shows: the child being inspected (child mode) while it still
     /// belongs to the selected task, else the selected task itself. A child selected directly
     /// (a link, search) is shown the same way, with its parent in the breadcrumb.
-    private var task: KTask? { model.inspectedTask }
+    var task: KTask? { model.inspectedTask }
 
     var body: some View {
         // `task` is re-fetched from the store on every `body` call; reading `model.version` makes
@@ -243,6 +246,7 @@ struct InspectorScreen: View {
                 HStack(spacing: Space.x3) {
                     focusPinControl(task)
                     InspectorRetriageControl(model: model, task: task)
+                    markReviewedControl(task)
                 }
             }
         }
@@ -274,6 +278,35 @@ struct InspectorScreen: View {
         .kTooltip(String(localized: isPinned ? "detail.help.unpin" : "detail.help.focus"))
     }
 
+    /// Quiet text control, same family as `focusPinControl`: the person's "reviewed"
+    /// phase-gate mark (finish-round-1 B3). Any agent can read it with the read-only
+    /// `review_status` MCP tool; no tool can set it, only this control and its context-menu
+    /// equivalent (TaskMenu.nodes). Backed by the device-local activity log (ReviewedMarkHub),
+    /// NOT a KTask field — a schema change there would break every already-persisted V2 store's
+    /// entity-hash match (see SchemaV1Frozen.swift's header). Not part of TaskStore's undo
+    /// stack for the same reason `setReviewed` documents; the toast says so (showNotice, not
+    /// the undo-pill `model.commit`).
+    private func markReviewedControl(_ task: KTask) -> some View {
+        let isReviewed = ReviewedMarkHub.shared?.isReviewed(task.id) ?? false
+        return Button {
+            ReviewedMarkHub.shared?.setReviewed(!isReviewed, taskID: task.id, agentID: task.agentID)
+            model.didMutate()
+            UndoToastCenter.shared.showNotice(String(format: String(localized: isReviewed ? "undo.unreviewed.name" : "undo.reviewed.name"), task.title))
+        } label: {
+            HStack(spacing: Space.x1) {
+                Icon(isReviewed ? "check-circle" : "circle", size: Metrics.iconXS)
+                Text(String(localized: isReviewed ? "detail.reviewed.unmark" : "detail.reviewed.mark"))
+            }
+            .font(Typo.meta)
+            .foregroundStyle(isReviewed ? Tok.textSecondary : Tok.textTertiary)
+            .frame(height: Metrics.minHit, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .kTooltip(String(localized: isReviewed ? "detail.help.reviewed.unmark" : "detail.help.reviewed.mark"))
+        .uiTestAnchor("inspector.reviewed.toggle")
+    }
+
     private func toggleDone(_ task: KTask) {
         // Same helper the list row uses (Kronos/List/ListCompletion.swift) so completing from
         // the inspector raises the same shell-level undo pill everywhere.
@@ -293,210 +326,15 @@ struct InspectorScreen: View {
         }
     }
 
-    // MARK: First move
-    //
-    // Root cause of a prior "cannot type into first move" bug: this section never carried a
-    // TextField at all in an earlier revision — only a Text/placeholder pair — so there was no
-    // control to type into. A second, related confusion: a task's first move and its subtasks
-    // were two independent things on screen at once. `FirstMoveLogic.display` (Kronos/Detail/
-    // FirstMoveLogic.swift) now makes them ONE: an open subtask exists -> read-only, sourced
-    // from `task.nextOpenSubtask` (so reordering subtasks changes it for free, no copy to go
-    // stale); otherwise the field really is `task.firstMove` and really saves.
+}
 
-    private func firstMoveSection(_ task: KTask) -> some View {
-        let display = FirstMoveLogic.display(for: task)
-        return VStack(alignment: .leading, spacing: Space.x2) {
-            InspectorSectionCaption(String(localized: "detail.firstmove"))
-            KPanel {
-                VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: Space.x2) {
-                    Icon("zap", size: Metrics.iconM).foregroundStyle(Tok.textTertiary)
-                    switch display {
-                    case .fromSubtask(let title):
-                        VStack(alignment: .leading, spacing: Space.x1) {
-                            Text(title)
-                                .font(Typo.body)
-                                .foregroundStyle(Tok.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text(String(localized: "detail.firstmove.fromsubtask.hint"))
-                                .font(Typo.meta)
-                                .foregroundStyle(Tok.textTertiary)
-                        }
-                    case .fromAttachment(let suggestion):
-                        VStack(alignment: .leading, spacing: Space.x1) {
-                            Text(suggestion.localized)
-                                .font(Typo.body)
-                                .foregroundStyle(Tok.textPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text(String(localized: "detail.firstmove.fromattachment.hint"))
-                                .font(Typo.meta)
-                                .foregroundStyle(Tok.textTertiary)
-                        }
-                    case .editable(_, let hint):
-                        TextField(hint?.localized ?? String(localized: "detail.firstmove.placeholder"), text: $drafts.firstMove, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .font(Typo.body)
-                            .foregroundStyle(Tok.textPrimary)
-                            .lineLimit(1...4)
-                            .accessibilityLabel(String(localized: "detail.firstmove"))
-                            .focused($focus, equals: .firstMove)
-                            .onSubmit { commitFirstMove(task) }
-                            .onChange(of: focus) { old, new in
-                                if old == .firstMove, new != .firstMove { commitFirstMove(task) }
-                            }
-                            .kOnEscapeRevert(active: focus == .firstMove) {
-                                drafts.revert(.firstMove, to: Self.shown(task))
-                                focus = nil
-                            }
-                    }
-                    Spacer(minLength: 0)
-                }
-                InspectorDreadToggle(model: model, task: task)
-                    .padding(.top, Space.x2)
-                }
-            }
-        }
-    }
-
-    /// Submit / blur of the first-move field: writes only what the user typed, never the copy
-    /// loaded before the store (auto-triage, MCP) filled it.
-    private func commitFirstMove(_ task: KTask) {
-        guard drafts.taskID == task.id, drafts.isDirty(.firstMove) else { return }
-        if let move = drafts.firstMoveToWrite(stored: Self.editableFirstMove(task), ownsFirstMove: task.nextOpenSubtask == nil) {
-            model.store.setFirstMove(task.id, move.isEmpty ? nil : move)
-            model.didMutate()
-        }
-        drafts.markCommitted(.firstMove, shown: Self.shown(model.store.task(task.id) ?? task))
-    }
-
-    // MARK: Notes
-
-    private func notesSection(_ task: KTask) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack {
-                InspectorSectionCaption(String(localized: "detail.notes"))
-                Spacer()
-                // The one "Link Apple note" button; hidden once a note is linked.
-                if NoteLink.find(in: task.notes) == nil {
-                    Button {
-                        model.noteLinkPickerOpen = true
-                    } label: {
-                        HStack(spacing: Space.x2) {
-                            Icon("note.text", size: Metrics.iconS)
-                            Text(String(localized: "detail.notelink.add"))
-                        }
-                    }
-                    .kButton(.secondary, size: .compact)
-                    .uiTestAnchor("inspector.notes.notelink.add")
-                }
-            }
-            InspectorNotesField(placeholder: String(localized: "detail.notes.placeholder"), text: $drafts.notes)
-                .focused($focus, equals: .notes)
-                .onChange(of: focus) { old, new in
-                    if old == .notes, new != .notes { commitNotes(task) }
-                }
-                .onChange(of: drafts.notes) { _, _ in scheduleNotesAutosave(task) }
-        }
-    }
-
-    @State private var notesAutosaveWork: DispatchWorkItem?
-
-    private func scheduleNotesAutosave(_ task: KTask) {
-        notesAutosaveWork?.cancel()
-        let work = DispatchWorkItem { commitNotes(task) }
-        notesAutosaveWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
-    }
-
-    private func commitNotes(_ task: KTask) {
-        guard task.id == drafts.taskID, let draft = drafts.notesToMerge() else { return }
-        let outcome = InspectorNotesSave.save(draft, to: task.id, editBase: notesEditBase, store: model.store)
-        if outcome != nil { model.didMutate() }
-        notesCommitted(task.id, outcome)
-    }
-
-    /// The full stored notes the notes draft started from (see InspectorNotesSave.swift).
-    @State private var notesEditBase = ""
-
-    /// After a notes save: the draft is in step with the store again. A save that kept another
-    /// side's text shows the merged notes, so the next save starts from them and cannot drop them.
-    private func notesCommitted(_ id: UUID, _ outcome: TextConflictMerge.Outcome?) {
-        guard let now = model.store.task(id) else { return }
-        if case .conflict? = outcome {
-            drafts.revert(.notes, to: Self.shown(now))
-        } else {
-            drafts.markCommitted(.notes, shown: Self.shown(now))
-        }
-        notesEditBase = now.notes
-    }
-
-    // MARK: Draft lifecycle
-
-    private func loadDrafts() {
-        notesAutosaveWork?.cancel()
-        guard let task else {
-            drafts.load(taskID: nil, shown: InspectorDrafts.Shown())
-            notesEditBase = ""
-            return
-        }
-        drafts.load(taskID: task.id, shown: Self.shown(task))
-        notesEditBase = task.notes
-    }
-
-    /// The store changed while this task is open: untouched fields follow it (a first move that
-    /// auto-triage just filled appears), fields the user is typing in keep their text.
-    private func reloadCleanDrafts() {
-        guard let task, drafts.taskID == task.id else { return }
-        drafts.reloadClean(shown: Self.shown(task))
-        // Untouched notes follow the store, so a later edit starts from what is stored now.
-        if !drafts.isDirty(.notes) { notesEditBase = task.notes }
-    }
-
-    /// Writes every dirty draft onto the task it was loaded from, now.
-    private func flushDrafts() {
-        guard let id = drafts.taskID else { return }
-        commitDrafts(for: id)
-    }
-
-    private func commitDrafts(for id: UUID) {
-        // The drafts belong to the task they were loaded from. Committing them onto another id (a
-        // child's title must never land on its parent when the shown task changes)
-        // must never happen: nothing is written unless the id is the loaded task. Only fields the
-        // user actually typed in (dirty) are written; a clean draft is a stale copy by definition.
-        notesAutosaveWork?.cancel()
-        guard id == drafts.taskID, let t = model.store.task(id), !drafts.dirtyFields.isEmpty else { return }
-        let title = drafts.titleToWrite(stored: t.title)
-        let notesDraft = drafts.notesToMerge()
-        let ownsFirstMove = t.nextOpenSubtask == nil   // only a task with no open subtask owns firstMove
-        let firstMove = drafts.firstMoveToWrite(stored: Self.editableFirstMove(t), ownsFirstMove: ownsFirstMove)
-        // Root cause of "first Cmd-Z does nothing" after Space/H: selection change runs this and
-        // `store.update` ALWAYS pushes an undo step, burying the complete/snooze step under a no-op.
-        // Title, first move and notes land as ONE undo step; notes go through the conflict-safe
-        // save, which writes nothing when the visible text is what is stored.
-        var notesOutcome: TextConflictMerge.Outcome?
-        var wrote = false
-        model.store.groupedUndo("Edit") {
-            if title != nil || firstMove != nil {
-                model.store.update(id) { task in
-                    if let title { task.title = title }
-                    if let firstMove { task.firstMove = firstMove.isEmpty ? nil : firstMove }
-                }
-                wrote = true
-            }
-            if let notesDraft {
-                notesOutcome = InspectorNotesSave.save(notesDraft, to: id, editBase: notesEditBase, store: model.store)
-                wrote = wrote || notesOutcome != nil
-            }
-        }
-        if wrote { model.didMutate() }
-        let now = Self.shown(model.store.task(id) ?? t)
-        for field in drafts.dirtyFields {
-            // An empty title cannot be written: it stays dirty (blur or Esc snaps it back).
-            // A first move without ownership is not shown as editable: leave it untouched.
-            if field == .title, drafts.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { continue }
-            if field == .firstMove, !ownsFirstMove { continue }
-            if field == .notes { notesCommitted(id, notesOutcome); continue }
-            drafts.markCommitted(field, shown: now)
-        }
-    }
+/// One `AgentHub` over the device-local store, opened once and reused by the "reviewed" mark
+/// controls (InspectorScreen's `markReviewedControl`, TaskContextMenu's node): re-opening a
+/// SwiftData container on every render/click would be wasteful. `nil` only if the device-local
+/// store cannot be opened at all (same failure mode `AgentsSettingsController` already tolerates
+/// with the identical `try? AgentHub(directory:)` call) — the mark control still renders, it
+/// just always reads "not reviewed" and silently no-ops on toggle.
+@MainActor
+enum ReviewedMarkHub {
+    static let shared: AgentHub? = try? AgentHub(directory: KronosStore.containerDirectory())
 }

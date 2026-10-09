@@ -30,7 +30,7 @@ struct RuleStoreTests {
         #expect(store.allRules(includeInactive: true).isEmpty)
         #expect(!store.deleteRule(rule.id))                          // gone
         #expect(!store.setRuleActive(UUID(), true))
-        #expect(concrete.undoDepth == 0)                             // rules never touch undo
+        #expect(concrete.undoDepth == 1)                             // deleteRule REGISTERS UNDO (DA-018); add/toggle still don't
     }
 
     /// The same rule twice (case, accents, spaces ignored, same scope) is one rule; another

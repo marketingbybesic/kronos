@@ -153,19 +153,21 @@ public struct TaskSnapshot: Equatable, Sendable {
         return (b, a)
     }
 
-    /// Writes one snapshot key back.
+    /// Writes one snapshot key back. The only caller (`AgentRevert.revertToday`) wraps every call
+    /// in `groupedUndo`, so this uses each field's undo-registering store method (not its
+    /// `…NoUndo` twin) — the whole revert then becomes one Cmd-Z step.
     @MainActor
     static func restore(_ key: String, _ value: AgentJSON, on id: UUID, store: any TaskStoring) {
         switch key {
         case "status":
-            if let n = value.int, let s = KStatus(rawValue: n) { store.setStatusNoUndo(id, s) }
+            if let n = value.int, let s = KStatus(rawValue: n) { store.setStatus(id, s) }
         case "projectID":
             let p: KProject? = value.string.flatMap(UUID.init(uuidString:)).flatMap { pid in
                 store.allProjects(includeArchived: true).first { $0.id == pid }
             }
-            store.updateNoUndo(id) { AgentPatch.setProject(p, $0) }
+            store.update(id) { AgentPatch.setProject(p, $0) }
         default:
-            store.updateNoUndo(id) { t in
+            store.update(id) { t in
                 switch key {
                 case "title": if let s = value.string { t.title = s }
                 case "notes": if let s = value.string { t.notes = s }

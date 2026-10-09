@@ -55,7 +55,7 @@ struct SecretStoringTests {
         try store.write("sk-fake-key", name: "ai.openrouter")
         let provider = KeychainKeyProvider(store: store)
         #expect(provider.key(service: "ai.openrouter") == "sk-fake-key")
-        #expect(provider.key(service: "ai.ghostcli") == nil)
+        #expect(provider.key(service: "ai.openaicompatible") == nil)
     }
 
     // MARK: - Legacy reader: adoption only, never automatic
@@ -83,23 +83,23 @@ struct SecretStoringTests {
 
     @Test func ghostCLIClientReadsKeyOnceOnSendNeverBeforeOrAfterConstruction() async throws {
         let secretStore = FakeSecretStore()
-        try secretStore.write("sk-fake", name: "ai.ghostcli")
+        try secretStore.write("sk-fake", name: "ai.openaicompatible")
         let keyProvider = KeychainKeyProvider(store: secretStore)
         let transport = FakeHTTPTransport(responseJSON: #"{"choices":[{"message":{"content":"{\"ok\":true}"}}]}"#)
         let client = OpenAICompatibleClient(modelID: "claude-sonnet-5", keyProvider: keyProvider,
-                                     keyService: "ai.ghostcli", transport: transport)
+                                     keyService: "ai.openaicompatible", transport: transport)
         // Constructing the client must not itself read anything.
-        #expect(secretStore.readCount("ai.ghostcli") == 0)
+        #expect(secretStore.readCount("ai.openaicompatible") == 0)
         let request = AIRequest(model: "claude-sonnet-5", messages: [.user("hi")], kind: .triage,
                                  maxTokens: 100, budgetSeconds: 5)
         _ = try await client.send(request)
-        #expect(secretStore.readCount("ai.ghostcli") == 1, "exactly one read for the first request")
+        #expect(secretStore.readCount("ai.openaicompatible") == 1, "exactly one read for the first request")
         _ = try? await client.send(request)
         // OpenAICompatibleClient does not cache internally (each call is a fresh struct-level send);
         // this documents that fact rather than asserting a cache that doesn't exist here —
         // the caching-after-first-read requirement belongs to the launch-path self-test's
         // MCPServer, which owns a token's lifetime across many requests.
-        #expect(secretStore.readCount("ai.ghostcli") == 2)
+        #expect(secretStore.readCount("ai.openaicompatible") == 2)
     }
 
     // MARK: - No real store on the test path

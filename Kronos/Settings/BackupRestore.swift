@@ -79,7 +79,9 @@ enum BackupRestore {
 
     /// Writes a consistent single-file copy of the SQLite store at `source` to `destination`.
     /// Goes through `<destination>.partial` and a rename, so a crash never leaves a half file
-    /// that looks like a backup.
+    /// that looks like a backup. The copy holds full plaintext task titles/notes, so it is
+    /// locked to the person only — 0600 — the same explicit lockdown
+    /// `SingleInstanceLock.acquire` applies to its own lock file.
     static func snapshot(from source: URL, to destination: URL, fileManager fm: FileManager = .default) throws {
         guard fm.fileExists(atPath: source.path) else { throw RestoreError.missingSource }
         let partial = destination.appendingPathExtension("partial")
@@ -107,6 +109,7 @@ enum BackupRestore {
         try? fm.removeItem(atPath: partial.path + "-shm")
         try? fm.removeItem(at: destination)
         try fm.moveItem(at: partial, to: destination)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
     }
 
     // MARK: The swap (runs after the app has quit)

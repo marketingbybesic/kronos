@@ -8,7 +8,15 @@
 // the app (KColorSwatchPicker, KAccentPicker's project swatches) reflects a reorder/replace
 // immediately, not just the Settings tab that edits it.
 import SwiftUI
+// `scripts/a11y-selftest.swift` compiles every Kronos/DesignSystem/*.swift file standalone,
+// without KronosCore (the same reason `KViewOptionsIconButton.swift` is skipped there for its
+// own KPlural -> KronosLocale need) — this file is the one DesignSystem file that otherwise
+// needs Core, for `KronosEnv.defaults` below. `canImport` keeps the real app/Settings/snapshot
+// behaviour identical (KronosEnv.defaults is always available there) and only falls back to
+// `.standard` in that Core-free harness, which never exercises this type's persisted prefs.
+#if canImport(KronosCore)
 import KronosCore
+#endif
 
 /// One palette slot: the base swatch it started as, and an optional custom colour that has
 /// replaced it (nil = still the original swatch).
@@ -26,7 +34,12 @@ enum ProjectPalettePrefs {
     private static let key = "kronos.appearance.paletteOrder"
 
     private static var defaults: UserDefaults {
-        ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil ? .snapshotScratch : KronosEnv.defaults
+        guard ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] == nil else { return .snapshotScratch }
+        #if canImport(KronosCore)
+        return KronosEnv.defaults
+        #else
+        return .standard
+        #endif
     }
 
     /// The 12 base swatches in the user's chosen order, each with its override (if any).

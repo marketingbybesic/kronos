@@ -124,7 +124,7 @@ extension LiveUITest {
             // Hand-written: a child task's menu = a task's menu minus breakdown and project move, plus
             // Make standalone task and Move under. The app passes withLink: "Copy Kronos link" follows Copy; "Avoiding it" (dread) follows Focus.
             let wantTop = ["complete", "focus", "dread", "details", "due", "priority", "status", "effort", "labels",
-                           "standalone", "moveUnder", "copy", "copyLink", "delete"]
+                           "standalone", "moveUnder", "copy", "copyLink", "reviewed", "delete"]
             let wantDue = ["due.today", "due.tomorrow", "due.nextweek", "due.pick", "due.clear"]
             let prio = (CtxNodes.find("priority", in: nodes).flatMap { n -> [String]? in
                 if case .submenu(let kids) = n.kind { return kids.map(\.id) }
@@ -208,7 +208,7 @@ extension LiveUITest {
         if let rowNodes = CtxMenuRegistry.nodes("row.\(parentID.uuidString)") {
             let top = rowNodes.filter { if case .divider = $0.kind { return false } else { return true } }.map(\.id)
             record("task menu items (task row) match the contract",
-                   top == ["complete", "focus", "dread", "breakdown", "details", "due", "priority", "status", "effort", "labels", "move", "copy", "copyLink", "savetemplate", "delete"],
+                   top == ["complete", "focus", "dread", "breakdown", "details", "due", "priority", "status", "effort", "labels", "move", "copy", "copyLink", "savetemplate", "reviewed", "delete"],
                    "top=\(top)")
         } else {
             record("task menu items (task row) match the contract", false, "no menu registered for the parent row")

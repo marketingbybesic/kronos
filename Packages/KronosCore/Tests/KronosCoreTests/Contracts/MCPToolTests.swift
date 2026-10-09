@@ -6,12 +6,12 @@ import Foundation
 /// be unique, and the params structs must decode what the schema advertises.
 struct MCPToolTests {
 
-    @Test func thirtyFourToolsWithUniqueNames() {
-        #expect(MCPTool.allCases.count == 34)
+    @Test func thirtyFiveToolsWithUniqueNames() {
+        #expect(MCPTool.allCases.count == 35)
         let names = MCPTool.allCases.map(\.name)
-        #expect(Set(names).count == 34)
-        // scope-12 alpha set plus list_projects, list_areas, rules_delete, the agent loop, the upnext_* aliases
-        // and the nine full-control tools.
+        #expect(Set(names).count == 35)
+        // scope-12 alpha set plus list_projects, list_areas, rules_delete, the agent loop, the upnext_* aliases,
+        // the nine full-control tools and review_status (finish-round-1 B3).
         #expect(Set(names) == Set([
             "list_tasks", "get_task", "create_task", "update_task",
             "complete_task", "delete_task", "restore_task",
@@ -20,7 +20,7 @@ struct MCPToolTests {
             "list_projects", "list_areas", "rules_delete", "upnext_get", "upnext_set",
             "whoami", "propose_tasks", "propose_update", "comment_task", "events_poll", "events_ack", "next",
             "list_labels", "create_label", "update_label", "create_project", "update_project",
-            "create_area", "update_area", "delete_area", "move_task"
+            "create_area", "update_area", "delete_area", "move_task", "review_status"
         ]))
     }
 

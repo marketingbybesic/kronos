@@ -22,7 +22,10 @@ struct InspectorEmptyState: View {
         } else {
             KEmptyState(icon: "check-square",
                         title: String(localized: "detail.empty.title"),
-                        message: String(localized: "detail.empty.body"))
+                        message: String(localized: "detail.empty.body"),
+                        action: KEmptyState.Action(title: String(localized: "list.new")) {
+                            NotificationCenter.default.post(name: .kronosNewTaskRequested, object: nil)
+                        })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

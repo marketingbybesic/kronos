@@ -46,6 +46,8 @@ struct InspectorAttributesRow: View {
             } leading: {
                 if task.effort != .none { KEffortIndicator(level: task.effort.rawValue, of: 5, label: nil, showLabel: false) }  // unset: just the quiet dash
             }
+            .accessibilityLabel(String(localized: "viewoptions.field.effort"))
+            .accessibilityValue(task.effort.displayName)
         }
     }
 

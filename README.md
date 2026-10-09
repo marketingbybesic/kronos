@@ -75,7 +75,7 @@ Tests for the core library: `cd Packages/KronosCore && swift test`.
 
 ## AI setup (optional)
 
-**Settings > AI**: pick a provider (OpenRouter, GhostCLI, or any OpenAI-compatible endpoint under *Custom*), paste your key, choose a model. Free OpenRouter models are enough for sort and capture. Kronos tries a second model when the first one returns nothing usable, and always shows what happened: *Asking…*, *AI: model*, or *AI failed: reason*, with the plain, non-AI result already on screen.
+**Settings > AI**: pick a provider (OpenRouter, or any OpenAI-compatible endpoint under *Custom*), paste your key, choose a model. Free OpenRouter models are enough for sort and capture. Kronos tries a second model when the first one returns nothing usable, and always shows what happened: *Asking…*, *AI: model*, or *AI failed: reason*, with the plain, non-AI result already on screen.
 
 ## AI agents (MCP)
 
