@@ -86,8 +86,8 @@ struct DesignGalleryControlsSection: View {
                     KTextField("Search", text: $text1, leading: "search").frame(width: 260)
                     KTextField("Task title", text: $text2).frame(width: 260)
                     HStack(spacing: Space.x4) {
-                        KCheckbox(isChecked: checked1) { checked1.toggle() }
-                        KCheckbox(isChecked: checked2) { checked2.toggle() }
+                        StatusCircle(isChecked: checked1) { checked1.toggle() }
+                        StatusCircle(isChecked: checked2) { checked2.toggle() }
                         Text("Mama mia").font(Typo.row).foregroundStyle(Tok.textPrimary)
                     }
                 }
@@ -124,7 +124,7 @@ struct DesignGalleryControlsSection: View {
                     KProjectGlyph(color: Tok.textDisabled, emoji: nil, size: Metrics.iconS)
                 }
                 KChip("High", trailing: .none) {
-                    KPriorityIndicator(level: 3, of: 4, label: "High", size: Metrics.iconS)
+                    PriorityGlyph(level: 3, label: "High", size: Metrics.iconS)
                 }
                 KChip("M", trailing: .none) {
                     KEffortIndicator(level: 3, of: 5, label: nil, showLabel: false)

@@ -32,38 +32,11 @@ struct ListMissingHeader: View {
     private var phase: ListMissingSuggest.Phase { suggest.phase(for: subject) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: Space.x2) {
-                disclosure
-                Spacer(minLength: Space.x2)
-                if ListMissingSuggest.mayAsk(model), !ids.isEmpty { suggestControls }
-            }
-            .padding(.leading, ChildRowGeometry.listRowContentInset + Metrics.listRowLeading)
-            .padding(.trailing, ChildRowGeometry.listRowContentInset + Metrics.listRowTrailing)
-            .frame(minHeight: Metrics.groupHeaderHeight)
-            if phase == .ready { suggestionLines }
-        }
-    }
-
-    private var disclosure: some View {
-        Button {
+        GroupHeader(title: Self.headerText(key, count: total), isCollapsed: !state.isExpanded, onToggle: {
             withAnimation(Motion.curve(Motion.fast)) { state.isExpanded.toggle() }
-        } label: {
-            HStack(spacing: Space.x1) {
-                Icon(state.isExpanded ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
-                    .foregroundStyle(Tok.textTertiary)
-                    .accessibilityHidden(true)
-                Text(Self.headerText(key, count: total))
-                    .font(Typo.metaStrong)
-                    .foregroundStyle(Tok.textSecondary)
-            }
-            .frame(minHeight: Metrics.minHit)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(state.isExpanded ? String(localized: "today.earlier.a11y.open")
-                                             : String(localized: "today.earlier.a11y.closed"))
-        .uiTestAnchor("list.missing.header")
+        }, anchor: "list.missing.header", trailing: {
+            if ListMissingSuggest.mayAsk(model), !ids.isEmpty { suggestControls }
+        })
     }
 
     @ViewBuilder private var suggestControls: some View {
@@ -101,31 +74,6 @@ struct ListMissingHeader: View {
         }
     }
 
-    /// What Fill would write, one line per task: its title and the proposed value.
-    private var suggestionLines: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(suggest.suggestions, id: \.taskID) { s in
-                HStack(spacing: Space.x2) {
-                    Text(model.store.task(s.taskID)?.title ?? "")
-                        .font(Typo.row)
-                        .foregroundStyle(Tok.textSecondary)
-                        .lineLimit(1)
-                    Spacer(minLength: Space.x2)
-                    Text(ListMissingSuggest.text(s.value))
-                        .font(Typo.metaStrong)
-                        .foregroundStyle(Tok.textPrimary)
-                        .lineLimit(1)
-                    Button(String(localized: "list.missing.fill.one")) { suggest.fill([s.taskID], model: model) }
-                        .kButton(.ghost, size: .compact)
-                }
-                .padding(.leading, ChildRowGeometry.listRowContentInset + Metrics.listRowLeading + Space.x4)
-                .padding(.trailing, ChildRowGeometry.listRowContentInset + Metrics.listRowTrailing)
-                .frame(minHeight: Metrics.minHit)
-                .uiTestAnchor("list.missing.line.\(s.taskID.uuidString)")
-            }
-        }
-    }
-
     /// "No deadline (3)": one string per attribute, so each reads naturally in both languages.
     static func headerText(_ key: KSortKey, count: Int) -> String {
         let format: String
@@ -137,5 +85,42 @@ struct ListMissingHeader: View {
         default: return String(format: String(localized: "list.missing.header.generic"), ViewOptionsMapper.sortField(key).name, count)
         }
         return String(format: format, count)
+    }
+}
+
+/// What Fill would write, one line per task: its title and the proposed value — ordinary
+/// (non-sticky) rows under the group, not inside the sticky `GroupHeader` itself.
+struct ListMissingSuggestionLines: View {
+    @Bindable var model: AppModel
+    let key: KSortKey
+    let scope: ListScope
+    @Bindable private var suggest = ListMissingSuggest.shared
+
+    private var subject: String { ListMissingSuggest.subjectKey(scope: scope, key: key) }
+
+    var body: some View {
+        if suggest.phase(for: subject) == .ready {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(suggest.suggestions, id: \.taskID) { sugg in
+                    HStack(spacing: Space.x2) {
+                        Text(model.store.task(sugg.taskID)?.title ?? "")
+                            .font(Typo.row)
+                            .foregroundStyle(Tok.textSecondary)
+                            .lineLimit(1)
+                        Spacer(minLength: Space.x2)
+                        Text(ListMissingSuggest.text(sugg.value))
+                            .font(Typo.metaStrong)
+                            .foregroundStyle(Tok.textPrimary)
+                            .lineLimit(1)
+                        Button(String(localized: "list.missing.fill.one")) { suggest.fill([sugg.taskID], model: model) }
+                            .kButton(.ghost, size: .compact)
+                    }
+                    .padding(.leading, ChildRowGeometry.listRowContentInset + Metrics.listRowLeading + Space.x4)
+                    .padding(.trailing, ChildRowGeometry.listRowContentInset + Metrics.listRowTrailing)
+                    .frame(minHeight: Metrics.minHit)
+                    .uiTestAnchor("list.missing.line.\(sugg.taskID.uuidString)")
+                }
+            }
+        }
     }
 }

@@ -116,7 +116,7 @@ public enum KSortMode: Int, Codable, CaseIterable, Sendable {
 }
 
 public enum KGroupBy: Int, Codable, CaseIterable, Sendable {
-    case none = 0, status = 1, project = 2, priority = 3
+    case none = 0, status = 1, project = 2, priority = 3, due = 4
 }
 
 // MARK: - Day (data-6)

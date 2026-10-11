@@ -11,7 +11,7 @@ struct TaskListScreen: View {
     /// Snapshot-only; see CoachBanner.swift. Always nil on the real screen.
     var previewBlockSuggestion: BlockSuggestion?? = nil
     @State private var showPopover = false
-    @Environment(\.kAccent) private var accent
+    @Environment(\.kAccent) var accent   // not private: ListGroupedSections.swift (group leading colour)
     // Not `private`: TaskListScreen+Parts.swift's extension (the Now card) reads/writes it.
     // One global key (not per scope): a user who folds the card wants it folded everywhere.
     @State var isNowCardCollapsed = UserDefaults.standard.bool(forKey: "kronos.nowcard.collapsed")
@@ -25,6 +25,15 @@ struct TaskListScreen: View {
     @State private var lastTodayRows: Int?
     /// The moving end of a ⇧↑/⇧↓ range (the anchor is `model.selectedTaskID`); nil after a plain move.
     @State var rangeCursor: UUID?   // not private: TaskListScreen+Keys.swift
+    /// True once this screen has resolved its first fetch (data arrived, or the 250 ms grace
+    /// window passed) — gates the pane-level loading shimmer (`KShimmerRows`) so it only ever
+    /// shows during that window, never flashing on a later, genuinely-empty view. SwiftData's
+    /// fetch here is synchronous (no real async loading signal to hook into), so this is a
+    /// pragmatic `Task.sleep(250ms)` + still-empty check (spec §4.7/§11), scoped to this
+    /// screen's very first appearance only — re-arming it on every scope switch would add a
+    /// visible delay to every switch into an empty view, unlike the sidebar's own "only at
+    /// first launch" framing (§3.2).
+    @State private var hasResolvedFirstLoad = false
 
     /// Calm mode was removed in rev18; this stays false so the header count always shows.
     private var isCalm: Bool { false }
@@ -88,6 +97,7 @@ struct TaskListScreen: View {
             // control in the tree, which was the view-options icon button — showing a focus
             // ring at rest with nothing focused on purpose.
             listFocused = true
+            beginFirstLoadGrace()
         }
         .onChange(of: model.version) { _, _ in
             let ctx = context
@@ -116,6 +126,15 @@ struct TaskListScreen: View {
             listFocused = true
         }
         .onAppear { GlobalTaskHotkeys.start(model: model) }
+    }
+
+    /// Starts the 250 ms "still loading" grace window once, on this screen's first appearance.
+    private func beginFirstLoadGrace() {
+        guard !hasResolvedFirstLoad else { return }
+        Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            hasResolvedFirstLoad = true
+        }
     }
 
     // MARK: - Header
@@ -234,7 +253,10 @@ struct TaskListScreen: View {
                 ListInlineNewTaskRow(model: model, scope: model.scope)
                     .padding(.horizontal, Space.x3)
                     .padding(.vertical, Space.x2)
-                if model.scope == .today {
+                if !hasResolvedFirstLoad {
+                    KShimmerRows()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                } else if model.scope == .today {
                     TodayClearState(model: model)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -261,29 +283,14 @@ struct TaskListScreen: View {
                 let columnMode = ColumnMode.fitting(available: trailingBudget)
 
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: Space.x1) {
+                    LazyVStack(alignment: .leading, spacing: Space.x1, pinnedViews: [.sectionHeaders]) {
                         ListInlineNewTaskRow(model: model, scope: model.scope)
                             .tourAnchor(.newTask)
-                        ForEach(ctx.currentRows, id: \.id) { task in
-                            row(task, ctx, columnMode)
-                        }
-                        // Sorted by an attribute some tasks lack: they end the list under their own header.
-                        if let key = ctx.missingKey, !ctx.missing.isEmpty {
-                            ListMissingHeader(model: model, key: key,
-                                              ids: ctx.missing.filter { KStatus.open.contains($0.status) }.map(\.id),
-                                              scope: model.scope, total: ctx.missing.count)
-                                .padding(.top, Space.x2)
-                            ForEach(ctx.openMissingRows, id: \.id) { task in
-                                row(task, ctx, columnMode)
-                            }
-                        }
-                        if !ctx.earlier.isEmpty {
-                            ListEarlierHeader(model: model, ids: ctx.earlier.map(\.id))
-                                .padding(.top, Space.x2)
-                            ForEach(ctx.openEarlierRows, id: \.id) { task in
-                                row(task, ctx, columnMode)
-                            }
-                        }
+                        mainRows(ctx, columnMode)
+                        // Sorted by an attribute some tasks lack: they end the list under their
+                        // own sticky header (GroupHeader; spec §4.6).
+                        missingGroupSection(ctx, columnMode)
+                        earlierGroupSection(ctx, columnMode)
                         if ctx.totalCount == 0 {
                             KEmptyState(icon: "search", title: noMatchesTitle)
                                 .frame(maxWidth: .infinity)
@@ -311,11 +318,18 @@ struct TaskListScreen: View {
             .overlay { bulkBarOverlay.accessibilitySortPriority(-1) }
             .listKeyLegend { listFocused && !Self.isTyping && !model.isAnyOverlayOpen }   // hold ⌥ (ListKeyLegend.swift)
             .onReceive(NotificationCenter.default.publisher(for: HotkeyRegistry.changed).receive(on: DispatchQueue.main)) { _ in hotkeyRevision += 1 }
-            // Registry ids, Kronos/Hotkeys/HotkeyRegistry.swift scope .list. ⇧↑/⇧↓ extend the range.
+            // Registry ids, Kronos/Hotkeys/HotkeyRegistry.swift scope .list. ⇧↑/⇧↓ extend the
+            // range, ⌥↑/⌥↓ reorders the focused row in the manual order (list.reorder.up/down).
             .onKeyPress(keys: [.upArrow, .downArrow]) { press in
                 guard !Self.isTyping else { return .ignored }
                 let delta = press.key == .upArrow ? -1 : 1
-                if press.modifiers.contains(.shift) { extendSelection(delta, ctx) } else { moveSelection(delta, ctx) }
+                if press.modifiers.contains(.option) {
+                    reorderSelected(delta, ctx)
+                } else if press.modifiers.contains(.shift) {
+                    extendSelection(delta, ctx)
+                } else {
+                    moveSelection(delta, ctx)
+                }
                 return .handled
             }
             .onKeyPress(.space) { guard !Self.isTyping else { return .ignored }; toggleSelected(ctx); return .handled }
@@ -341,7 +355,39 @@ struct TaskListScreen: View {
         }
     }
 
-    private func row(_ task: KTask, _ ctx: ListContext, _ columnMode: ColumnMode) -> some View {
+    @ViewBuilder
+    private func missingGroupSection(_ ctx: ListContext, _ columnMode: ColumnMode) -> some View {
+        if let key = ctx.missingKey, !ctx.missing.isEmpty {
+            Section {
+                ListMissingSuggestionLines(model: model, key: key, scope: model.scope)
+                ForEach(ctx.openMissingRows, id: \.id) { task in
+                    row(task, ctx, columnMode)
+                }
+            } header: {
+                ListMissingHeader(model: model, key: key,
+                                  ids: ctx.missing.filter { KStatus.open.contains($0.status) }.map(\.id),
+                                  scope: model.scope, total: ctx.missing.count)
+                    .padding(.top, Space.x2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func earlierGroupSection(_ ctx: ListContext, _ columnMode: ColumnMode) -> some View {
+        if !ctx.earlier.isEmpty {
+            Section {
+                ForEach(ctx.openEarlierRows, id: \.id) { task in
+                    row(task, ctx, columnMode)
+                }
+            } header: {
+                ListEarlierHeader(model: model, ids: ctx.earlier.map(\.id))
+                    .padding(.top, Space.x2)
+            }
+        }
+    }
+
+    // Not `private`: ListGroupedSections.swift's extension (grouped rendering) calls it too.
+    func row(_ task: KTask, _ ctx: ListContext, _ columnMode: ColumnMode) -> some View {
         ListRowView(model: model, task: task, ctx: ctx,
                     isSelected: isRowSelected(task.id),
                     showProjectGlyph: showsProjectGlyph,

@@ -36,6 +36,9 @@ public extension View {
 
     /// Popover / menu content entrance: scale 0.98 -> 1 with a fade, from the anchor edge.
     /// Reduce Motion collapses it to an instant appearance (Motion.popover does that).
+    /// Deliberately not wired to the app's `.popover` call sites yet: a first wiring pass
+    /// (apple-design-audit) coincided with full ui-test instability on a busy desktop and was
+    /// retracted pending a quiet-machine validation run. Gallery demos remain the only users.
     func kPopoverEntrance(anchor: UnitPoint = .top) -> some View {
         modifier(KPopoverEntrance(anchor: anchor))
     }

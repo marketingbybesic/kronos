@@ -13,6 +13,10 @@ enum AIWiring {
     private(set) static var rebuildCount = 0
     private static var lastSignature: RouterConfigSignature?
     private static var defaultsObserver: NSObjectProtocol?
+    /// Posts the "Daily AI budget reached" toast — `AIRouter.eligibleCandidates` posts
+    /// `.kronosAIPaidBudgetReached` at most once/day (`DailyAIBudget.shouldShowCeilingToast`),
+    /// this just relays it onto `UndoToastCenter`, the app's one existing non-blocking-notice surface.
+    private static var paidBudgetObserver: NSObjectProtocol?
 
     /// The model tried after the chosen one, WITHIN THE SAME PROVIDER (INTEGRATION.md:
     /// sonnet -> astra -> deterministic). The fallback id is provider-specific because a
@@ -116,6 +120,10 @@ enum AIWiring {
                                                                   object: KronosEnv.defaults, queue: .main) { _ in
             MainActor.assumeIsolated { refresh(model) }
         }
+        paidBudgetObserver = NotificationCenter.default.addObserver(forName: .kronosAIPaidBudgetReached,
+                                                                     object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { UndoToastCenter.shared.show(String(localized: "ai.budget.toast")) }
+        }
         trackStore(model)
     }
 
@@ -124,6 +132,8 @@ enum AIWiring {
         observing = false
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
         defaultsObserver = nil
+        if let paidBudgetObserver { NotificationCenter.default.removeObserver(paidBudgetObserver) }
+        paidBudgetObserver = nil
     }
 
     private static var observing = false

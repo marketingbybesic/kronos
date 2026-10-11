@@ -60,6 +60,7 @@ extension LiveUITest {
         await csManualSetup(breakMode: breakMode)
         await csEmptyRules(model, breakMode: breakMode)
         await csLastPane(breakMode: breakMode)
+        await csCompletionAnimation(breakMode: breakMode)
         win.orderOut(nil)
 
         await csKeyboard(breakMode: breakMode)
@@ -301,6 +302,60 @@ extension LiveUITest {
         record("the Advanced header works from the keyboard: Space opens it, Return closes it, Space opens it again",
                opened && closed && reopened,
                "reachedByTab=\(reachedByTab) focusedByClick=\(viaClickFocus) opened=\(opened) closed=\(closed) reopened=\(reopened)")
+    }
+
+    // MARK: 8. Completion animation gating
+
+    /// `SoundSettingsPrefs.completionAnimationActive` (the one flag StatusCircle's check draw-in
+    /// and ripple read, the internal notes §8.3) is the pref ANDed with Reduce Motion, which
+    /// always wins regardless of the pref. `KRONOS_REDUCE_MOTION` is the same live override
+    /// DesignGallerySelfTest.swift drives `Motion.reduceMotion` with, without touching the real
+    /// system setting.
+    private static func csCompletionAnimation(breakMode: Bool) async {
+        let priorPref = SoundSettingsPrefs.completionAnimationEnabled
+        defer { SoundSettingsPrefs.completionAnimationEnabled = priorPref }
+
+        let key = "KRONOS_REDUCE_MOTION"
+        let previousEnv = ProcessInfo.processInfo.environment[key]
+        defer { if let previousEnv { setenv(key, previousEnv, 1) } else { unsetenv(key) } }
+
+        unsetenv(key)
+        // The env override can only FORCE the reduced path — it cannot un-reduce a machine
+        // whose SYSTEM Reduce Motion is on (NSWorkspace). So assert the formula against the
+        // real ambient value instead of assuming it is off: pref off is always inactive, and
+        // pref on equals NOT(system Reduce Motion) exactly.
+        let systemRM = Motion.reduceMotion
+        SoundSettingsPrefs.completionAnimationEnabled = true
+        let activeWithoutRM = SoundSettingsPrefs.completionAnimationActive
+        SoundSettingsPrefs.completionAnimationEnabled = false
+        let inactiveByPrefAlone = SoundSettingsPrefs.completionAnimationActive
+        record("completionAnimationActive == pref && !reduceMotion (pref on then off, ambient RM honored)",
+               activeWithoutRM == !systemRM && !inactiveByPrefAlone,
+               "systemRM=\(systemRM) active=\(activeWithoutRM) inactive=\(inactiveByPrefAlone)")
+
+        setenv(key, "1", 1)
+        SoundSettingsPrefs.completionAnimationEnabled = true
+        let activeUnderRM = SoundSettingsPrefs.completionAnimationActive
+        SoundSettingsPrefs.completionAnimationEnabled = false
+        let alsoInactiveUnderRM = SoundSettingsPrefs.completionAnimationActive
+        unsetenv(key)
+        // Break: claim Reduce Motion does not override an ON pref.
+        record("Reduce Motion forces completionAnimationActive false no matter the pref",
+               breakMode ? activeUnderRM : (!activeUnderRM && !alsoInactiveUnderRM),
+               "underRM(prefOn)=\(activeUnderRM) underRM(prefOff)=\(alsoInactiveUnderRM)")
+
+        // The Settings row: reachable under General > Advanced (csDisclosure above already proves
+        // the disclosure itself opens/closes; this proves the specific row inside it).
+        _ = await click("settings.rail.general")
+        let header = "settings.disclosure.advanced.general"
+        _ = await waitUntil(timeout: 4) { UITestAnchors.frames[header] != nil }
+        if UITestAnchors.frames["settings.general.animation"] == nil {
+            _ = await click(header)
+            _ = await waitUntil(timeout: 3) { UITestAnchors.frames["settings.general.animation"] != nil }
+        }
+        let shown = UITestAnchors.frames["settings.general.animation"] != nil
+        record("General > Advanced carries the completion-animation row",
+               breakMode ? !shown : shown, "")
     }
 }
 #endif

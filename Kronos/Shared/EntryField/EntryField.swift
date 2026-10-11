@@ -207,7 +207,7 @@ struct EntryPillsRow: View {
         case .label:
             Icon("tag", size: Metrics.iconS).foregroundStyle(Tok.textTertiary)
         case .priority(let p):
-            KPriorityIndicator(level: p.rawValue, label: EntryFormat.priorityName(p), size: Metrics.iconS)
+            PriorityGlyph(level: p.rawValue, label: EntryFormat.priorityName(p), size: Metrics.iconS)
         case .effort(let e):
             KEffortIndicator(level: e.rawValue, of: KEffort.allCases.count - 1, label: nil, showLabel: false)
         case .due:
@@ -284,7 +284,7 @@ struct EntrySuggestionList: View {
         case .label(let n):
             Icon(s.isCreate ? "plus" : "tag", size: Metrics.iconS).foregroundStyle(Tok.textTertiary).help(n)
         case .priority(let p):
-            KPriorityIndicator(level: p.rawValue, label: EntryFormat.priorityName(p), size: Metrics.iconS)
+            PriorityGlyph(level: p.rawValue, label: EntryFormat.priorityName(p), size: Metrics.iconS)
         case .effort(let e):
             KEffortIndicator(level: e.rawValue, of: KEffort.allCases.count - 1, label: nil, showLabel: false)
         case .due:

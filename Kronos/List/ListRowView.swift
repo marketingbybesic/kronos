@@ -92,6 +92,7 @@ struct ListRowView: View {
     @FocusState private var focusedSubID: UUID?   // the step row that has keyboard focus (Cmd-[ acts on it)
     @State private var showDeadlinePopover = false
     @State private var showProjectPicker = false   // key P
+    @State private var showStatusPopover = false   // StatusCircle's ⌥-click / right-click
     @State private var isHovering = false
     @State var isEditingTitle = false   // Title edit; not private — ListRowTitleEdit.swift needs it.
     @State var editedTitle = ""
@@ -135,11 +136,14 @@ struct ListRowView: View {
     }
 
     private var row: some View {
-        KListRow(isSelected: isSelected, isDone: task.status == .done, isChecked: task.status == .done,
+        KListRow(isSelected: isSelected, isMultiSelected: isRowMultiSelected,
+                  isDone: task.status == .done, isChecked: task.status == .done,
+                  status: KTaskStatus(task.status),
                   accessibilityLabel: accessibilityLabel, accessibilityValue: accessibilityValue,
                   selectionTint: SelectionHue.forTask(task, neutral: chromaMode.isNeutralSelection).color(accent: accent),
                   onToggle: { ListCompletion.toggle(task, store: model.store, model: model) },
-                  onSelect: onSelect) {
+                  onSelect: onSelect,
+                  onOpenPopover: { showStatusPopover = true }) {
             HStack(spacing: Space.x1) {
                 // Fixed left gutter: the chevron (or nothing) always takes the same width, so titles
                 // align whether or not a row has subtasks.
@@ -176,13 +180,26 @@ struct ListRowView: View {
         }
         // Dragging works in every sort mode (nest and move-under do not depend on the order); the list's
         // one AppKit drop destination (DropOverlayView) decides what a drop means, see DropZoneController.
-        .onDrag { DragOut.provider(task: task) }
+        // Lift treatment lives in the preview closure (DragLiftPreview.swift, spec §8.2); a badge
+        // appears when this row is part of a ≥2-row selection.
+        .onDrag {
+            DragOut.provider(task: task)
+        } preview: {
+            DragLiftPreview(title: task.title,
+                             selectionCount: model.selectedIDs.contains(task.id) ? model.selectedIDs.count : 1)
+        }
         .reportsDropRow(id: task.id)
         .contentShape(Rectangle())   // whole row answers a right click, selected or not
         .kTaskContextMenu(task, model: model, onSelect: onSelect, pickDue: { showDeadlinePopover = true })
         .followsExpandAll($subtasksExpanded, hasSubtasks: !task.orderedChildren.isEmpty)
         .onHover { isHovering = $0 }
         .animation(Motion.curve(Motion.fast), value: isHovering)
+        .popover(isPresented: $showStatusPopover) {
+            StatusPopover(current: task.status) { picked in
+                showStatusPopover = false
+                StatusPick.apply(picked, to: task, model: model)
+            }
+        }
     }
 
     /// A lock after the title while the task still waits on open tasks; the tooltip names the one
@@ -269,7 +286,7 @@ struct ListRowView: View {
             Color.clear.frame(width: SlotWidth.subtasks, height: 1)
             if !task.orderedChildren.isEmpty {
                 let progress = task.subtaskProgress
-                KBadge("\(progress.done)/\(progress.total)")
+                KSubtaskProgress(done: progress.done, total: progress.total)
             }
         }
     }
@@ -284,7 +301,7 @@ struct ListRowView: View {
     }
 
     /// Priority shows its bars glyph ONLY — the word "High"/"Medium" moves to the tooltip and
-    /// `KPriorityIndicator`'s own accessibilityLabel/Value, since a
+    /// `PriorityGlyph`'s own accessibilityLabel/Value, since a
     /// visible name on every row was the noise the toolbar rebuild was meant to remove.
     /// `KAttributeMenu` always shows its `title` as visible menu-button text, so this menu
     /// is built directly rather than through it — two things went wrong before this landed:
@@ -313,7 +330,7 @@ struct ListRowView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .overlay {
-            KPriorityIndicator(level: task.priority.rawValue, of: 4, label: ViewOptionsMapper.priorityName(task.priority), size: 14)
+            PriorityGlyph(level: task.priority.rawValue, label: ViewOptionsMapper.priorityName(task.priority), size: 14)
                 .allowsHitTesting(false)
         }
         .frame(width: SlotWidth.priority, alignment: .trailing)
@@ -442,6 +459,12 @@ struct ListRowView: View {
                         leadingInset: ChildRowGeometry.entryInset, glyphColumn: ChildRowGeometry.checkboxColumn)
     }
 
+    /// True when this row is part of a ≥2-row selection (not just the single-row anchor) —
+    /// drives `KListRow`'s check-square gutter glyph, spec §4.7/§8.1.
+    private var isRowMultiSelected: Bool {
+        model.selectedIDs.count > 1 && model.selectedIDs.contains(task.id)
+    }
+
     /// "<title>, <project>, due <date>, <state>" (RowAccessibility.swift).
     private var accessibilityLabel: String {
         var due: String?
@@ -462,6 +485,7 @@ struct ListRowView: View {
             overdue ? String(localized: "a11y.row.overdue") : nil,
             task.isDueDrivenBySubtask ? String(localized: "a11y.row.due.viasubtask") : nil,
             progress.total > 0 ? String(format: String(localized: "a11y.row.subtasks.n_of_m"), progress.done, progress.total) : nil,
+            isRowMultiSelected ? String(localized: "a11y.row.selected") : nil,
         ])
     }
 }

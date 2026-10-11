@@ -56,7 +56,7 @@ public struct KAttributeMenu<Option: Identifiable & Hashable>: View {
     private var leadingGlyph: some View {
         switch kind {
         case .priority:
-            KPriorityIndicator(level: level(selected), of: steps, label: title(selected), size: 14)
+            PriorityGlyph(level: level(selected), label: title(selected), size: 14)
         case .effort:
             KEffortIndicator(level: level(selected), of: steps, label: nil, showLabel: false)
         case .none:

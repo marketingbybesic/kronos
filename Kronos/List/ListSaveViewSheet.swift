@@ -53,7 +53,13 @@ struct ListSaveViewSheet: View {
         .padding(Space.x4)
         .frame(width: 320)
         .background(Tok.overlay)
-        .onAppear { isFocused = true }
+        // Focus the name field the moment the popover can take it. A same-tick `onAppear`
+        // request is dropped: the popover window is not key yet when the content appears, so
+        // the FocusState -> firstResponder bridge had nothing to attach to and the user had to
+        // click into the field first. `defaultFocus` re-applies when the window becomes key;
+        // the deferred onAppear covers re-presentation of an already-built popover.
+        .defaultFocus($isFocused, true)
+        .onAppear { DispatchQueue.main.async { isFocused = true } }
     }
 
     private func save() {

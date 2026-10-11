@@ -23,6 +23,7 @@ extension LiveUITest {
         await runStep(model, scope: .all) { await cListProject($0) }
         await runStep(model, scope: .all) { await cListCompleteCurrent($0) }
         await runStep(model, scope: .all) { await cListEmptyAndHints($0) }
+        await runStep(model, scope: .all) { await cListMultiSelectGlyph($0) }
     }
 
     private static var cBreak: Bool { ProcessInfo.processInfo.environment["KRONOS_UITEST_BREAK"] != nil }
@@ -400,6 +401,38 @@ extension LiveUITest {
         let promoteChord = (HotkeyRegistry.current(for: "window.unnest")?.displayKeys ?? []).joined()
         record("the nest and promote drag hints name the key that does the same", !chord.isEmpty && nest.contains(chord)
                && promote.contains(promoteChord) && !nest.contains("%"), "nest=\(nest) promote=\(promote)")
+    }
+
+    // MARK: Multi-select check-square glyph
+
+    /// At 2+ selected, `KListRow`'s leading-gutter check-square glyph and the row's VoiceOver
+    /// value suffix ("a11y.row.selected") both key off the SAME boolean
+    /// (`ListRowView.isRowMultiSelected`: `model.selectedIDs.count > 1 && selectedIDs.contains(id)`,
+    /// ListRowView.swift) — asserted directly against that expression here. The glyph itself is
+    /// `.accessibilityHidden(true)` and carries no test anchor of its own, and in-process AX reads
+    /// are unreliable for SwiftUI (KAXDump.swift's own doc comment: measured to stall, both on a
+    /// background thread and with the main loop pumped), so the row's own rendered frame plus this
+    /// shared boolean is the full proof the house harness can offer without a dedicated glyph anchor.
+    private static func cListMultiSelectGlyph(_ model: AppModel) async {
+        let p = await cProbes(model, ["Clist probe glyph a", "Clist probe glyph b", "Clist probe glyph c"])
+        let sel = await cSelect(model, p[0])
+        let down = String(UnicodeScalar(0xF701)!)
+        key(down, modifiers: [.shift, .numericPad, .function], keyCode: 125)
+        let twoSelected = await waitUntil(timeout: 2) { model.selectedIDs.count == 2 }
+        await settle(200)
+        let selectedTwo = model.selectedIDs == Set(p[0...1].map(\.id))
+        func marked(_ id: UUID) -> Bool { model.selectedIDs.count > 1 && model.selectedIDs.contains(id) }
+        let rowsRendered = p.allSatisfy { UITestAnchors.frames["row." + $0.title] != nil }
+        record("2+ selected rows: both selected rows carry the multi-select marker condition, the third does not",
+               sel && twoSelected && selectedTwo && rowsRendered && marked(p[0].id) && marked(p[1].id) && !marked(p[2].id),
+               "selected=\(model.selectedIDs.count) rowsRendered=\(rowsRendered)")
+
+        // Deselect to 1: the marker condition goes false, including for the row that stays selected.
+        model.selectedIDs = [p[0].id]
+        await settle(150)
+        record("deselecting down to one row: the marker condition is false again (count drops below 2)",
+               !marked(p[0].id) && !marked(p[1].id), "selected=\(model.selectedIDs.count)")
+        model.selectedIDs = []
     }
 }
 #endif

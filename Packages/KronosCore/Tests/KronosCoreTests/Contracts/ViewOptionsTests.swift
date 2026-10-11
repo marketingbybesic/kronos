@@ -196,4 +196,59 @@ struct ViewOptionsTests {
         let previous = KSortDescriptor.default
         #expect(ViewOptions.resolveSort(previous: previous, proposed: []) == previous)
     }
+
+    // MARK: - Group by (spec §4.5-4.6)
+
+    @Test("groupBy defaults to none, round-trips through the per-scope persistence blob, and clear all keeps it")
+    func groupByDefaultAndRoundTrip() throws {
+        #expect(ViewOptions.default.groupBy == .none)
+        #expect(ViewOptions().groupBy == .none)
+        #expect(ViewOptions(sort: [.desc(.priority)], groupBy: .due).cleared().groupBy == .due)
+
+        let map: [String: ViewOptions] = [
+            "project.A": ViewOptions(groupBy: .status),
+            "inbox": ViewOptions(sort: [.desc(.priority)], groupBy: .due),
+        ]
+        let data = try JSONEncoder().encode(map)
+        let back = try JSONDecoder().decode([String: ViewOptions].self, from: data)
+        #expect(back == map)
+        #expect(back["project.A"]?.groupBy == .status)
+        #expect(back["inbox"]?.groupBy == .due)
+    }
+
+    @Test("a per-scope blob persisted before groupBy existed still decodes: sort and filter intact, groupBy none")
+    func groupByBackwardCompatibleDecode() throws {
+        // The exact shape ViewOptions wrote before this field existed: no "groupBy" key at all.
+        // A throw here (the old behaviour of a synthesized decoder meeting an unknown-shaped
+        // key set) would lose every list's sort and filter, not just leave grouping off.
+        let legacy = """
+        {"inbox": {"sort": [{"key": "priority", "ascending": false}], \
+        "filter": {"v": 1, "text": "invoice"}, "showCompleted": true}}
+        """
+        let back = try JSONDecoder().decode([String: ViewOptions].self, from: Data(legacy.utf8))
+        // KGroupBy.none spelled out: with an optional left side, a bare `.none` infers
+        // Optional.none (nil), and `some(.none) == nil` is false — the one spelling that bites.
+        #expect(back["inbox"]?.groupBy == KGroupBy.none)
+        #expect(back["inbox"]?.sort == [.desc(.priority)])
+        #expect(back["inbox"]?.filter.text == "invoice")
+        #expect(back["inbox"]?.showCompleted == true)
+    }
+
+    @Test("a corrupt groupBy raw value (no matching case) decodes to .none; sort and filter are untouched")
+    func groupByCorruptRawValueDecode() throws {
+        // 99 has never been a KGroupBy case: the old `decodeIfPresent(KGroupBy.self, ...)` let the
+        // synthesized RawRepresentable decoder throw here, which — same blob-wide blast radius as
+        // the legacy-shape test above — reset every list's sort and filter too, not just grouping.
+        let corrupt = """
+        {"inbox": {"sort": [{"key": "priority", "ascending": false}], \
+        "filter": {"v": 1, "text": "invoice"}, "showCompleted": true, "groupBy": 99}}
+        """
+        let back = try JSONDecoder().decode([String: ViewOptions].self, from: Data(corrupt.utf8))
+        // KGroupBy.none spelled out: see the comment on the legacy-shape test above — the same
+        // Optional-vs-KGroupBy.none trap applies here.
+        #expect(back["inbox"]?.groupBy == KGroupBy.none)
+        #expect(back["inbox"]?.sort == [.desc(.priority)])
+        #expect(back["inbox"]?.filter.text == "invoice")
+        #expect(back["inbox"]?.showCompleted == true)
+    }
 }

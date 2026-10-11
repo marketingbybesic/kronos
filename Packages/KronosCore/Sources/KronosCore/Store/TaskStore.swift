@@ -122,6 +122,12 @@ public final class TaskStore: TaskStoring {
     /// True while a machine write (MCP, import, night sweep) runs through `withoutUndo`:
     /// those must not announce a completion (no sound when Claude ticks a task).
     var isMachineWrite = false
+    /// True while a bulk action (ListBulk's complete-loop) runs several `complete(_:)` calls
+    /// as one batch: each call still mutates and spawns recurrence as normal, only its own
+    /// completion notification is skipped, so the caller can play exactly one chime for the
+    /// whole batch instead of one per task. Distinct from `isMachineWrite` — this is still the
+    /// person's own undoable write, only the sound differs.
+    var isCompletionSoundSuppressed = false
     var groupDepth = 0
 
     /// The error of the last failed save; nil again after the next successful one.

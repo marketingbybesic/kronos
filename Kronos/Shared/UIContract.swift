@@ -271,12 +271,13 @@ final class AppModel {
     // MARK: Per-scope view options
 
     /// What the list of `scope` shows: the options set on it, else the open saved view's own sort,
-    /// filter and display switch (so editing a saved view's options changes the list it shows), else
-    /// the defaults.
+    /// filter, display switch and grouping (so editing a saved view's options changes the list it
+    /// shows), else the defaults.
     func options(for scope: ListScope) -> ViewOptions {
         if let own = optionsByScope[scope.storageKey] { return own }
         if case .savedView(let id) = scope, let view = store.allSavedViews().first(where: { $0.id == id }) {
-            return ViewOptions(sort: view.sortDescriptors, filter: view.filter, showCompleted: view.showDone)
+            return ViewOptions(sort: view.sortDescriptors, filter: view.filter,
+                               showCompleted: view.showDone, groupBy: view.groupBy)
         }
         return .default
     }

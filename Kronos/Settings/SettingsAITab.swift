@@ -95,6 +95,25 @@ struct SettingsAITab: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer()
                     }
+                    // Spec ai-layer.md §3.4: today's metered-call count and a 30-day
+                    // estimate, shown only for the metered (Anthropic/claudeCode) provider —
+                    // every other provider here is unmetered, so a "paid calls" line would
+                    // be meaningless noise on it.
+                    SettingsHelpRow {
+                        VStack(alignment: .leading, spacing: Space.x1) {
+                            Text(String(format: String(localized: "settings.ai.budget.today"),
+                                       controller.paidCallsToday, controller.paidCallsCeiling))
+                                .font(Typo.meta)
+                                .foregroundStyle(Tok.textTertiary)
+                                .uiTestAnchor("settings.ai.budget.today")
+                            Text(String(format: String(localized: "settings.ai.budget.estimate"),
+                                       controller.paidCalls30DayEstimate))
+                                .font(Typo.meta)
+                                .foregroundStyle(Tok.textTertiary)
+                                .uiTestAnchor("settings.ai.budget.estimate")
+                        }
+                        Spacer()
+                    }
                 }
 
                 if controller.provider.usesSubprocess {
@@ -184,6 +203,7 @@ struct SettingsAITab: View {
             if !controller.provider.models.isEmpty && !controller.provider.models.contains(controller.modelID) {
                 isEditingCustomModel = true
             }
+            controller.refreshPaidCallBudget()
         }
     }
 

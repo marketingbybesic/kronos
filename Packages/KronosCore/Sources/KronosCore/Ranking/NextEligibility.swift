@@ -81,9 +81,12 @@ public enum NextFallback {
         // "today" staleness on this cold-launch/no-list-mounted fallback path specifically
         // (never the live list, which always re-derives its own head), the same ballpark
         // MenuBarQuiet's own minute tick already accepts for the bar's other quiet-line data.
-        let key = ObjectIdentifier(store)
+        // The cache key is a weak reference, not an ObjectIdentifier: a deallocated store's
+        // heap address can be reused by the next allocation (seen as a cross-test stale hit,
+        // where a fresh store inherited the previous store's cached head within the 0.5 s
+        // window), and a dead weak reference can never compare === to a live store.
         let now = Date()
-        if let c = cache, c.key == key, c.today == today, c.limit == limit, now.timeIntervalSince(c.at) < cacheWindow {
+        if let c = cache, c.store === store, c.today == today, c.limit == limit, now.timeIntervalSince(c.at) < cacheWindow {
             return c.result
         }
         // `isToday` reads `effectiveDue`, which reads `children` (a to-many relationship) for
@@ -99,11 +102,11 @@ public enum NextFallback {
         let members = all.filter { isToday($0, today: today) }
         let sorted = KTaskSorter.sorted(members, by: KSortDescriptor.default)
         let result = Array(sorted.lazy.filter { NextEligibility.isEligible($0, lookup: all) }.prefix(limit).map(\.id))
-        cache = Cache(key: key, today: today, limit: limit, at: now, result: result)
+        cache = Cache(store: store, today: today, limit: limit, at: now, result: result)
         return result
     }
 
-    private struct Cache { let key: ObjectIdentifier; let today: Int; let limit: Int; let at: Date; let result: [UUID] }
+    private struct Cache { weak var store: TaskStore?; let today: Int; let limit: Int; let at: Date; let result: [UUID] }
     @MainActor private static var cache: Cache?
     private static let cacheWindow: TimeInterval = 0.5
 

@@ -185,6 +185,16 @@ private struct KronosCommands: Commands {
             }
             .hotkey("window.reviewnext")
 
+            Button(String(localized: "hotkey.list.sendtoupnext")) {
+                UpNextActions.send(top: false, model: model)
+            }
+            .hotkey("list.sendtoupnext")
+
+            Button(String(localized: "hotkey.list.sendtoupnexttop")) {
+                UpNextActions.send(top: true, model: model)
+            }
+            .hotkey("list.sendtoupnexttop")
+
             Button(String(localized: "menu.task.capture")) {
                 model.isCaptureOpen = true
             }

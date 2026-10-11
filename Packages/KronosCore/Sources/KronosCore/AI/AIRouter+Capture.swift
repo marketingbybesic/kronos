@@ -66,6 +66,7 @@ extension AIRouter {
             let request = AIRequest(model: candidate.client.modelID, messages: [.system(system), .user(user)],
                                     kind: .extract, maxTokens: AIBudget.maxTokens(for: .extract),
                                     budgetSeconds: AIBudget.seconds(for: .extract))
+            if AIRouter.isMeteredClient(candidate.client) { DailyAIBudget.increment() }
             let outline: String
             do {
                 let response = try await candidate.client.send(request)

@@ -252,6 +252,7 @@ private struct TimeBlockTaskRow: View {
     /// project (linked directly) still shows where it lives.
     let blockProjectID: UUID?
     @State private var isHovering = false
+    @State private var showStatusPopover = false
 
     private var project: KProject? {
         guard let project = task.project, project.id != blockProjectID else { return nil }
@@ -260,7 +261,8 @@ private struct TimeBlockTaskRow: View {
 
     var body: some View {
         HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: task.status == .done, size: Metrics.listCheckboxSize, label: task.title) {
+            StatusCircle(status: KTaskStatus(task.status), size: Metrics.listCheckboxSize,
+                         label: task.title, onToggle: {
                 if task.status == .done {
                     model.store.reopen(task.id)
                     model.didMutate()
@@ -276,7 +278,13 @@ private struct TimeBlockTaskRow: View {
                 guard !blocked else { return }
                 model.store.complete(task.id)
                 model.didMutate()
-            }
+            }, onOpenPopover: { showStatusPopover = true })
+                .popover(isPresented: $showStatusPopover) {
+                    StatusPopover(current: task.status) { picked in
+                        showStatusPopover = false
+                        StatusPick.apply(picked, to: task, model: model)
+                    }
+                }
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(task.title)
                     .font(Typo.row)

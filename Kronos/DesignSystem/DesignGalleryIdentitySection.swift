@@ -144,7 +144,7 @@ struct DesignGalleryNowCardSection: View {
                      projectIcon: "utensils", projectColorHex: "#F2994A", projectName: "Northwind Bistro",
                      attributes: {
                          KEffortIndicator(level: 3, of: 5, label: "M")
-                         KPriorityIndicator(level: 2, of: 4, label: "Medium")
+                         PriorityGlyph(level: 2, label: "Medium")
                          KDeadlineLabel(text: "15 Sep", carryDays: 4)
                      }, onComplete: {})
             KNowCard(firstMove: nil, title: "Send the September invoice to Acme", remaining: 1,

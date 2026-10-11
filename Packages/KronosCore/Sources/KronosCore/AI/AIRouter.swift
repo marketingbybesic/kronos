@@ -91,12 +91,32 @@ public struct AIRouter: AIRouting {
     /// the other two modes:
     /// `.privateOnly` keeps only `.onDevice`/`.zeroRetention` candidates
     /// (`privateOnlyAcceptsOnDevice`); `.allowAny` keeps the whole chain.
+    ///
+    /// Once the daily paid-call ceiling is reached (`DailyAIBudget.isAtCeiling`, spec §3.4),
+    /// a metered candidate (`isMeteredClient`) is additionally dropped from either branch —
+    /// the deterministic path takes over for the rest of the day. The one non-blocking toast
+    /// fires here, the single place that actually removes a metered candidate for this
+    /// reason, gated to once/day by `DailyAIBudget.shouldShowCeilingToast()`.
     var eligibleCandidates: [AIRoutedCandidate] {
+        let byMode: [AIRoutedCandidate]
         switch mode {
         case .off:         return []
-        case .privateOnly: return candidates.filter { $0.client.dataPolicy == .onDevice || $0.client.dataPolicy == .zeroRetention }
-        case .allowAny:    return candidates
+        case .privateOnly: byMode = candidates.filter { $0.client.dataPolicy == .onDevice || $0.client.dataPolicy == .zeroRetention }
+        case .allowAny:    byMode = candidates
         }
+        guard DailyAIBudget.isAtCeiling() else { return byMode }
+        let withinBudget = byMode.filter { !Self.isMeteredClient($0.client) }
+        if withinBudget.count < byMode.count, DailyAIBudget.shouldShowCeilingToast() {
+            NotificationCenter.default.post(name: .kronosAIPaidBudgetReached, object: nil)
+        }
+        return withinBudget
+    }
+
+    /// True when `client` is backed by the metered Anthropic surface (`ClaudeCodeClient`) —
+    /// `AIClient` carries no provider-identity field, so this is a concrete-type check. The
+    /// only metered client this app has today (spec ai-layer.md §3.4, see DailyAIBudget.swift).
+    static func isMeteredClient(_ client: any AIClient) -> Bool {
+        client is ClaudeCodeClient
     }
 
     /// Rebuilds the request per candidate model id, since `AIRequest.model`
@@ -118,6 +138,7 @@ public struct AIRouter: AIRouting {
             let request = AIRequest(model: candidate.client.modelID, messages: template.messages,
                                     kind: template.kind, maxTokens: template.maxTokens,
                                     temperature: template.temperature, budgetSeconds: template.budgetSeconds)
+            if Self.isMeteredClient(candidate.client) { DailyAIBudget.increment() }
             do {
                 let response = try await candidate.client.send(request)
                 try response.validated()

@@ -73,14 +73,20 @@ enum CompletionSound {
         return ListCompletion.cue(forCompleted: id, store: store)
     }
 
-    /// Plays the cue of every task a person completes (Core announces nothing for machine writes).
-    /// `play` is replaceable so a live step can record the cue instead of making a sound.
+    /// Plays the cue of every task a person completes (Core announces nothing for machine writes),
+    /// rate-limited to one chime per 250 ms: several individual completions fired in rapid
+    /// succession (e.g. a fast run of Space presses) collapse into the first one rather than
+    /// overlapping. `play` is replaceable so a live step can record the cue instead of making a sound.
     @MainActor
     static func observe(store: TaskStore,
                         play: @escaping @MainActor (KronosSounds.Cue) -> Void = { KronosSounds.play($0) }) -> NSObjectProtocol {
         nonisolated(unsafe) let play = play   // only ever called on the main actor, inside assumeIsolated
+        nonisolated(unsafe) var lastPlayedAt: Date?
         return NotificationCenter.default.addObserver(forName: .kronosTaskDidComplete, object: nil, queue: .main) { [weak store] note in
             MainActor.assumeIsolated {
+                let now = Date()
+                if let last = lastPlayedAt, now.timeIntervalSince(last) < 0.25 { return }
+                lastPlayedAt = now
                 play(cue(forTaskID: note.userInfo?["taskID"] as? UUID, store: store))
             }
         }

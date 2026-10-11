@@ -27,6 +27,8 @@ struct InspectorScreen: View {
     @State var notesAutosaveWork: DispatchWorkItem?
     /// The full stored notes the notes draft started from (see InspectorNotesSave.swift).
     @State var notesEditBase = ""
+    /// `StatusCircle`'s ⌥-click / right-click on the title-row status glyph.
+    @State private var showStatusPopover = false
 
     enum Field: Hashable { case title, notes, subtaskAdd, firstMove }
 
@@ -192,8 +194,15 @@ struct InspectorScreen: View {
     private func header(_ task: KTask) -> some View {
         VStack(alignment: .leading, spacing: Space.x1) {
             HStack(alignment: .top, spacing: Space.x2) {
-                KCheckbox(isChecked: task.status == .done) { toggleDone(task) }
+                StatusCircle(status: KTaskStatus(task.status), onToggle: { toggleDone(task) },
+                             onOpenPopover: { showStatusPopover = true })
                     .padding(.top, Space.x1)
+                    .popover(isPresented: $showStatusPopover) {
+                        StatusPopover(current: task.status) { picked in
+                            showStatusPopover = false
+                            StatusPick.apply(picked, to: task, model: model)
+                        }
+                    }
                 TextField(String(localized: "detail.title.placeholder"), text: $drafts.title, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(Typo.display)
@@ -217,7 +226,7 @@ struct InspectorScreen: View {
                     }
                     .uiTestAnchor("inspector.title")
             }
-            // KCheckbox's own layout width is Metrics.minHit (its hit-box), not its visual
+            // StatusCircle's own layout width is Metrics.minHit (its hit-box), not its visual
             // circle size, so the lines below indent by that plus the gap.
             InspectorSourceLine(task: task)
                 .padding(.leading, Metrics.minHit + Space.x2)

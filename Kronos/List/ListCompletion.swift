@@ -8,7 +8,9 @@
 // Completion hands off to what comes next: the pill reads "Done. Next: <first move>" and
 // Return (the pill's primary action) starts that task, in progress and pinned. "Next" is the
 // first eligible row of the list being shown, the pin first (NextEligibility). The completed
-// row stays struck through for about a second (ListLinger) before it leaves.
+// row stays struck through for about a second (ListLinger) before it leaves — that hold is
+// independent of Settings > General's completion-animation pref (see ListLinger's comment);
+// only the status-circle check/ripple in StatusCircle.swift are gated on it.
 import SwiftUI
 import KronosCore
 
@@ -82,9 +84,12 @@ enum ListCompletion {
         return CompletionCueRule.isParentFinish(childCount: children) ? .parent : .task
     }
 
-    /// The next open row below `id`, else the nearest open row above it, else nil.
+    /// The next open row below `id`, else the nearest open row above it, else nil. Walks
+    /// `displayRows` — the "Group by" visual order with collapsed groups skipped (review
+    /// finding 2) — not the flat `rows`, so the neighbour it lands on is always one actually
+    /// visible on screen.
     static func neighbourToSelect(after id: UUID, model: AppModel) -> UUID? {
-        let rows = ListContext(model: model).rows
+        let rows = ListContext(model: model).displayRows
         guard let i = rows.firstIndex(where: { $0.id == id }) else { return nil }
         let open: (KTask) -> Bool = { KStatus.open.contains($0.status) }
         return rows[(i + 1)...].first(where: open)?.id ?? rows[..<i].last(where: open)?.id

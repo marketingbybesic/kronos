@@ -118,10 +118,20 @@ extension LiveUITest {
         let clickedSave = await lSavedIn(optionsWindow) { await click("viewoptions.saveview") }
         let sheetUp = await waitUntil(timeout: 4) { UITestAnchors.frames["viewsave.name"] != nil && lSavedPopoverWindows().count >= 2 }
         await settle(300)
-        let sheetWindow = lSavedPopoverWindows().min { $0.frame.height < $1.frame.height }
+        // A freshly presented NSPopover reliably becomes key (confirmed empirically: nested
+        // popover-from-popover probes here all showed the newest one as isKeyWindow), a direct
+        // signal for "the one that just opened" — unlike "the shorter of the two windows", which
+        // is only a coincidental proxy that a taller save-sheet (a longer project name, more
+        // filter rules in the options popover behind it) could flip. Height stays as a fallback.
+        let sheetCandidates = lSavedPopoverWindows()
+        let sheetWindow = sheetCandidates.first { $0.isKeyWindow } ?? sheetCandidates.min { $0.frame.height < $1.frame.height }
         let caption = UITestAnchors.frames["viewsave.project"] != nil
         let depth = store.undoDepth
         _ = await lSavedIn(sheetWindow) {
+            // The name field's FocusState -> firstResponder bridge only engages once the popover
+            // is the key window; clicks ensure that themselves (click -> ensureKey) but typed keys
+            // go straight to the first responder, so an inactive app typed into nothing (name=nil).
+            await ensureKey()
             await typeText("lsaved.view")
             await settle(200)
             key("\r", keyCode: 36)

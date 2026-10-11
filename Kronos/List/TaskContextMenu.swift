@@ -85,7 +85,25 @@ enum TaskMenu {
             let delegateAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
             nodes.insert(.submenu(delegateNodeID, String(localized: "ctx.task.delegate"), kids), at: delegateAt)
         }
+        insertSendToUpNext(into: &nodes, task: task, model: model)
         return nodes
+    }
+
+    /// "Send to Up next" / "(top)" (the ORDO queue — interaction.md §10.1, layouts-components.md
+    /// §6.10 footer-menu precedent). Top-level only: TaskStore.sendToOrdo silently refuses a
+    /// subtask (same reason saveTemplateNodeID above is top-level only).
+    private static func insertSendToUpNext(into nodes: inout [CtxNode], task: KTask, model: AppModel) {
+        guard !task.isSubtask else { return }
+        let upNextAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+        nodes.insert(.action(sendToUpNextNodeID, String(localized: "hotkey.list.sendtoupnext")) {
+            model.store.sendToOrdo(task.id, top: false)
+            model.commit(String(format: String(localized: "undo.sendtoupnext.name"), task.title))
+        }, at: upNextAt)
+        let upNextTopAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+        nodes.insert(.action(sendToUpNextTopNodeID, String(localized: "hotkey.list.sendtoupnexttop")) {
+            model.store.sendToOrdo(task.id, top: true)
+            model.commit(String(format: String(localized: "undo.sendtoupnexttop.name"), task.title))
+        }, at: upNextTopAt)
     }
 
     /// Node id of "Save as Template".
@@ -94,6 +112,12 @@ enum TaskMenu {
     static let markReviewedNodeID = "reviewed"
     /// Node id of the "Delegate to…" submenu.
     static let delegateNodeID = "delegate"
+
+    /// Node ids of "Send to Up next" / "Send to Up next (top)" (the ORDO queue — interaction.md
+    /// §10.1, layouts-components.md §6.10). Top-level tasks only: TaskStore.sendToOrdo silently
+    /// refuses a subtask, same reason `saveTemplateNodeID` above is also top-level only.
+    static let sendToUpNextNodeID = "sendtoupnext"
+    static let sendToUpNextTopNodeID = "sendtoupnexttop"
 
     /// Node id of the "Avoiding it" toggle.
     static let dreadNodeID = TaskMenuItem.dread.rawValue

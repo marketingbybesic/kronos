@@ -107,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launchKind = LaunchKind.detect(launchedAsLoginItem: LaunchKind.currentEventIsLoginItem(),
                                        isHermetic: KronosEnv.isHermetic)
         KronosSounds.preload()
+        // Mirror the stored completion-animation pref into the design system once at launch;
+        // SoundSettingsPrefs' setter keeps it in sync afterwards (DS never reads Settings).
+        Motion.completionAnimationEnabled = SoundSettingsPrefs.completionAnimationEnabled
         // Stamps new device-local links with this device (per-device id in the scratch defaults of a hermetic run).
         DeviceOrigin.configureLive(defaults: KronosEnv.defaults)
         seedIfEmpty()

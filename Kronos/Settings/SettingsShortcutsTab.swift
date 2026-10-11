@@ -15,6 +15,8 @@ struct SettingsShortcutsTab: View {
     @State private var confirmingReset = false
     /// How many shortcuts the last "Use Control shortcuts" press moved; nil until pressed.
     @State private var controlSchemeMoved: Int?
+    /// How many shortcuts the last "Linear-compatible" press moved; nil until pressed.
+    @State private var linearPresetMoved: Int?
     private let installedBundleIDs = HotkeyConflictChecker.installedBundleIDs()
     private let systemDefaults = SymbolicHotkeyReader.enabledDefaults()
 
@@ -33,6 +35,8 @@ struct SettingsShortcutsTab: View {
         }
 
         controlSchemeSection
+
+        linearCompatibleSection
 
         ForEach(HotkeyRegistry.grouped(), id: \.scope) { group in
             let rows = group.entries.filter(matchesQuery)
@@ -69,6 +73,7 @@ struct SettingsShortcutsTab: View {
                     HotkeyRegistry.resetToDefaults()
                     resetNamedGlobalShortcutsToDefaults()
                     controlSchemeMoved = nil
+                    linearPresetMoved = nil
                     overrideVersion += 1
                     confirmingReset = false
                 }
@@ -114,6 +119,38 @@ struct SettingsShortcutsTab: View {
                     .foregroundStyle(Tok.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
                     .uiTestAnchor("settings.shortcuts.controlscheme.result")
+            }
+        }
+    }
+
+    /// "Linear-compatible" (ux-13 §2.3): remaps Send to Up next from ⌘⇧O to ⌘⇧Q, matching
+    /// Linear's own ⌘⇧O. Same reversible-override mechanism as `controlSchemeSection` above, so
+    /// "Reset to defaults" undoes this preset exactly the same way.
+    private var linearCompatibleSection: some View {
+        SettingsSection(title: String(localized: "settings.shortcuts.linearcompatible.title")) {
+            Text(String(localized: "settings.shortcuts.linearcompatible.help"))
+                .font(Typo.row)
+                .foregroundStyle(Tok.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            SettingsTrailingRow {
+                Button(String(localized: "settings.shortcuts.linearcompatible")) {
+                    let moved = HotkeyRegistry.applyLinearCompatiblePreset()
+                    linearPresetMoved = moved.count
+                    overrideVersion += 1
+                }
+                .kButton(.secondary, size: .compact)
+                .fixedSize()
+                .uiTestAnchor("settings.shortcuts.linearcompatible")
+            }
+            if let moved = linearPresetMoved {
+                // Always finds "list.sendtoupnext" now that the entry exists (unlike
+                // controlSchemeMoved above, this can never be 0) — HotkeyRegistry.swift's
+                // applyLinearCompatiblePreset() doc comment has the detail.
+                Text(String(format: String(localized: "settings.shortcuts.linearcompatible.done"), moved))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .uiTestAnchor("settings.shortcuts.linearcompatible.result")
             }
         }
     }

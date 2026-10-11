@@ -77,11 +77,14 @@ function check({ tokensSrc, paletteSrc, accentSrc }) {
   const floors = { textPrimary: 7, textSecondary: 4.5, textTertiary: 4.5, focusRing: 3, borderActive: 3 };
   const exempt = new Set(["hairline", "borderControl", "borderStrong", "textDisabled", "glyphEmpty", "hoverFill", "pressedFill",
     "selectedFill", "selectedEdge", "selectedFillIC", "dropFill", "controlFill", "keycapFill", "tagFill"]);
+  // The one deliberate chrome-hue exception (person decision, 09.10.2026): PriorityGlyph's
+  // low-to-high ramp. Not skipped entirely — validated properly in section 3b below instead.
+  const hueExempt = new Set(["prioLow", "prioMedium", "prioHigh", "prioUrgent"]);
   for (const [name, t] of tokens) {
     const rgb = t.kind === "hex" ? t.rgb : white(t.a);
     const sat = Math.max(...rgb) === 0 ? 0 : (Math.max(...rgb) - Math.min(...rgb)) / Math.max(...rgb);
     const r = ratio(rgb, BLACK).toFixed(2);
-    if (sat > 0.12 && Math.max(...rgb) > 40) { fail(name, r, `chrome token is not neutral (hue ${hueOf(rgb).toFixed(0)}°)`); continue; }
+    if (!hueExempt.has(name) && sat > 0.12 && Math.max(...rgb) > 40) { fail(name, r, `chrome token is not neutral (hue ${hueOf(rgb).toFixed(0)}°)`); continue; }
     if (exempt.has(name)) { pass(name, r, "exempt (decorative/fill/non-text)"); continue; }
     const floor = floors[name];
     if (!floor) { pass(name, r, "informational (no assigned floor)"); continue; }
@@ -118,14 +121,15 @@ function check({ tokensSrc, paletteSrc, accentSrc }) {
     pass(`${tier} worst IC`, worstIC.r.toFixed(2), `on ${worstIC.fname} (alpha ${ica})`);
   }
 
-  // 2b. Increase Contrast maps tertiary and disabled text to the secondary tone.
-  rows.push(["", "", ""], ["-- Increase Contrast: tertiary and disabled map to secondary --", "", ""]);
-  const secondary = tokens.get("textSecondary").a;
-  for (const t of ["textTertiary", "textDisabled"]) {
-    const ic = tokens.get(t)?.ic;
-    if (ic === secondary) pass(`${t} @IC`, ic, "PASS equals textSecondary");
-    else fail(`${t} @IC`, ic ?? "", `Increase Contrast alpha ${ic} is not the secondary alpha ${secondary}`);
-  }
+  // 2b. Increase Contrast never leaves a disabled control fainter than idle tertiary text —
+  // both map to the SAME floor under IC (the lowest readable step). Was "equals textSecondary"
+  // before textSecondary gained its own distinct IC value (spec §13.4): textSecondary and
+  // textTertiary are no longer the same tone under IC, so disabled now tracks tertiary instead.
+  rows.push(["", "", ""], ["-- Increase Contrast: disabled never fainter than tertiary --", "", ""]);
+  const tertiaryIC = tokens.get("textTertiary")?.ic;
+  const disabledIC = tokens.get("textDisabled")?.ic;
+  if (disabledIC === tertiaryIC) pass("textDisabled @IC", disabledIC, "PASS equals textTertiary (IC)");
+  else fail("textDisabled @IC", disabledIC ?? "", `Increase Contrast alpha ${disabledIC} is fainter than textTertiary's IC alpha ${tertiaryIC}`);
 
   // 3. Every swatch as an accent/project colour: bar, ring at its drawn opacity, label, hue.
   rows.push(["", "", ""], ["-- swatches: bar / ring @" + ringOp + " / label --", "", ""]);
@@ -140,6 +144,24 @@ function check({ tokensSrc, paletteSrc, accentSrc }) {
     if (hue < 20 || hue > 340) msgs.push(`hue ${hue.toFixed(0)}° in the red band`);
     if (msgs.length) fail(s.name, bar.toFixed(2), msgs.join("; "));
     else pass(s.name, bar.toFixed(2), `PASS ring ${ring.toFixed(2)}, label ${label.toFixed(2)} (${black >= whiteL ? "black" : "white"}), hue ${hue.toFixed(0)}°`);
+  }
+
+  // 3b. The priority ramp (hueExempt above): same bar/ring/label/hue-band floors as a project
+  // or accent swatch, since it is drawn the same way (a solid fill, not text).
+  rows.push(["", "", ""], ["-- priority ramp: bar / ring @" + ringOp + " / label --", "", ""]);
+  for (const name of hueExempt) {
+    const t = tokens.get(name);
+    if (!need(t?.kind === "hex", `priority.${name}`)) continue;
+    const bar = ratio(t.rgb, BLACK), ring = ratio(over(t.rgb, ringOp, BLACK), BLACK);
+    const black = ratio(t.rgb, BLACK), whiteL = ratio(t.rgb, [255, 255, 255]);
+    const label = Math.max(black, whiteL), hue = hueOf(t.rgb);
+    const msgs = [];
+    if (bar < 3) msgs.push(`bar ${bar.toFixed(2)} < 3`);
+    if (ring < ringFloor) msgs.push(`ring ${ring.toFixed(2)} < ${ringFloor} at ${ringOp}`);
+    if (label < 4.5) msgs.push(`label ${label.toFixed(2)} < 4.5`);
+    if (hue < 20 || hue > 340) msgs.push(`hue ${hue.toFixed(0)}° in the red band`);
+    if (msgs.length) fail(`priority.${name}`, bar.toFixed(2), msgs.join("; "));
+    else pass(`priority.${name}`, bar.toFixed(2), `PASS ring ${ring.toFixed(2)}, label ${label.toFixed(2)} (${black >= whiteL ? "black" : "white"}), hue ${hue.toFixed(0)}°`);
   }
   return { rows, failed };
 }

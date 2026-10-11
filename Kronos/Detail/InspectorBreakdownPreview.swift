@@ -125,7 +125,7 @@ struct InspectorBreakdownPreview: View {
     private var firstMoveOffer: some View {
         Button { setFirstMoveOnAccept.toggle() } label: {
             HStack(spacing: Space.x2) {
-                KCheckbox(isChecked: setFirstMoveOnAccept, size: Metrics.statusCircle) {
+                StatusCircle(isChecked: setFirstMoveOnAccept, size: Metrics.statusCircle) {
                     setFirstMoveOnAccept.toggle()
                 }
                 Text(String(format: String(localized: "detail.breakdown.setfirstmove"), firstMove))

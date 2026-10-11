@@ -21,6 +21,10 @@ extension KRule {
 
 @MainActor
 extension TaskStore {
+    /// §6.5 "The 50-rule cap": at most this many rules may be active at once. Nothing is ever
+    /// silently evicted past it — the person is offered a swap ("Replace the least-used one?")
+    /// instead, in Settings where rules are actually turned on.
+    public static let maxActiveRules = 50
 
     /// Add a rule unless an equal one (same `dedupeKey`) exists. `inserted` is false when the
     /// existing rule is returned; it is returned UNCHANGED (its active state, source and text

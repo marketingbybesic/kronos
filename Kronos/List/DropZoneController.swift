@@ -43,6 +43,9 @@ struct ListDropConfig: Equatable {
     var manualOrder: [UUID]
     var isManualSort: Bool
     var scope: ListScope
+    /// The list's active "Group by" mode; `.none` (the default) disables the cross-group
+    /// reorder guard below entirely, same as every list before this field existed.
+    var groupBy: KGroupBy = .none
 }
 
 @MainActor
@@ -164,8 +167,25 @@ final class ListDropController {
             scheduleHoldTimer(active: candidate != nil)
         }
         let held = holdStart.map { now() - $0 } ?? 0
-        return DropResolver.resolve(rows: rowsInList, pointerY: Double(p.y), subject: subject, order: config.order,
-                                    holdSeconds: held, isManualSort: config.isManualSort)
+        let resolved = DropResolver.resolve(rows: rowsInList, pointerY: Double(p.y), subject: subject, order: config.order,
+                                            holdSeconds: held, isManualSort: config.isManualSort)
+        return resolved.map(groupGuarded)
+    }
+
+    /// A level-0 reorder that would cross a "Group by" boundary is never offered (spec §4.5:
+    /// manual order applies WITHIN a group once grouping is on — it is not a status/priority/
+    /// project/due change, so there is no sensible destination to reinterpret it as). Only the
+    /// two reorder zones are touched; nest/move-under/attach-link are unaffected, since grouping
+    /// only ever partitions the top-level run, never a task's own subtasks (TaskListScreen.swift).
+    private func groupGuarded(_ r: DropResolution) -> DropResolution {
+        guard config.groupBy != .none, r.rowKind == .task, r.zone.isInsert,
+              subject?.source == .task, let draggedID = subject?.id,
+              let dragged = model.store.task(draggedID), let target = model.store.task(r.taskID),
+              ListGrouping.crossesGroup(dragging: dragged, onto: target, mode: config.groupBy)
+        else { return r }
+        return DropResolution(zone: .none, heldZone: r.heldZone, rowID: r.rowID, rowKind: r.rowKind, taskID: r.taskID,
+                              before: nil, insertsAmongSubtasks: r.insertsAmongSubtasks, lineY: nil,
+                              highlightMinY: r.highlightMinY, highlightMaxY: r.highlightMaxY, isEndOfList: r.isEndOfList)
     }
 
     /// Recomputes `feedback` from the last pointer. True when a drop would be accepted now or

@@ -219,7 +219,6 @@ final class QuickAddController: NSObject, NSWindowDelegate {
         }
         position(panel)
         panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
         // The field's autofocus runs from onAppear, which can land before the panel is key; then
         // typing went nowhere (the panel itself stayed first responder). Make sure, once the text
         // view is attached (it attaches asynchronously), that the caret is in the field.

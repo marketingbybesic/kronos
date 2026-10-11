@@ -172,6 +172,21 @@ final class AISettingsController {
     /// this tab never triggers the one-time Keychain dialog the legacy item would raise.
     var canAdoptLegacyKey: Bool = false
 
+    /// Today's metered (Anthropic/`claudeCode`) paid-call count, the daily ceiling, and a
+    /// documented 30-day estimate extrapolated from today's count (`DailyAIBudget.swift`) —
+    /// spec ai-layer.md §3.4: "Settings -> AI shows today's count and a 30-day rolling
+    /// estimate." Not pushed live from the counter; `refreshPaidCallBudget()` re-reads it,
+    /// called on init and whenever `SettingsAITab` appears, matching every other read-once
+    /// value in this controller (e.g. `hasKey`).
+    private(set) var paidCallsToday: Int = 0
+    let paidCallsCeiling = DailyAIBudget.defaultCeiling
+    private(set) var paidCalls30DayEstimate: Int = 0
+
+    func refreshPaidCallBudget() {
+        paidCallsToday = DailyAIBudget.countToday()
+        paidCalls30DayEstimate = DailyAIBudget.estimated30Day()
+    }
+
     init(hermetic: Bool = KronosEnv.isHermetic,
          store: any SecretStoring = KeychainSecretStore(),
          legacyReader: any LegacySecretReading = KeychainLegacySecretReader()) {
@@ -184,6 +199,7 @@ final class AISettingsController {
         self.modelID = AppSettingsStore.aiModel
         self.hasKey = hermetic ? true : store.hasValue(AppSettingsStore.aiProvider.keychainService)
         refreshAdoptOffer()
+        refreshPaidCallBudget()
     }
 
     func markConfigChanged() {
@@ -269,6 +285,13 @@ final class AISettingsController {
                 testPassedForCurrentConfig = false
                 return
             }
+            if baseURL.scheme?.lowercased() == "http",
+               !["127.0.0.1", "::1", "localhost"].contains((baseURL.host ?? "").lowercased()) {
+                lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
+                                       servedBy: nil, dataPolicy: .unknown, failure: .badJSON(prefix: String(localized: "settings.ai.test.insecurehttp")))
+                testPassedForCurrentConfig = false
+                return
+            }
             client = OpenAICompatibleClient(modelID: modelID, baseURL: baseURL, keyService: keyService,
                                             extraHeaders: provider.extraHeaders)
         }
@@ -276,6 +299,13 @@ final class AISettingsController {
         guard let baseURL = URL(string: baseURLText), !modelID.isEmpty else {
             lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
                                    servedBy: nil, dataPolicy: .unknown, failure: .badJSON(prefix: "invalid URL or empty model"))
+            testPassedForCurrentConfig = false
+            return
+        }
+        if baseURL.scheme?.lowercased() == "http",
+           !["127.0.0.1", "::1", "localhost"].contains((baseURL.host ?? "").lowercased()) {
+            lastTest = AISettingsTestResult(modelID: modelID, ok: false, milliseconds: 0,
+                                   servedBy: nil, dataPolicy: .unknown, failure: .badJSON(prefix: String(localized: "settings.ai.test.insecurehttp")))
             testPassedForCurrentConfig = false
             return
         }

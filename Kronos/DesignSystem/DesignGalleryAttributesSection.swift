@@ -7,7 +7,7 @@
 import SwiftUI
 
 /// Gallery-only sample data — a real screen leaf passes its KronosCore.KPriority cases
-/// into KAttributeMenu/KPriorityIndicator instead of this type.
+/// into KAttributeMenu/PriorityGlyph instead of this type.
 private struct GallerySamplePriority: Identifiable, Hashable {
     let id: Int
     let title: String
@@ -44,12 +44,12 @@ struct DesignGalleryAttributesSection: View {
             }
 
             VStack(alignment: .leading, spacing: Space.x2) {
-                Text("KPriorityIndicator — every level (urgent is a shape, never a colour)")
+                Text("PriorityGlyph — every level (urgent is a shape AND a colour)")
                     .font(Typo.meta).foregroundStyle(Tok.textTertiary)
                 HStack(spacing: Space.x5) {
                     ForEach(GallerySamplePriority.all) { p in
                         VStack(spacing: Space.x1) {
-                            KPriorityIndicator(level: p.id, of: 4, label: p.title)
+                            PriorityGlyph(level: p.id, label: p.title)
                             Text(p.title).font(Typo.meta).foregroundStyle(Tok.textTertiary)
                         }
                     }
@@ -81,7 +81,7 @@ struct DesignGalleryAttributesSection: View {
                 KListRow(isChecked: false, accessibilityLabel: "Pripremiti prezentaciju, high priority, medium effort, due tomorrow",
                          onToggle: {}, onSelect: {}) {
                     HStack(spacing: Space.x2) {
-                        KPriorityIndicator(level: 3, of: 4, label: "High")
+                        PriorityGlyph(level: 3, label: "High")
                         Text("Pripremiti prezentaciju").font(Typo.row).foregroundStyle(Tok.textPrimary)
                     }
                 } trailing: {

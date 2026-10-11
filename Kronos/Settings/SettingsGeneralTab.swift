@@ -20,6 +20,11 @@ struct SettingsGeneralTab: View {
     @State private var soundsEnabled: Bool = UserDefaults.standard.object(forKey: "kronos.sounds.enabled") == nil
         ? true : UserDefaults.standard.bool(forKey: "kronos.sounds.enabled")
     @State private var launchStatus: SMAppServiceStatus = LaunchAtLogin.currentStatus()
+    @State private var taskSoundEnabled: Bool = SoundSettingsPrefs.isCueEnabled("task")
+    @State private var subtaskSoundEnabled: Bool = SoundSettingsPrefs.isCueEnabled("subtask")
+    @State private var impulsSoundEnabled: Bool = SoundSettingsPrefs.isCueEnabled("impuls")
+    @State private var soundVolume: Float = SoundSettingsPrefs.volume
+    @State private var completionAnimationEnabled: Bool = SoundSettingsPrefs.completionAnimationEnabled
     /// Bumped after a custom-sound pick/reset so `soundCueRow` re-reads `CustomSoundPrefs`
     /// (plain UserDefaults, no observation of its own — see that row's doc comment).
     @State private var customCueRefresh = 0
@@ -118,13 +123,65 @@ struct SettingsGeneralTab: View {
         SettingsAdvanced(tab: "general") {
             SettingsSection(title: String(localized: "settings.tab.sounds")) {
                 VStack(alignment: .leading, spacing: Space.x2) {
-                    soundCueRow(cue: "task", label: String(localized: "settings.sounds.task"))
-                    soundCueRow(cue: "subtask", label: String(localized: "settings.sounds.subtask"))
-                    soundCueRow(cue: "impuls", label: String(localized: "settings.sounds.impuls"))
+                    soundCueRow(cue: "task", label: String(localized: "settings.sounds.task"), enabled: Binding(
+                        get: { taskSoundEnabled },
+                        set: { taskSoundEnabled = $0; SoundSettingsPrefs.setCueEnabled($0, for: "task") }
+                    ))
+                    soundCueRow(cue: "subtask", label: String(localized: "settings.sounds.subtask"), enabled: Binding(
+                        get: { subtaskSoundEnabled },
+                        set: { subtaskSoundEnabled = $0; SoundSettingsPrefs.setCueEnabled($0, for: "subtask") }
+                    ))
+                    soundCueRow(cue: "impuls", label: String(localized: "settings.sounds.impuls"), enabled: Binding(
+                        get: { impulsSoundEnabled },
+                        set: { impulsSoundEnabled = $0; SoundSettingsPrefs.setCueEnabled($0, for: "impuls") }
+                    ))
                 }
                 .opacity(soundsEnabled ? 1 : 0.4)
                 .disabled(!soundsEnabled)
                 .uiTestAnchor("settings.general.soundcues")
+
+                SettingsRow(label: String(localized: "settings.sounds.volume")) {
+                    HStack(spacing: Space.x2) {
+                        Slider(value: Binding(
+                            get: { Double(soundVolume) },
+                            set: { newValue in
+                                soundVolume = Float(newValue)
+                                SoundSettingsPrefs.volume = soundVolume
+                                SoundPreviewPlayer.applyVolume(soundVolume)
+                            }
+                        ), in: 0...1)
+                            .accessibilityLabel(String(localized: "settings.sounds.volume"))
+                        Text(String(format: String(localized: "settings.sounds.volume.percent"), Int((soundVolume * 100).rounded())))
+                            .font(Typo.meta)
+                            .foregroundStyle(Tok.textTertiary)
+                            .frame(width: 36, alignment: .trailing)
+                    }
+                    .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
+                }
+                .opacity(soundsEnabled ? 1 : 0.4)
+                .disabled(!soundsEnabled)
+                .uiTestAnchor("settings.general.volume")
+
+                // A real accessibility switch, not a styling preference (the internal notes
+                // §8.3): forced off and shown as inert text, never a disabled toggle a user
+                // could still try to flip, whenever the system's own Reduce Motion is on.
+                SettingsRow(label: String(localized: "settings.sounds.animation")) {
+                    if Motion.reduceMotion {
+                        Text(String(localized: "settings.sounds.animation.reducedmotion"))
+                            .font(Typo.meta)
+                            .foregroundStyle(Tok.textTertiary)
+                    } else {
+                        Toggle(isOn: Binding(
+                            get: { completionAnimationEnabled },
+                            set: { completionAnimationEnabled = $0; SoundSettingsPrefs.completionAnimationEnabled = $0 }
+                        )) { EmptyView() }
+                            .toggleStyle(.switch)
+                            .tint(Tok.textPrimary)
+                            .labelsHidden()
+                            .accessibilityLabel(String(localized: "settings.sounds.animation"))
+                    }
+                }
+                .uiTestAnchor("settings.general.animation")
             }
         }
     }
@@ -144,12 +201,19 @@ struct SettingsGeneralTab: View {
         Bundle.main.infoDictionary?["KronosBuildID"] as? String ?? "dev"
     }
 
-    /// One cue: name + preview + "Use my own sound…". `@State private var customCueRefresh`
-    /// (declared with the other @State) forces this row to re-read `CustomSoundPrefs.customURL`
-    /// right after a pick/reset, since that store is plain UserDefaults with no observation of
-    /// its own — matching the pattern `AppearancePrefs` documents for the same reason.
-    private func soundCueRow(cue: String, label: String) -> some View {
+    /// One cue: own enabled switch + name + preview + "Use my own sound…". `enabled` is bound
+    /// to this cue's own `SoundSettingsPrefs` key (independent of the other two cues — spec
+    /// "Each independently off-able"); `@State private var customCueRefresh` (declared with the
+    /// other @State) forces this row to re-read `CustomSoundPrefs.customURL` right after a
+    /// pick/reset, since that store is plain UserDefaults with no observation of its own —
+    /// matching the pattern `AppearancePrefs` documents for the same reason.
+    private func soundCueRow(cue: String, label: String, enabled: Binding<Bool>) -> some View {
         HStack(spacing: Space.x2) {
+            Toggle(isOn: enabled) { EmptyView() }
+                .toggleStyle(.switch)
+                .tint(Tok.textPrimary)
+                .labelsHidden()
+                .accessibilityLabel(String(format: String(localized: "settings.sounds.cue.enabled"), label))
             Text(label)
                 .font(Typo.meta)
                 .foregroundStyle(Tok.textSecondary)

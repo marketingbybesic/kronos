@@ -16,7 +16,7 @@ extension LiveUITest {
         guard KronosEnv.isHermetic else { record("D-MACSYS2 runs only on a scratch store", false, "not hermetic"); return }
         schemaGuardAtOpen(breakMode: breakMode)
         seedingDecision(breakMode: breakMode)
-        completionCue(model, breakMode: breakMode)
+        await completionCue(model, breakMode: breakMode)
         deviceStamp(breakMode: breakMode)
         await snapshotFollowsModel(model, breakMode: breakMode)
         barNamesSnapshotTask(model, breakMode: breakMode)
@@ -86,7 +86,7 @@ extension LiveUITest {
 
     // MARK: Completion cue
 
-    private static func completionCue(_ model: AppModel, breakMode: Bool) {
+    private static func completionCue(_ model: AppModel, breakMode: Bool) async {
         let store = model.store
         let plain = store.create(title: "dm2 cue plain")
         let parent = store.create(title: "dm2 cue parent")
@@ -96,6 +96,11 @@ extension LiveUITest {
         let token = CompletionSound.observe(store: store) { played.append($0) }
         defer { NotificationCenter.default.removeObserver(token) }
         store.complete(plain.id)
+        // CompletionSound.observe rate-limits to one chime per 250 ms by design (AppModel+Startup.swift):
+        // several real completions fired back to back (a fast run of Space presses) collapse into the
+        // first cue rather than overlapping. Two `complete` calls with no gap race that same window —
+        // not a product bug, so wait past it rather than loosening the product's debounce.
+        try? await Task.sleep(for: .milliseconds(300))
         store.complete(parent.id)
         record("completion cue: a plain task plays the task cue, a parent plays the parent cue (from the real completion notice)",
                played == (breakMode ? [.task, .task] : [.task, .parent]), "played=\(played.map(\.rawValue))")

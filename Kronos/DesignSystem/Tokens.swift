@@ -1,8 +1,11 @@
 // Kronos/DesignSystem/Tokens.swift
 // Color tokens. OLED-black direction: every surface is pure #000000; elevation reads
-// through hairlines and faint white fills, never grey slabs. FULLY MONOCHROME chrome —
-// no accent hue, no semantic hue (priority/amber/green) anywhere in app chrome. The only
-// colour anywhere in the UI is user DATA: a project's own colour (KProjectGlyph / sidebar
+// through hairlines and faint white fills, never grey slabs. Chrome stays MONOCHROME —
+// no accent hue, no semantic hue (amber/green) anywhere in app chrome — with ONE deliberate
+// exception: `prioNone`/`prioLow`/`prioMedium`/`prioHigh`/`prioUrgent` below, the priority
+// glyph's own low-to-high ramp (person decision, 09.10.2026, overriding this file's prior
+// "no semantic hue, ever" rule for priority specifically — see PriorityGlyph.swift). Every
+// OTHER colour in the UI is still user DATA: a project's own colour (KProjectGlyph / sidebar
 // dot) and the swatches inside KColorSwatchPicker — both live outside `Tok` (see
 // KProjectPalette).
 //
@@ -18,6 +21,9 @@ public enum Tok {
     public static let bg      = Color.black
     public static let surface = Color.black
     public static let raised  = Color.black
+    /// GroupHeader's material-backed fill (spec §4.6): 0.92 opacity so `.ultraThinMaterial`
+    /// shows through; baked in here so no call site needs a literal `.opacity(0.92)`.
+    public static let bgTranslucent = Color.black.opacity(0.92)
     /// Popovers/menus/sheets lift one step off pure black so they read as floating;
     /// elevation is still carried by border + shadow, never by this fill alone.
     /// OLED black applies everywhere, floating surfaces included — a deliberate design decision, re-confirmed
@@ -27,7 +33,7 @@ public enum Tok {
 
     // MARK: Borders — the only way elevation and control boundaries read on true black.
     /// Decorative dividers only. Never a control's sole boundary (contrast-exempt).
-    public static let hairline = Color(white: 1, opacity: 0.07)
+    public static let hairline = KTone.white(0.07, increasedContrast: 0.12)   // 0.12 == `borderControl`'s own alpha (spec §13.4 "swaps hairline for borderControl")
     /// Control outlines. Below 3:1 alone by design — always paired with a fill plus
     /// the control's own label/icon contrast, which passes independently (spec §2.1).
     public static let borderControl = Color(white: 1, opacity: 0.12)
@@ -41,21 +47,40 @@ public enum Tok {
     // one hero line per pane; SECONDARY = values, counts, active controls; TERTIARY =
     // captions, idle glyphs, placeholders. Nothing decorative may be primary.
     public static let textPrimary   = Color(white: 1, opacity: 0.94)   // ~18:1, off pure white: no OLED glare
-    public static let textSecondary = Color(white: 1, opacity: 0.66)   // ~8.7:1
-    /// 0.52, not the bare 4.5:1 alpha over black (0.46): tertiary text also sits on hover,
+    /// 0.60, not the bare 4.5:1-at-rest value: raised to 0.75 under Increase Contrast (spec
+    /// §13.4; ~7.4:1 baseline, ~11.5:1 IC). Was a flat 0.66 with no IC variance before this.
+    public static let textSecondary = KTone.white(0.60, increasedContrast: 0.75)
+    /// 0.55, not the bare 4.5:1 alpha over black (0.46): tertiary text also sits on hover,
     /// selected, pressed and project-tint fills, and must keep 4.5:1 on every one of them.
-    /// Increase Contrast lifts it to 0.66 so it still clears 4.5:1 on the stronger IC selected
-    /// fill (`selectedFillIC`, hue x `selectedTintOpacityIC`). verify-contrast.mjs checks both.
-    public static let textTertiary  = KTone.white(0.52, increasedContrast: 0.66)
+    /// Increase Contrast lifts it to 0.70 (spec §13.4; ~6.3:1 baseline, ~10:1 IC) so it still
+    /// clears 4.5:1 on the stronger IC selected fill (`selectedFillIC`, hue x
+    /// `selectedTintOpacityIC`). verify-contrast.mjs checks both.
+    public static let textTertiary  = KTone.white(0.55, increasedContrast: 0.70)
     /// Glyph-only decoration (an empty-state icon, a hover check preview). Never readable text,
     /// never a live control's label: below the 4.5:1 text floor and the 3:1 glyph floor.
-    /// Increase Contrast maps it to the secondary tone (0.66), like tertiary, so a disabled control or
-    /// a quiet glyph is never fainter than the lowest readable step.
-    public static let textDisabled  = KTone.white(0.30, increasedContrast: 0.66)
+    /// Increase Contrast maps it to the tertiary tone (0.70, see `textTertiary`), so a disabled
+    /// control or a quiet glyph is never fainter than the lowest readable step. (Was 0.66, matched
+    /// to the OLD flat `textSecondary`, before that token gained its own IC value — spec §13.4.)
+    public static let textDisabled  = KTone.white(0.30, increasedContrast: 0.70)
     /// Empty indicator steps (unfilled priority bars / effort dots). Decoration, never text.
     /// 0.20, so an empty step is still perceivable next to a filled one.
     public static let glyphEmpty    = Color(white: 1, opacity: 0.20)
+    /// StatusCircle's todo-state hover preview: a faint check at EXACTLY 0.35 opacity (spec
+    /// §5.2), baked in here so no call site needs a literal `.opacity(0.35)`.
+    public static let todoCheckPreview = Color(white: 1, opacity: 0.35)
     public static let textOnAccent  = Color.black   // label colour on the white primary fill
+
+    // MARK: Priority — the ONE deliberate colour exception in this file (person decision,
+    // 09.10.2026): a low-to-high hue ramp reads faster than a bar count, and `PriorityGlyph`'s
+    // urgent state is additionally a different SHAPE, never colour alone (1.4.1). Reuses the
+    // exact `KProjectPalette` hex values already behind "colour by priority"
+    // (`AppearancePrefs.swift`), so this is not a new hue decision, just the same ramp drawn
+    // directly instead of through the project-colour override path.
+    public static let prioNone   = Color(white: 1, opacity: 0.38)
+    public static let prioLow    = Color(hex: 0x5B8DEF)   // blue — coolest of the ramp
+    public static let prioMedium = Color(hex: 0xE8B339)   // gold
+    public static let prioHigh   = Color(hex: 0xF2C94C)   // amber
+    public static let prioUrgent = Color(hex: 0xF2994A)   // orange — warmest, no red/red-adjacent hue
 
     // MARK: Focus / selection — white, not a hue. Second channel is a white bar/ring,
     // never colour, since colour is reserved for user data.
@@ -139,39 +164,43 @@ public enum Radius {
 }
 
 // Every size below is scaled live by `DSScale.text` (Settings > Appearance text size: S 0.92 /
-// M 1.0 / L 1.1) — `static var` computed, not `let`, so a change takes effect on the next
-// render with no cache to invalidate. Weight/design/tracking never scale, only the point size.
+// M 1.0 / L 1.1) AND by the OS's own Dynamic Type setting, composed together through
+// `Font.kronos` (Kronos/DesignSystem/DynamicType.swift) — `static var` computed, not `let`, so
+// either change takes effect on the next render with no cache to invalidate. Weight/design/
+// tracking never scale, only the point size.
 public enum Typo {
     /// macOS minimum text size (HIG). No token renders smaller at any text size.
     public static let minPointSize: CGFloat = 10
     /// `base` scaled by the text size, never below `minPointSize`. Every token whose base x the
-    /// smallest scale (S 0.92) would fall under the floor goes through this.
+    /// smallest scale (S 0.92) would fall under the floor goes through this. DSScale-only (no OS
+    /// Dynamic Type): used by `Font.kronos` itself and by the one caller that needs a raw point
+    /// size rather than a `Font` (DesignGallerySelfTest's floor check).
     public static func size(_ base: CGFloat) -> CGFloat { max(minPointSize, base * DSScale.text) }
 
-    public static var title        : Font { .system(size: 20 * DSScale.text, weight: .semibold) }
-    public static var heading       : Font { .system(size: 15 * DSScale.text, weight: .semibold) }
-    public static var sectionHdr    : Font { .system(size: 11 * DSScale.text, weight: .semibold) }
-    public static var row           : Font { .system(size: 13 * DSScale.text, weight: .regular) }
-    public static var rowStrong     : Font { .system(size: 13 * DSScale.text, weight: .medium) }
-    public static var meta          : Font { .system(size: 11 * DSScale.text, weight: .regular) }
-    public static var metaStrong    : Font { .system(size: 11 * DSScale.text, weight: .medium) }
-    public static var body          : Font { .system(size: 13 * DSScale.text, weight: .regular) }
-    public static var mono          : Font { .system(size: 12 * DSScale.text, design: .monospaced) }
+    public static var title        : Font { .kronos(20, weight: .semibold) }
+    public static var heading       : Font { .kronos(15, weight: .semibold) }
+    public static var sectionHdr    : Font { .kronos(11, weight: .semibold) }
+    public static var row           : Font { .kronos(13, weight: .regular) }
+    public static var rowStrong     : Font { .kronos(13, weight: .medium) }
+    public static var meta          : Font { .kronos(11, weight: .regular) }
+    public static var metaStrong    : Font { .kronos(11, weight: .medium) }
+    public static var body          : Font { .kronos(13, weight: .regular) }
+    public static var mono          : Font { .kronos(12, weight: .regular, design: .monospaced) }
     // Style G additions. Pair display/hero/title with `Tracking.tight`, caption with
     // `Tracking.caption` (`.tracking(...)` is a Text/View modifier, so it cannot live in a Font).
     /// Pane title ("All", "Today").
-    public static var display       : Font { .system(size: 24 * DSScale.text, weight: .semibold) }
+    public static var display       : Font { .kronos(24, weight: .semibold) }
     /// The one hero line of a pane: the first move on the Now card.
-    public static var hero          : Font { .system(size: 22 * DSScale.text, weight: .semibold) }
+    public static var hero          : Font { .kronos(22, weight: .semibold) }
     /// The supporting line under a hero (task title on the Now card).
-    public static var lead          : Font { .system(size: 14 * DSScale.text, weight: .regular) }
+    public static var lead          : Font { .kronos(14, weight: .regular) }
     /// Uppercase tracked micro label ("FIRST MOVE", "AREAS"). 10 pt at S and M, 11 at L.
-    public static var caption       : Font { .system(size: size(10), weight: .semibold) }
+    public static var caption       : Font { .kronos(10, weight: .semibold) }
     /// A count inside a small round badge (the view-options rule count).
-    public static var badge         : Font { .system(size: size(10), weight: .bold).monospacedDigit() }
+    public static var badge         : Font { .kronos(10, weight: .bold).monospacedDigit() }
     /// Every count, date and duration: tabular numerals so columns do not jitter.
-    public static var count         : Font { .system(size: 11 * DSScale.text, weight: .regular).monospacedDigit() }
-    public static var rowTabular    : Font { .system(size: 13 * DSScale.text, weight: .regular).monospacedDigit() }
+    public static var count         : Font { .kronos(11, weight: .regular).monospacedDigit() }
+    public static var rowTabular    : Font { .kronos(13, weight: .regular).monospacedDigit() }
 }
 
 public enum Tracking {
@@ -195,12 +224,25 @@ public enum Metrics {
     public static let toolbarHeight: CGFloat     = 44
     public static let composerHeight: CGFloat    = 44
 
-    public static let statusCircle: CGFloat      = 16
+    /// Glyph-box sizing: scales modestly with OS Dynamic Type (`OSDynamicType.glyphMultiplier`,
+    /// capped same as `Font.kronos`) so icon-sized elements grow a little when the OS text size
+    /// is turned up, without matching the full text ramp — a `@ScaledMetric` on a `static let`
+    /// is not possible (it needs environment/View context the enum has none of), so this follows
+    /// the same global-multiplier pattern `Font.kronos` uses instead (DynamicType.swift).
+    public static var statusCircle: CGFloat      { 16 * OSDynamicType.glyphMultiplier }
     public static let listCheckboxSize: CGFloat  = 16   // style G: 16pt, quiet ring (was 18)
-    public static let priorityGlyph              = CGSize(width: 14, height: 12)
-    public static let projectDot: CGFloat        = 6
+    /// NOT scaled, unlike its neighbours above: `PriorityGlyph.swift` divides a caller-supplied
+    /// `size:` by `priorityGlyph.width` to derive its internal bar scale — that's a fixed aspect
+    /// ratio baseline, not a rendered box, so growing it here would shrink the glyph as OS
+    /// Dynamic Type increases (the caller's `size:` wouldn't grow to match, since the trailing
+    /// slot system (`SlotWidth`, ListRowView.swift) is deliberately fixed-width columns).
+    public static let priorityGlyph               = CGSize(width: 14, height: 12)
+    public static var projectDot: CGFloat        { 6 * OSDynamicType.glyphMultiplier }
     public static let capMeterWidth: CGFloat = 120
     public static let capMeterHeight: CGFloat = 4
+    /// The circular selection-count badge on a dragged-row preview when ≥2 rows are selected
+    /// (the internal notes §8.2).
+    public static let dragSelectionBadge: CGFloat = 20
     public static let hitSlop: CGFloat           = 4
     public static let minHit: CGFloat            = 24
 
@@ -270,7 +312,7 @@ public enum Metrics {
     public static let strokeQuiet: CGFloat           = 1.25  // checkbox / Complete ring stroke
     public static let strokeHair: CGFloat            = 0.5   // selection's inner hairline
     public static let hairline: CGFloat              = 1     // KHairline divider thickness
-    public static let ringWidth: CGFloat             = 1     // focus ring / nest outline hairline
+    public static var ringWidth: CGFloat { KContrast.isIncreasedAmbient ? 3 : 2 }   // focus ring / nest outline: 2pt base, 3pt under Increase Contrast (spec §13.4)
     public static let ringGap: CGFloat               = 2     // clear space between a control and its focus ring
     public static let ruleFieldColumn: CGFloat       = 92    // sort/filter rule row: icon + field name
     public static let ruleOperatorColumn: CGFloat    = 48    // "is" / "is not" / "nije": value column starts at one x
@@ -323,6 +365,19 @@ public enum Motion {
     public static var reduceMotion: Bool {
         ProcessInfo.processInfo.environment["KRONOS_REDUCE_MOTION"] == "1"
             || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    /// Completion-animation master switch, mirrored INTO the design system by Settings
+    /// (`SoundSettingsPrefs.completionAnimationEnabled` seeds it at launch and on every
+    /// change) so DS components never read Settings types — the a11y selftest compiles
+    /// DesignSystem alone, and this file is its only shared-state seam.
+    public static var completionAnimationEnabled = true
+
+    /// The one flag every completion-transition call site (`StatusCircle`'s check draw-in
+    /// and ripple) reads: true only when the mirrored pref is on AND Reduce Motion is off,
+    /// which always wins regardless of the pref.
+    public static var completionAnimationActive: Bool {
+        completionAnimationEnabled && !reduceMotion
     }
 
     /// Whether the completion ripple runs: never under Reduce Motion (the check still appears,

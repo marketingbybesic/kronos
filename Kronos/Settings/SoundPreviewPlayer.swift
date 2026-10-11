@@ -35,13 +35,23 @@ enum SoundPreviewPlayer {
     }
 
     /// Keyed by path and modification date, so replacing a custom file picks up the new bytes.
+    /// Created at the stored volume (SoundSettingsPrefs.volume); `applyVolume` keeps an
+    /// already-cached pool in sync if the Settings slider moves afterwards.
     private static func pool(for url: URL) -> SoundPlayerPool {
         let mod = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         let key = url.path + "|" + String(mod?.timeIntervalSince1970 ?? 0)
         if let p = pools[key] { return p }
-        let p = SoundPlayerPool(url: url, size: 3)
+        let p = SoundPlayerPool(url: url, size: 3, volume: SoundSettingsPrefs.volume)
         pools[key] = p
         return p
+    }
+
+    /// Called by the Settings volume slider on every change, so a pool created before the
+    /// change (preview or a cue preloaded at launch) picks up the new level immediately — its
+    /// cache key is the file's path + mod date, not the volume, so it would otherwise stay
+    /// at whatever volume it was created with until the file itself changed.
+    static func applyVolume(_ volume: Float) {
+        for pool in pools.values { pool.setVolume(volume) }
     }
 }
 
@@ -72,6 +82,11 @@ final class SoundPlayerPool {
     }
 
     var count: Int { players.count }
+
+    /// Live volume update for an already-created pool (SoundPreviewPlayer.applyVolume).
+    func setVolume(_ volume: Float) {
+        for p in players { p.volume = volume }
+    }
 
     @discardableResult
     func playNext() -> Int? {

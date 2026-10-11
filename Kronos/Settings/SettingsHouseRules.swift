@@ -10,6 +10,9 @@ struct SettingsHouseRulesSection: View {
     let model: AppModel
     /// The rule whose Delete was pressed once; the second press deletes.
     @State private var confirmingDelete: UUID?
+    /// The rule whose toggle was switched on while the 50-active cap (§6.5) was already full;
+    /// waits here for the person to Replace or Cancel instead of silently failing or evicting.
+    @State private var pendingActivate: UUID?
 
     var body: some View {
         // Reading the version re-renders the list after any store change (an agent adds a rule).
@@ -60,37 +63,87 @@ struct SettingsHouseRulesSection: View {
     #endif
 
     private func row(_ rule: KRule, index: Int) -> some View {
-        let isConfirming = confirmingDelete == rule.id
-        return HStack(alignment: .center, spacing: Space.x3) {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(rule.text)
-                    .font(Typo.row)
-                    .foregroundStyle(rule.isActive ? Tok.textPrimary : Tok.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(String(format: String(localized: "settings.coach.houserules.meta"),
-                            originText(rule), scopeText(rule.scope)))
-                    .font(Typo.meta)
-                    .foregroundStyle(Tok.textTertiary)
-                    .lineLimit(1)
+        let isConfirmingDelete = confirmingDelete == rule.id
+        return VStack(alignment: .leading, spacing: Space.x2) {
+            HStack(alignment: .center, spacing: Space.x3) {
+                VStack(alignment: .leading, spacing: Space.x1) {
+                    Text(rule.text)
+                        .font(Typo.row)
+                        .foregroundStyle(rule.isActive ? Tok.textPrimary : Tok.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(String(format: String(localized: "settings.coach.houserules.meta"),
+                                originText(rule), scopeText(rule.scope)))
+                        .font(Typo.meta)
+                        .foregroundStyle(Tok.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: Space.x2)
+                Toggle(isOn: Binding(get: { rule.isActive }, set: { setActive(rule, $0) })) { EmptyView() }
+                    .toggleStyle(.switch)
+                    .tint(Tok.textPrimary)
+                    .labelsHidden()
+                    // The bare switch measures under 24 pt; pad its frame to the minimum hit
+                    // target the a11y UI-test step enforces for every switch and Delete.
+                    .frame(minWidth: Metrics.minHit, minHeight: Metrics.minHit)
+                    .accessibilityLabel(String(format: String(localized: "settings.coach.houserules.toggle.a11y"), rule.text))
+                    .uiTestAnchor("houserules.toggle.\(index)")
+                RuleDeleteButton(isConfirming: isConfirmingDelete) { delete(rule) }
+                .accessibilityLabel(String(format: String(localized: "settings.coach.houserules.delete.a11y"), rule.text))
+                .uiTestAnchor("houserules.delete.\(index)")
             }
-            Spacer(minLength: Space.x2)
-            Toggle(isOn: Binding(get: { rule.isActive }, set: { setActive(rule, $0) })) { EmptyView() }
-                .toggleStyle(.switch)
-                .tint(Tok.textPrimary)
-                .labelsHidden()
-                .accessibilityLabel(String(format: String(localized: "settings.coach.houserules.toggle.a11y"), rule.text))
-                .uiTestAnchor("houserules.toggle.\(index)")
-            RuleDeleteButton(isConfirming: isConfirming) { delete(rule) }
-            .accessibilityLabel(String(format: String(localized: "settings.coach.houserules.delete.a11y"), rule.text))
-            .uiTestAnchor("houserules.delete.\(index)")
+            .frame(maxWidth: .infinity, minHeight: Metrics.controlRegular, alignment: .leading)
+            if pendingActivate == rule.id, let candidate = replaceCandidate(excluding: rule.id) {
+                replaceConfirm(target: rule, candidate: candidate, index: index)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: Metrics.controlRegular, alignment: .leading)
         .padding(.vertical, Space.x1)
         .uiTestAnchor("houserules.row.\(index)")
     }
 
+    /// The active rule offered as a swap when the cap is full: `allRules` already sorts ascending
+    /// by `createdAt` (then id), so the first active entry is also the oldest. There is no
+    /// per-rule usage counter to rank by "least-used" (§6.5) without a `KRule` schema change
+    /// (forbidden — it would break the persisted entity hash), so age is the next best proxy.
+    private func replaceCandidate(excluding id: UUID) -> KRule? {
+        model.store.allRules(includeInactive: true).first { $0.isActive && $0.id != id }
+    }
+
+    @ViewBuilder
+    private func replaceConfirm(target: KRule, candidate: KRule, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(String(format: String(localized: "settings.coach.houserules.full.confirm"), candidate.text))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.x2) {
+                Button(String(localized: "settings.coach.houserules.full.replace")) {
+                    replace(target: target, candidate: candidate)
+                }
+                .kButton(.secondary, size: .compact)
+                .uiTestAnchor("houserules.full.replace.\(index)")
+                Button(String(localized: "common.cancel")) { pendingActivate = nil }
+                    .kButton(.ghost, size: .compact)
+                    .uiTestAnchor("houserules.full.cancel.\(index)")
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
     private func setActive(_ rule: KRule, _ active: Bool) {
+        if active, !rule.isActive, model.store.activeRuleCount() >= TaskStore.maxActiveRules {
+            pendingActivate = rule.id
+            return
+        }
+        pendingActivate = nil
         guard model.store.setRuleActive(rule.id, active) else { return }
+        model.didMutate()
+        AIWiring.refresh(model)
+    }
+
+    private func replace(target: KRule, candidate: KRule) {
+        pendingActivate = nil
+        guard model.store.setRuleActive(candidate.id, false) else { return }
+        guard model.store.setRuleActive(target.id, true) else { return }
         model.didMutate()
         AIWiring.refresh(model)
     }

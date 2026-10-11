@@ -182,7 +182,14 @@ struct ChildVisibilityTests {
         let open = parent.orderedChildren.filter { $0.title == "step due today" && $0.status == .todo }
         #expect(open.count == 1)
         #expect(open[0].parentID == parent.id)
-        #expect(Day.iso(open[0].dueDay ?? 0) == "2026-10-17")
+        // Date-robust: the completion path anchors on max(dueDay, REAL completion day)
+        // (RecurrenceEngine, data-model §6.2 missed-occurrence collapse) — the store has no
+        // injected clock, so a hardcoded "2026-10-17" only held while the wall-clock day was
+        // <= the fixture's 2026-10-10 and this suite started failing at the next midnight.
+        // Assert the contract instead: anchor + 7, strictly in the future.
+        let expectedNext = max(Day.parseISO("2026-10-10")!, Day.today()) + 7
+        #expect(open[0].dueDay == expectedNext)
+        #expect((open[0].dueDay ?? 0) > Day.today())
         #expect(w.store.allTasks().count == topLevelBefore, "the new occurrence is not a list row")
         w.store.undo()
         #expect(parent.orderedChildren.filter { $0.title == "step due today" }.count == 1)

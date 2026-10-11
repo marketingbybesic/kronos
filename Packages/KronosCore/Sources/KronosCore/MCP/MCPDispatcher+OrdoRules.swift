@@ -158,8 +158,9 @@ extension MCPDispatcher {
     func rulesList(_ arguments: Data) -> MCPToolOutcome {
         let params: MCPParams.RulesList
         do { params = try decodeParams(MCPParams.RulesList.self, arguments, tool: "rules_list") } catch { return MCPToolOutcome.from(error) }
-        struct Result: Encodable { let rules: [MCPRuleDTO] }
-        return .ok(Result(rules: store.allRules(includeInactive: params.includeInactive).map(MCPRuleDTO.init)))
+        struct Result: Encodable { let rules: [MCPRuleDTO]; let activeCount: Int; let maxActive: Int }
+        return .ok(Result(rules: store.allRules(includeInactive: params.includeInactive).map(MCPRuleDTO.init),
+                          activeCount: store.activeRuleCount(), maxActive: TaskStore.maxActiveRules))
     }
 
     func rulesAdd(_ arguments: Data) -> MCPToolOutcome {
@@ -178,9 +179,14 @@ extension MCPDispatcher {
         guard let concrete = store as? TaskStore else {
             return .error(.internalError, message: "this store cannot hold house rules")
         }
+        // The 50-active cap (§6.5) is NOT enforced here: every rule this tool inserts arrives
+        // `active: false` (above), so adding one can never itself push the active count past the
+        // cap — rejecting the proposal because 50 UNRELATED rules already happen to be active would
+        // block a legitimate, reviewable suggestion for no reason. The cap is enforced where a rule
+        // actually becomes active: the person's toggle in Settings > Coach > House rules.
         let added: (rule: KRule, inserted: Bool) = concrete.addRule(text: trimmed, scope: params.scope.kRuleScope, source: .agent, active: false)
-        struct Result: Encodable { let rule: MCPRuleDTO; let created: Bool }
-        return .ok(Result(rule: MCPRuleDTO(added.rule), created: added.inserted))
+        struct Result: Encodable { let rule: MCPRuleDTO; let created: Bool; let activeCount: Int }
+        return .ok(Result(rule: MCPRuleDTO(added.rule), created: added.inserted, activeCount: concrete.activeRuleCount()))
     }
 
     func rulesDelete(_ arguments: Data) -> MCPToolOutcome {

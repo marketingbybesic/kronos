@@ -70,7 +70,7 @@ extension TaskStore {
                 RecurrenceSpawner.spawnNext(for: id, completedOn: Day.today(), in: self)
             }
         }
-        if wasOpen && !isMachineWrite {
+        if wasOpen && !isMachineWrite && !isCompletionSoundSuppressed {
             // A subtask plays the step cue, a task the task cue — never both.
             if taskIncludingDeleted(id)?.isSubtask == true {
                 NotificationCenter.default.post(name: .kronosSubtaskDidComplete, object: nil, userInfo: ["subtaskID": id])
@@ -78,6 +78,21 @@ extension TaskStore {
                 NotificationCenter.default.post(name: .kronosTaskDidComplete, object: nil, userInfo: ["taskID": id])
             }
         }
+    }
+
+    /// Runs `body` with `complete(_:)`'s per-call completion notification suppressed — every
+    /// call inside still mutates and spawns recurrence as normal, only the
+    /// `.kronosTaskDidComplete`/`.kronosSubtaskDidComplete` post is skipped. For a bulk-complete
+    /// loop (ListBulk.swift) that wants exactly one chime for the whole batch instead of one
+    /// overlapping chime per task; the caller plays that one chime itself after `body` returns.
+    /// Same bracket shape as `withoutUndo` (TaskStore+NoUndo.swift), a distinct flag: this is
+    /// still the person's own undoable write, only the sound is batched.
+    public func withSuppressedCompletionSound<T>(_ body: () -> T) -> T {
+        let was = isCompletionSoundSuppressed
+        isCompletionSoundSuppressed = true
+        let result = body()
+        isCompletionSoundSuppressed = was
+        return result
     }
 
     public func reopen(_ id: UUID) {
@@ -144,6 +159,24 @@ extension TaskStore {
         guard task(id)?.isSubtask != true else { return }
         update(id) { t in
             t.ordoIndex = top ? pushTopIndex(scope: .ordo) : appendIndex(scope: .ordo)
+        }
+    }
+
+    /// Sends several tasks to Up next in one undo step, preserving the order of `ids`:
+    /// append lands them at the end of the queue in that order (ids.last nearest the bottom);
+    /// top lands them at the start of the queue in that order (ids.first frontmost). The
+    /// single-task `sendToOrdo(_:top:)` recomputes `pushTopIndex`/`appendIndex` fresh on every
+    /// call, so a naive ascending loop with `top: true` stacks each later id ABOVE the one
+    /// before it (A,B,C ends up C,B,A) — iterating the ids in reverse for `top` cancels that
+    /// out. Subtasks are silently skipped, same rule as the single-task writer (never ORDO
+    /// members).
+    public func sendToOrdo(_ ids: [UUID], top: Bool = false) {
+        let targets = ids.filter { task($0)?.isSubtask != true }
+        guard !targets.isEmpty else { return }
+        groupedUndo("Send to Up next") {
+            for id in (top ? targets.reversed() : targets) {
+                sendToOrdo(id, top: top)
+            }
         }
     }
 

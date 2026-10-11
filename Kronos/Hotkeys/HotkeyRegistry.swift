@@ -211,6 +211,16 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "window.reviewnext", titleKey: "menu.task.reviewnext", scope: .window,
                     defaultBinding: HotkeyBinding("r", option: true, command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
+        // Send to Up next (ORDO queue, ⌘⇧O append / ⌥⌘⇧O push-to-top) — window-scope Commands
+        // shortcuts (Kronos/App/KronosApp.swift) so they fire even while a text field is first
+        // responder (the internal notes:50 names ⌘⇧O explicitly). UpNextActions.swift reads
+        // the selection off AppModel the same way NestingActions.swift does for Cmd-]/Cmd-[.
+        HotkeyEntry(id: "list.sendtoupnext", titleKey: "hotkey.list.sendtoupnext", scope: .window,
+                    defaultBinding: HotkeyBinding("o", shift: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/App/KronosApp.swift"),
+        HotkeyEntry(id: "list.sendtoupnexttop", titleKey: "hotkey.list.sendtoupnexttop", scope: .window,
+                    defaultBinding: HotkeyBinding("o", shift: true, option: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/App/KronosApp.swift"),
         HotkeyEntry(id: "window.capture", titleKey: "menu.task.capture", scope: .window,
                     defaultBinding: HotkeyBinding("n", shift: true, command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
@@ -280,6 +290,13 @@ public enum HotkeyRegistry {
                     registrationSite: "Kronos/List/TaskListScreen.swift"),
         HotkeyEntry(id: "list.project", titleKey: "hotkey.list.project", scope: .list,
                     defaultBinding: HotkeyBinding("p"), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        // ⌥↑/⌥↓ reorder: moves the focused row one slot in the list's manual order.
+        HotkeyEntry(id: "list.reorder.up", titleKey: "hotkey.list.reorderup", scope: .list,
+                    defaultBinding: HotkeyBinding("up", option: true), isRebindable: false,
+                    registrationSite: "Kronos/List/TaskListScreen.swift"),
+        HotkeyEntry(id: "list.reorder.down", titleKey: "hotkey.list.reorderdown", scope: .list,
+                    defaultBinding: HotkeyBinding("down", option: true), isRebindable: false,
                     registrationSite: "Kronos/List/TaskListScreen.swift"),
         HotkeyEntry(id: "list.snooze", titleKey: "hotkey.list.snooze", scope: .list,
                     defaultBinding: HotkeyBinding("h"), isRebindable: true,
@@ -390,6 +407,29 @@ public enum HotkeyRegistry {
     /// The live system chords the preset must not take (enabled macOS symbolic hotkeys).
     public static func systemTakenBindings() -> Set<HotkeyBinding> {
         Set(SymbolicHotkeyReader.enabledDefaults().map(\.binding))
+    }
+
+    /// The "Linear-compatible" preset (ux-13 §2.3, the internal notes:179): remaps
+    /// Send-to-Up-next from its Kronos default (⌘⇧O) to ⌘⇧Q and leaves ⌘⇧O unbound, matching
+    /// Linear's own use of ⌘⇧O (its sub-issue editor). Written as ordinary overrides, exactly
+    /// like `applyControlScheme`, so Reset to defaults undoes it the same way. Returns the ids
+    /// that actually moved.
+    @discardableResult
+    public static func applyLinearCompatiblePreset() -> [String] {
+        let remaps: [(id: String, binding: HotkeyBinding)] = [
+            ("list.sendtoupnext", HotkeyBinding("q", shift: true, command: true)),
+        ]
+        var overrides = loadOverrides()
+        var moved: [String] = []
+        for (id, binding) in remaps {
+            guard let entry = entries.first(where: { $0.id == id }), entry.isRebindable else { continue }
+            overrides[id] = binding
+            moved.append(id)
+        }
+        guard !moved.isEmpty else { return [] }
+        saveOverrides(overrides)
+        NotificationCenter.default.post(name: changed, object: nil)
+        return moved.sorted()
     }
 
     /// One-time silent migration: a user who never touched the old ⌥Space quick-add default

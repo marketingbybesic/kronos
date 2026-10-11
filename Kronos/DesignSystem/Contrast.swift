@@ -18,6 +18,14 @@ public enum KContrast {
         contrast == .increased || forced
     }
 
+    /// Ambient system check for a caller with no specific `NSAppearance` to resolve against
+    /// (unlike the dynamic text tones below, which resolve per-appearance automatically at
+    /// draw time) — e.g. a plain `CGFloat` metric. Mirrors `Motion.reduceMotion`'s pattern: a
+    /// live re-read, not cached, so flipping the system setting takes effect on the next render.
+    public static var isIncreasedAmbient: Bool {
+        forced || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    }
+
     /// For colours resolved outside a view's environment (the text tiers): the appearance being
     /// drawn, the system setting, or a test run.
     static func isIncreased(appearance: NSAppearance) -> Bool {

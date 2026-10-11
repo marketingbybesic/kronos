@@ -332,13 +332,16 @@ struct TourOverlay: View {
         .keyboardShortcut(.defaultAction)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
-        .focused($nextFocused)
+        // Focus lives on the bubble container, not this Button: buttons only accept keyboard
+        // focus under Full Keyboard Access (off by default), so Space would never reach it.
+        // Return still works here via `.keyboardShortcut(.defaultAction)`, which needs no focus.
         .uiTestAnchor("tour.next")
     }
 
-    /// Says the step aloud and puts keyboard focus on the bubble's primary button. Focus is set on the
-    /// next turn: the bubble is rebuilt for every step (`.id(index)`), so a same-tick request would
-    /// land on the view that is about to go away.
+    /// Says the step aloud and puts keyboard focus on the bubble itself (the container is
+    /// focusable; its `onKeyPress(.space)` advances the tour without Full Keyboard Access).
+    /// Focus is set on the next turn: the bubble is rebuilt for every step (`.id(index)`), so a
+    /// same-tick request would land on the view that is about to go away.
     private func speak(step: TourStep, index: Int, available: Set<TourAnchor>) {
         let progress = TourLogic.progress(index: index, steps: TourSteps.all, available: available)
         TourAnnouncer.announce(
@@ -399,6 +402,13 @@ struct TourOverlay: View {
         .kBorder(Tok.borderStrong, radius: Radius.card)
         .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .shadow(color: accent.opacity(0.18), radius: 24, y: 8)
+        // Space advances from the bubble itself: buttons cannot take keyboard focus without
+        // Full Keyboard Access, so the container is the focus target (list rows use the same
+        // pattern). Return keeps working through the primary button's `.defaultAction` shortcut.
+        .focusable(true)
+        .focusEffectDisabled()
+        .focused($nextFocused)
+        .onKeyPress(.space) { center.next(); return .handled }
         .id(index)   // fresh subtree per step so the transition below reads as a page turn
         .transition(Motion.reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 8)))
     }

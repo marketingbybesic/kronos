@@ -208,7 +208,7 @@ struct NotesPickerSheet: View {
         Button { Task { await pick(note) } } label: {
             HStack(spacing: Space.x2) {
                 if case .multi = mode {
-                    KCheckbox(isChecked: selectedNoteIDs.contains(note.id), size: Metrics.listCheckboxSize) {}
+                    StatusCircle(isChecked: selectedNoteIDs.contains(note.id), size: Metrics.listCheckboxSize) {}
                         .allowsHitTesting(false)
                 }
                 VStack(alignment: .leading, spacing: 0) {

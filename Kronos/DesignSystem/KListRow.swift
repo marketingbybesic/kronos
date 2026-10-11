@@ -27,6 +27,10 @@ public struct KListRow<Title: View, Trailing: View>: View {
     var isDone: Bool = false
     var density: CGFloat = Metrics.rowHeight
     let isChecked: Bool
+    /// The real 5-state status, when the caller has one (a full task row). nil (every
+    /// non-task caller: CaptureReviewRow's capture tick, the Design Gallery demos) falls back
+    /// to `isChecked ? .done : .todo`, the same two states this row always drew.
+    var status: KTaskStatus?
     var accessibilityLabel: String?
     /// What VoiceOver reads after the label; nil keeps the old behaviour (the word "Done" for a done row).
     var accessibilityValue: String?
@@ -34,6 +38,9 @@ public struct KListRow<Title: View, Trailing: View>: View {
     var selectionTint: Color?
     let onToggle: () -> Void
     let onSelect: () -> Void
+    /// ⌥-click/right-click on the status circle, for a caller that owns a status popover; nil
+    /// (every non-task caller) leaves that gesture a no-op.
+    var onOpenPopover: (() -> Void)?
     @ViewBuilder let title: () -> Title
     @ViewBuilder var trailing: () -> Trailing
     @State private var isHovering = false
@@ -42,9 +49,11 @@ public struct KListRow<Title: View, Trailing: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
 
     public init(isSelected: Bool = false, isMultiSelected: Bool = false, isDone: Bool = false,
-                density: CGFloat = Metrics.rowHeight, isChecked: Bool, accessibilityLabel: String? = nil, accessibilityValue: String? = nil,
+                density: CGFloat = Metrics.rowHeight, isChecked: Bool, status: KTaskStatus? = nil,
+                accessibilityLabel: String? = nil, accessibilityValue: String? = nil,
                 selectionTint: Color? = nil,
                 onToggle: @escaping () -> Void, onSelect: @escaping () -> Void,
+                onOpenPopover: (() -> Void)? = nil,
                 @ViewBuilder title: @escaping () -> Title,
                 @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
         self.isSelected = isSelected
@@ -90,14 +99,19 @@ public struct KListRow<Title: View, Trailing: View>: View {
         HStack(spacing: 0) {
             selectionBarGutter
             Color.clear.frame(width: Metrics.listRowLeading - Metrics.sidebarSelectionBarWidth)
-            KCheckbox(isChecked: isChecked, size: Metrics.listCheckboxSize, onToggle: onToggle)
+                .overlay(multiSelectGlyph)
+            StatusCircle(status: status ?? (isChecked ? .done : .todo), size: Metrics.listCheckboxSize,
+                         onToggle: onToggle, onOpenPopover: onOpenPopover)
             Color.clear.frame(width: Metrics.listCheckboxTitleGap)
             titleContent
             Spacer(minLength: Metrics.listCheckboxTitleGap)
             trailingContent
             Color.clear.frame(width: Metrics.listRowTrailing)
         }
-        .frame(height: density)
+        // A floor, not a fixed height: at the OS Dynamic Type ceiling (spec §13.3, ~1.35x) a
+        // row's own title can need more than `density` to avoid clipping; `minHeight` lets it
+        // grow while every row still defaults to exactly `density` at ordinary text sizes.
+        .frame(minHeight: density)
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .background(rowFill)
@@ -140,5 +154,20 @@ public struct KListRow<Title: View, Trailing: View>: View {
                 RoundedRectangle(cornerRadius: Metrics.sidebarSelectionBarWidth / 2)
                     .fill(isEmphasized ? (selectionTint ?? accent) : Color.clear)
             )
+    }
+
+    /// At ≥2 selected (`isMultiSelected`), every selected row's leading gutter gets a 14 pt
+    /// `check-square` in the selection hue (the internal notes §4.7/§8.1), drawn IN
+    /// ADDITION to the 2 pt selection bar, not instead of it. The spec frames this as
+    /// "replacing the drag handle gutter", but this app has no separate drag-handle view —
+    /// the whole row is the drag source (`ListRowView`'s `.onDrag`) — so there is no handle
+    /// glyph to swap; this overlays the same leading slot the spec points at instead.
+    @ViewBuilder
+    private var multiSelectGlyph: some View {
+        if isMultiSelected {
+            Icon("check-square", size: Metrics.iconM)
+                .foregroundStyle(selectionTint ?? accent)
+                .accessibilityHidden(true)
+        }
     }
 }

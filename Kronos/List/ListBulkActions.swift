@@ -4,6 +4,7 @@
 // decides what "complete / delete / move 3 tasks" means. Each call wraps its writes in the
 // store's `groupedUndo`, so one ⌘Z (or the undo pill) reverts the whole action.
 import Foundation
+import AppKit
 import KronosCore
 
 @MainActor
@@ -26,6 +27,9 @@ enum ListBulk {
         case toggleDone
         case delete
         case snooze
+        /// Sends every task to Up next (ORDO), appended or pushed to the top — the bulk-
+        /// selection path of the row's own Send to Up next / Send to Up next (top) (⌘⇧O / ⌥⌘⇧O).
+        case sendToUpNext(top: Bool)
     }
 
     /// Runs `change` on every selected task as one undo step. No-op below two tasks: a single
@@ -34,6 +38,9 @@ enum ListBulk {
         let tasks = model.selectedIDs.compactMap { model.store.task($0) }
         let n = tasks.count
         guard n > 1, changesSomething(change, tasks) else { return }
+        // Deleting is one ⌘Z away, but a stray chord across dozens of selected rows still
+        // deserves a pause; ≤10 keeps the single-press immediate delete + undo-toast flow.
+        if case .delete = change, n > 10, !confirmBulkDelete(n) { return }
         // Completing skips a task that waits on an open task outside this selection: the one-task
         // paths ask what to do about a blocker (BlockedCompletionCard), a bulk action cannot ask n times.
         var completable = tasks.filter { $0.status != .done }
@@ -77,12 +84,21 @@ enum ListBulk {
                 let allSomeday = tasks.allSatisfy { $0.status == .someday }
                 for t in tasks where t.status != .done { store.setStatus(t.id, allSomeday ? .todo : .someday) }
             case .snooze: for t in tasks { store.snooze(t.id) }
+            case .sendToUpNext(let top):
+                // One store call for the whole selection, in list order (not the Set's hash
+                // order): append lands them at the end in that order, top lands them at the
+                // start in that order with the first-in-list row frontmost.
+                store.sendToOrdo(tasks.sorted(by: { $0.sortIndex < $1.sortIndex }).map(\.id), top: top)
             case .delete: for t in tasks { store.softDelete(t.id) }
             case .toggleDone:
                 if tasks.allSatisfy({ $0.status == .done }) {
                     for t in tasks { store.reopen(t.id) }
                 } else {
-                    for t in completable { store.complete(t.id) }
+                    // One chime for the whole batch, never one per task: complete() posts no
+                    // notification while suppressed, so CompletionSound.observe never sees the
+                    // individual rows and the group plays exactly one cue after the loop.
+                    store.withSuppressedCompletionSound { for t in completable { store.complete(t.id) } }
+                    KronosSounds.play(.task)
                 }
             }
         }
@@ -91,6 +107,18 @@ enum ListBulk {
             model.selectedTaskID = nil
         }
         model.commit(message)
+    }
+
+    /// Deleting more than 10 rows at once pauses for a yes/no instead of going straight
+    /// through; the same modal NSAlert confirm/cancel shape `LabelRenameAlert` already uses
+    /// (Kronos/List/LabelContextMenu.swift), no new confirmation convention introduced.
+    private static func confirmBulkDelete(_ n: Int) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(format: String(localized: "list.bulk.delete.confirm"), n)
+        alert.addButton(withTitle: String(localized: "common.delete"))
+        alert.addButton(withTitle: String(localized: "common.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// False when every task already holds the value: nothing is written and no pill shows.
@@ -105,7 +133,7 @@ enum ListBulk {
         case .plan(let day): return tasks.contains { $0.plannedDay != day }
         case .snooze: return tasks.contains { $0.plannedDay != today + 1 }
         case .toggleWaiting, .toggleSomeday: return tasks.contains { $0.status != .done }
-        case .toggleLabel, .toggleDone, .delete: return true
+        case .toggleLabel, .toggleDone, .delete, .sendToUpNext: return true
         }
     }
 

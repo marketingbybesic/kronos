@@ -47,6 +47,8 @@ extension LiveUITest {
         ("I-INSPECT", iInspectSteps),
         ("FOLLOWUP", followupSteps),
         ("L-SAVED", lSavedSteps),
+        ("UP-NEXT", upNextSteps),
+        ("L-GROUP", lGroupSteps),
         // GROUP-STEPS-END
     ]
 

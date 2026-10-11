@@ -22,9 +22,9 @@ struct DesignGalleryFocusRingSection: View {
                 KChip("Acme", leading: { KProjectGlyph(color: .orange, emoji: "🌵", size: Metrics.iconS) })
                     .fixedSize()
                     .kFocusRing(true, radius: Radius.chip)
-                KCheckbox(isChecked: false, size: Metrics.iconL, label: "Step") {}
+                StatusCircle(isChecked: false, size: Metrics.iconL, label: "Step") {}
                     .kFocusRing(true, radius: max(Metrics.iconL, Metrics.minHit) / 2, circular: true)
-                KCheckbox(isChecked: true, size: Metrics.iconL, label: "Step") {}
+                StatusCircle(isChecked: true, size: Metrics.iconL, label: "Step") {}
                     .kFocusRing(true, radius: max(Metrics.iconL, Metrics.minHit) / 2, circular: true)
             }
             // Three states. Selection = the app's own fill + bar, no ring added on top.

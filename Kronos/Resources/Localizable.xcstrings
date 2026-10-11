@@ -2,6 +2,204 @@
   "sourceLanguage": "en",
   "version": "1.0",
   "strings": {
+    "a11y.row.selected": {
+      "comment": "Appended to a task row's VoiceOver value when the row is part of a 2+ multi-selection.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "odabran"
+          }
+        }
+      }
+    },
+    "hotkey.list.sendtoupnext": {
+      "comment": "Send to Up next (append), shown in Settings > Shortcuts, keymap sheet, context menu, bulk bar.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to Up next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pošalji u Up next"
+          }
+        }
+      }
+    },
+    "hotkey.list.sendtoupnexttop": {
+      "comment": "Send to Up next (push to top) variant of hotkey.list.sendtoupnext.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to Up next (top)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pošalji u Up next (na vrh)"
+          }
+        }
+      }
+    },
+    "list.groupby.due": {
+      "comment": "Group-by picker's Due option (groups by due-date bucket).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rok"
+          }
+        }
+      }
+    },
+    "list.groupby.due.later": {
+      "comment": "Due-grouping section header: tasks due more than a week out.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasnije"
+          }
+        }
+      }
+    },
+    "list.groupby.due.none": {
+      "comment": "Due-grouping section header: tasks with no due day.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No due date"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez roka"
+          }
+        }
+      }
+    },
+    "list.groupby.due.overdue": {
+      "comment": "Due-grouping section header: tasks whose due day has passed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overdue"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasni"
+          }
+        }
+      }
+    },
+    "list.groupby.none": {
+      "comment": "Group-by picker's None option (no grouping, flat list).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bez grupiranja"
+          }
+        }
+      }
+    },
+    "list.sendtoupnext.err.select": {
+      "comment": "Notice when the Send to Up next shortcut fires with nothing selected or highlighted.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a task first."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prvo odaberi zadatak."
+          }
+        }
+      }
+    },
+    "list.sendtoupnext.err.subtask": {
+      "comment": "Notice when the Send to Up next shortcut fires on a selected subtask (the store refuses subtasks; the hotkey path explains instead of showing a false undo pill).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A subtask can't go to Up next."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Podzadatak ne može u Up next."
+          }
+        }
+      }
+    },
+    "list.viewoptions.groupby": {
+      "comment": "Label above the Group-by picker in the view-options popover Display section.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Group by"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grupiranje"
+          }
+        }
+      }
+    },
     "menu.task.reviewnext": {
       "comment": "View menu item opening the Review-next fast path (uniform Approve/Request changes/Skip).",
       "extractionState": "manual",
@@ -16,6 +214,60 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pregledaj sljedeće"
+          }
+        }
+      }
+    },
+    "ai.budget.toast": {
+      "comment": "Non-blocking toast shown at most once/day when the daily paid AI call ceiling is reached (spec ai-layer.md §3.4); the deterministic path takes over for the rest of the day.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily AI budget reached."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potrošio si dnevni AI budžet."
+          }
+        }
+      }
+    },
+    "settings.ai.budget.today": {
+      "comment": "Settings > AI, shown only for the metered (claudeCode/Anthropic) provider: today's paid-call count of the daily ceiling.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paid calls today: %1$lld of %2$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plaćeni pozivi danas: %1$lld od %2$lld"
+          }
+        }
+      }
+    },
+    "settings.ai.budget.estimate": {
+      "comment": "Settings > AI, shown only for the metered (claudeCode/Anthropic) provider: a 30-day estimate extrapolated flat from today's paid-call count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About %1$lld over 30 days (estimate)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otprilike %1$lld u 30 dana (procjena)"
           }
         }
       }
@@ -6617,6 +6869,42 @@
         }
       }
     },
+    "hotkey.list.reorderup": {
+      "comment": "List key title (Settings, keymap).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the row up"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomakni redak gore"
+          }
+        }
+      }
+    },
+    "hotkey.list.reorderdown": {
+      "comment": "List key title (Settings, keymap).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the row down"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomakni redak dolje"
+          }
+        }
+      }
+    },
     "hotkey.list.snooze": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -7405,6 +7693,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Izbrisan %lld zadatak"
+          }
+        }
+      }
+    },
+    "list.bulk.delete.confirm": {
+      "comment": "Bulk delete above 10 selected rows asks first (ListBulkActions.swift); %1$lld = row count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %1$lld tasks?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izbrisati %1$lld zadataka?"
           }
         }
       }
@@ -8269,6 +8575,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tipke popisa"
+          }
+        }
+      }
+    },
+    "list.loading": {
+      "comment": "Accessibility label of the pane-level loading placeholder (KShimmerRows) shown while a list's initial fetch is still outstanding past 250 ms.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Učitavanje…"
           }
         }
       }
@@ -12839,6 +13163,60 @@
         }
       }
     },
+    "settings.about.acknowledgements": {
+      "comment": "Settings > About row label / Acknowledgements screen title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acknowledgements"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zahvale"
+          }
+        }
+      }
+    },
+    "settings.about.acknowledgements.open": {
+      "comment": "Button opening the Acknowledgements screen.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži"
+          }
+        }
+      }
+    },
+    "settings.about.acknowledgements.missing": {
+      "comment": "Shown if the bundled Acknowledgements.md resource cannot be found.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The acknowledgements file could not be found."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datoteka sa zahvalama nije pronađena."
+          }
+        }
+      }
+    },
     "settings.about.section.updates": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -13393,6 +13771,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nema odgovora"
+          }
+        }
+      }
+    },
+    "settings.ai.test.insecurehttp": {
+      "comment": "Spec 3.15/5.3: plain HTTP base URL rejected unless host is localhost.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plain HTTP is only allowed for localhost"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obični HTTP dopušten je samo za localhost"
           }
         }
       }
@@ -16889,6 +17285,96 @@
         }
       }
     },
+    "settings.sounds.cue.enabled": {
+      "comment": "Per-cue sound toggle label; %1$@ is the cue name (Task/Subtask/Pick one).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play %1$@ sound"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sviraj zvuk: %1$@"
+          }
+        }
+      }
+    },
+    "settings.sounds.volume": {
+      "comment": "Spec 8.3 sound volume slider label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Glasnoća"
+          }
+        }
+      }
+    },
+    "settings.sounds.animation": {
+      "comment": "Completion animation toggle label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completion animation"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Animacija dovršetka"
+          }
+        }
+      }
+    },
+    "settings.sounds.animation.reducedmotion": {
+      "comment": "Completion animation toggle label when forced off by Reduce Motion.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off (system setting)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isključeno (postavka sustava)"
+          }
+        }
+      }
+    },
+    "settings.sounds.volume.percent": {
+      "comment": "Sound volume slider percentage readout, e.g. 70%.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld%%"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld%%"
+          }
+        }
+      }
+    },
     "settings.sounds.impuls": {
       "comment": "Spec 3.15 Settings.",
       "extractionState": "manual",
@@ -19655,6 +20141,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brzi unos"
+          }
+        }
+      }
+    },
+    "undo.sendtoupnext.name": {
+      "comment": "Undo pill after Send to Up next on one task; %1$@ is the task title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent “%1$@” to Up next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” poslano u Up next"
+          }
+        }
+      }
+    },
+    "undo.sendtoupnexttop.name": {
+      "comment": "Undo pill after Send to Up next (top) on one task; %1$@ is the task title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent “%1$@” to the top of Up next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” poslano na vrh Up next liste"
           }
         }
       }
@@ -25663,6 +26185,42 @@
         }
       }
     },
+    "settings.coach.houserules.full.confirm": {
+      "comment": "House rules and AI egress.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rules are full (50). Replace \"%1$@\"?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pravila su puna (50). Zamijeniti „%1$@”?"
+          }
+        }
+      }
+    },
+    "settings.coach.houserules.full.replace": {
+      "comment": "House rules and AI egress.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zamijeni"
+          }
+        }
+      }
+    },
     "review.sidebar.title": {
       "extractionState": "manual",
       "localizations": {
@@ -26679,6 +27237,78 @@
         }
       }
     },
+    "settings.shortcuts.linearcompatible": {
+      "comment": "Linear-compatible shortcut preset button label.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Linear shortcuts"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koristi Linear prečace"
+          }
+        }
+      }
+    },
+    "settings.shortcuts.linearcompatible.title": {
+      "comment": "Linear-compatible shortcut preset section title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linear-compatible"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kompatibilno s Linearom"
+          }
+        }
+      }
+    },
+    "settings.shortcuts.linearcompatible.help": {
+      "comment": "Linear-compatible shortcut preset help text.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remaps Send to Up next from ⌘⇧O to ⌘⇧Q, matching Linear's own ⌘⇧O. Reset to defaults undoes it."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prebacuje „Pošalji u Up next” s ⌘⇧O na ⌘⇧Q, isto kao u Linearu. Vrati na zadano to poništava."
+          }
+        }
+      }
+    },
+    "settings.shortcuts.linearcompatible.done": {
+      "comment": "Linear-compatible shortcut preset result, N shortcuts moved.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld shortcuts now match Linear."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld prečaca sada odgovara Linearu."
+          }
+        }
+      }
+    },
     "a11y.shortcut.recorder.label": {
       "comment": "VoiceOver label of a shortcut recorder button; %@ is the action",
       "extractionState": "manual",
@@ -26938,13 +27568,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Marks this task reviewed — a phase gate an agent can read with review_status."
+            "value": "Marks this task reviewed, a phase gate agents read via review_status."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Označava zadatak kao pregledan — vrata faze koja agent može pročitati preko review_status."
+            "value": "Označava zadatak pregledanim, vrata faze koja agenti čitaju preko review_status."
           }
         }
       }
@@ -27142,7 +27772,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Agenti su dovršili zadataka: %1$lld"
+            "value": "Agenti su dovršili %1$lld zadataka"
           }
         }
       }
@@ -27268,7 +27898,7 @@
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "zatvara gotov posao bez pregleda"
+            "value": "zatvarati gotov posao bez pregleda"
           }
         }
       }

@@ -342,6 +342,7 @@ struct ListViewOptionsPopoverContent: View {
         )
         let modified = isModifiedSavedView(opts)
         return VStack(alignment: .leading, spacing: Space.x3) {
+            groupByRow(opts)
             // A Waiting or Someday list holds no closed task: the switch would do nothing there.
             if scope.shape.offersShowCompleted {
                 KToggleRow(String(localized: "viewoptions.showcompleted"), isOn: showCompleted)
@@ -358,6 +359,28 @@ struct ListViewOptionsPopoverContent: View {
             .kButton(.secondary)
             .uiTestAnchor("viewoptions.saveview")
         }
+    }
+
+    /// "Group by" (spec §4.5-4.6): None/Status/Project/Priority/Due, applied live like every
+    /// other control in this popover — no Apply button.
+    private func groupByRow(_ opts: ViewOptions) -> some View {
+        let binding = Binding<KGroupBy>(
+            get: { opts.groupBy },
+            set: { var o = opts; o.groupBy = $0; model.setOptions(o, for: scope) }
+        )
+        return VStack(alignment: .leading, spacing: Space.x1) {
+            Text(String(localized: "list.viewoptions.groupby"))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textSecondary)
+            KSegmented(selection: binding, segments: [
+                KSegment(value: KGroupBy.none, text: ViewOptionsMapper.groupByName(.none)),
+                KSegment(value: KGroupBy.status, text: ViewOptionsMapper.groupByName(.status)),
+                KSegment(value: KGroupBy.project, text: ViewOptionsMapper.groupByName(.project)),
+                KSegment(value: KGroupBy.priority, text: ViewOptionsMapper.groupByName(.priority)),
+                KSegment(value: KGroupBy.due, text: ViewOptionsMapper.groupByName(.due)),
+            ])
+        }
+        .uiTestAnchor("list.viewoptions.groupby")
     }
 
     // MARK: - Name lookups

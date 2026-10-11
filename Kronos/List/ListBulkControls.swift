@@ -68,6 +68,15 @@ struct BulkActionControls: View {
             }
             .uiTestAnchor("bulk.labels")
         }
+        KMenuButton(text: String(localized: "ordo.title")) {
+            Button(String(localized: "hotkey.list.sendtoupnext")) {
+                ListBulk.apply(.sendToUpNext(top: false), model: model)
+            }
+            Button(String(localized: "hotkey.list.sendtoupnexttop")) {
+                ListBulk.apply(.sendToUpNext(top: true), model: model)
+            }
+        }
+        .uiTestAnchor("bulk.upnext")
         Button(String(localized: "bar.menu.complete")) { ListBulk.apply(.toggleDone, model: model) }
             .kButton(.secondary, size: .compact)
             .fixedSize()

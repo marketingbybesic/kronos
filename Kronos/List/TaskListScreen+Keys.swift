@@ -27,26 +27,46 @@ extension TaskListScreen {
     // MARK: Arrows
 
     func moveSelection(_ delta: Int, _ ctx: ListContext) {
-        guard !ctx.rows.isEmpty else { return }
+        // Order-dependent: walks `displayRows` (the "Group by" visual order, collapsed groups
+        // skipped — review finding 2), not the flat `ctx.rows`.
+        guard !ctx.displayRows.isEmpty else { return }
         model.selectedIDs = []   // arrows go back to a single selection
         rangeCursor = nil
-        guard let current = model.selectedTaskID, let i = ctx.rows.firstIndex(where: { $0.id == current }) else {
-            model.selectedTaskID = ctx.rows.first?.id
+        guard let current = model.selectedTaskID,
+              let i = ctx.displayRows.firstIndex(where: { $0.id == current }) else {
+            model.selectedTaskID = ctx.displayRows.first?.id
             return
         }
-        let next = max(0, min(ctx.rows.count - 1, i + delta))
-        model.selectedTaskID = ctx.rows[next].id
+        let next = max(0, min(ctx.displayRows.count - 1, i + delta))
+        model.selectedTaskID = ctx.displayRows[next].id
     }
 
     /// ⇧↑/⇧↓: the range from the anchor (the selected row) to a moving end, one row per press.
     func extendSelection(_ delta: Int, _ ctx: ListContext) {
-        let rows = ctx.rows.map(\.id)
+        // Order-dependent, same `displayRows` as `moveSelection` above.
+        let rows = ctx.displayRows.map(\.id)
         let state = ListSelectionState(anchor: model.selectedTaskID, ids: model.selectedIDs)
         let result = ListSelection.extend(by: delta, from: state, cursor: rangeCursor, rows: rows)
         model.selectedTaskID = result.state.anchor
         model.selectedIDs = result.state.ids
         rangeCursor = result.cursor
         listFocused = true
+    }
+
+    /// ⌥↑/⌥↓: moves the focused row one slot within the list's manual order — the same
+    /// `moveTask(_:before:inOrder:)` write the drag path already makes (DropZoneCommit.swift),
+    /// one step per press. When several rows are selected this moves only the anchor row
+    /// (`model.selectedTaskID`), matching the Inspector steps list's single-row Option-arrow
+    /// precedent (InspectorStepsSection.swift) rather than moving the whole selection.
+    func reorderSelected(_ delta: Int, _ ctx: ListContext) {
+        guard let id = model.selectedTaskID else { return }
+        let order = dropConfig(ctx).manualOrder
+        guard let i = order.firstIndex(of: id) else { return }
+        let target = i + delta
+        guard target >= 0, target < order.count else { return }
+        let before: UUID? = delta < 0 ? order[target] : (target + 1 < order.count ? order[target + 1] : nil)
+        guard model.store.moveTask(id, before: before, inOrder: order), let title = model.store.task(id)?.title else { return }
+        model.commit(String(format: String(localized: "undo.listreorder.name"), title))
     }
 
     // MARK: Space, Delete, Return

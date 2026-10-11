@@ -15,9 +15,6 @@ struct InspectorReviewSection: View {
         Group {
             if task.reviewRaw == ReviewState.awaitingCheck {
                 decision
-            } else if task.agentID != nil, let result = AgentTaskResult.decode(task.resultJSON),
-                      result.by == "me" || result.decision == "auto", let verdict = result.verdict {
-                recap(result, verdict: verdict)
             } else if let c = AgentWorkingIndex.shared.claim(for: task) {
                 Text(String(format: String(localized: "review.inspector.working"), c.name, relative(c.at)))
                     .font(Typo.meta)
@@ -25,6 +22,9 @@ struct InspectorReviewSection: View {
                     .padding(.vertical, Space.x2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .uiTestAnchor("inspector.review.working")
+            } else if task.agentID != nil, let result = AgentTaskResult.decode(task.resultJSON),
+                      result.by == "me" || result.decision == "auto", let verdict = result.verdict {
+                recap(result, verdict: verdict)
             }
         }
         .id(task.id)

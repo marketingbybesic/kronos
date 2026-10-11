@@ -46,11 +46,6 @@ struct InspectorStepsSection: View {
             HStack {
                 InspectorSectionCaption(String(localized: "detail.subtasks"))
                 Spacer()
-                if progress.total > 0 {
-                    Text(String(format: String(localized: "list.subtask.progress.n_of_m"), progress.done, progress.total))
-                        .font(Typo.meta)
-                        .foregroundStyle(Tok.textTertiary)
-                }
                 Button { isBreakdownOpen = true } label: { Text(String(localized: "detail.breakdown")).kHitTarget(alignment: .trailing) }
                     .buttonStyle(.plain)
                     .font(Typo.meta)
@@ -58,6 +53,9 @@ struct InspectorStepsSection: View {
                     .disabled(isBreakdownOpen)
                     .kTooltip(String(localized: "detail.help.breakdown"))
                     .uiTestAnchor("inspector.breakdown.open")
+            }
+            if progress.total > 0 {
+                KSubtaskProgress(done: progress.done, total: progress.total, style: .bar)
             }
             VStack(spacing: Space.x1) {
                 ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
@@ -119,7 +117,7 @@ struct InspectorStepsSection: View {
     /// fill hover already uses rather than a ring nobody asked for.
     private func stepRow(_ step: KTask, index: Int) -> some View {
         HStack(spacing: Space.x2) {
-            KCheckbox(isChecked: step.isDone, size: Metrics.iconL, label: step.title) {
+            StatusCircle(status: step.isDone ? .done : .todo, size: Metrics.iconL, label: step.title) {
                 model.store.toggleSubtask(step.id)
                 model.didMutate()
             }

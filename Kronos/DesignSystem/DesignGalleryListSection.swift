@@ -49,7 +49,7 @@ struct DesignGalleryListSection: View {
                     KPropertyRow("Deadline") { KDeadlineLabel(text: "15 Sep", carryDays: 4) }
                     KPropertyRow("Priority") {
                         HStack(spacing: Space.x2) {
-                            KPriorityIndicator(level: 2, of: 4, label: "Medium")
+                            PriorityGlyph(level: 2, label: "Medium")
                             Text("Medium").font(Typo.row).foregroundStyle(Tok.textPrimary)
                         }
                     }
@@ -72,7 +72,7 @@ struct DesignGalleryListSection: View {
             }
             .frame(width: 116, alignment: .leading)
             KEffortIndicator(level: effort, of: 5, label: nil, showLabel: false).opacity(effort == 0 ? 0 : 1)
-            KPriorityIndicator(level: priority, of: 4, label: nil)
+            PriorityGlyph(level: priority, label: nil)
             Text(deadline ?? "").font(Typo.count).foregroundStyle(Tok.textSecondary)
                 .frame(width: 36, alignment: .trailing)
         }

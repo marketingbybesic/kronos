@@ -56,33 +56,14 @@ struct ListEarlierHeader: View {
     private var todayIsEmpty: Bool { ListContext(model: model).currentCount == 0 }
 
     var body: some View {
-        HStack(spacing: Space.x2) {
-            Button {
-                withAnimation(Motion.curve(Motion.fast)) { state.isExpanded.toggle() }
-            } label: {
-                HStack(spacing: Space.x1) {
-                    Icon(state.isExpanded ? "chevron-down" : "chevron-right", size: Metrics.iconXS)
-                        .foregroundStyle(Tok.textTertiary)
-                        .accessibilityHidden(true)
-                    Text(String(format: String(localized: "today.earlier.header"), ids.count))
-                        .font(Typo.metaStrong)
-                        .foregroundStyle(Tok.textSecondary)
-                }
-                .frame(minHeight: Metrics.minHit)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(state.isExpanded ? String(localized: "today.earlier.a11y.open")
-                                                 : String(localized: "today.earlier.a11y.closed"))
-            .uiTestAnchor("today.earlier.header")
-            Spacer(minLength: Space.x2)
+        GroupHeader(title: String(format: String(localized: "today.earlier.header"), ids.count),
+                    isCollapsed: !state.isExpanded, onToggle: {
+            withAnimation(Motion.curve(Motion.fast)) { state.isExpanded.toggle() }
+        }, anchor: "today.earlier.header", trailing: {
             move(.today, String(localized: "today.earlier.today"), anchor: "today.earlier.today")
             move(.tomorrow, String(localized: "today.earlier.tomorrow"), anchor: "today.earlier.tomorrow")
             move(.someday, String(localized: "today.earlier.someday"), anchor: "today.earlier.someday")
-        }
-        .padding(.leading, ChildRowGeometry.listRowContentInset + Metrics.listRowLeading)
-        .padding(.trailing, ChildRowGeometry.listRowContentInset + Metrics.listRowTrailing)
-        .frame(minHeight: Metrics.groupHeaderHeight)
+        })
         .onChange(of: todayIsEmpty, initial: true) { _, empty in state.autoOpened = empty }
     }
 

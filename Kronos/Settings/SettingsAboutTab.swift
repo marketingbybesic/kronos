@@ -15,6 +15,7 @@ struct SettingsAboutTab: View {
     }
 
     @State private var phase: Phase
+    @State private var showingAcknowledgements = false
     private let isHermetic = ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] != nil
 
     /// Inside General only the update check shows: General already carries the version and the
@@ -52,6 +53,14 @@ struct SettingsAboutTab: View {
                 SettingsRow(label: String(localized: "settings.about.build.label")) {
                     Text(buildID).font(Typo.mono).foregroundStyle(Tok.textSecondary)
                 }
+                SettingsRow(label: String(localized: "settings.about.acknowledgements")) {
+                    Button(String(localized: "settings.about.acknowledgements.open")) {
+                        showingAcknowledgements = true
+                    }
+                    .kButton(.secondary, size: .compact)
+                    .fixedSize()
+                    .uiTestAnchor("settings.about.acknowledgements")
+                }
             }
         }
 
@@ -70,6 +79,9 @@ struct SettingsAboutTab: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
+        }
+        .sheet(isPresented: $showingAcknowledgements) {
+            SettingsAcknowledgementsView()
         }
     }
 

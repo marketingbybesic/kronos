@@ -43,8 +43,9 @@ public struct Icon: View {
     static let customDrawn: Set<String> = ["tooth"]
 
     /// Lucide name -> SF Symbol, else the raw name if it is a real SF Symbol, else the
-    /// fallback. Never maps to an exclamation glyph — this app never signals urgency with
-    /// an alarm symbol.
+    /// fallback. "alert-triangle" is the one exception to "never an alarm glyph" (person
+    /// decision, 09.10.2026): `PriorityGlyph`'s urgent state draws it, white, inside its own
+    /// filled square — urgency is still a SHAPE first, this is the icon inside that shape.
     static func symbol(for lucideName: String) -> String {
         let candidate = map[lucideName] ?? lucideName
         return exists(candidate) ? candidate : fallbackSymbol
@@ -69,6 +70,14 @@ public struct Icon: View {
 
     // Every value below is available on macOS 14.0 (checked against the system's
     // CoreGlyphs name_availability table, not from memory).
+    //
+    // THREE deliberate one-stroke exceptions (apple-design-audit finding, person decision):
+    // "bookmark-plus" -> bookmark.fill, "lock" -> lock.fill, "play" -> play.fill. SF Symbols'
+    // own HIG conventionally renders these three glyphs filled at small UI sizes (a saved
+    // bookmark, a locked state, a play control all read faster solid than outlined at
+    // `Metrics.iconXS`/`iconS`) — kept filled rather than swapped to their outline variants,
+    // mirroring how `Tokens.swift`'s `prioNone`...`prioUrgent` ramp is the one deliberate
+    // colour exception in this file.
     private static let map: [String: String] = [
         // App chrome
         "inbox": "tray", "sun": "sun.max", "calendar-days": "calendar", "calendar": "calendar",
@@ -79,8 +88,8 @@ public struct Icon: View {
         "chevron-left": "chevron.left", "chevron-up-down": "chevron.up.chevron.down",
         "arrow-up": "arrow.up", "arrow-down": "arrow.down", "arrow-left": "arrow.left", "arrow-right": "arrow.right",
         "plus": "plus", "minus": "minus", "x": "xmark", "check": "checkmark", "check-square": "checkmark.square",
-        // No "alert"/"alert-triangle" entries: nothing in this app signals urgency with an
-        // alarm glyph — priority is shape-only (KPriorityIndicator), and "!" is banned.
+        // "alert-triangle" maps below (Priority section) — PriorityGlyph's urgent state only;
+        // nothing else in this app signals urgency with an alarm glyph.
         "grip-vertical": "line.3.horizontal", "panel-right": "sidebar.right", "eye": "eye", "eye-off": "eye.slash",
         "bookmark-plus": "bookmark.fill", "more-horizontal": "ellipsis", "trash": "trash", "pencil": "pencil",
         "lock": "lock.fill", "cpu": "cpu",
@@ -122,6 +131,8 @@ public struct Icon: View {
         // misc
         "star": "star", "flag": "flag", "bookmark": "bookmark", "zap": "bolt", "lightbulb": "lightbulb",
         "sparkles": "sparkles", "gift": "gift", "puzzle": "puzzlepiece",
+        // Priority (PriorityGlyph's urgent state only — see the "never an alarm glyph" note above)
+        "alert-triangle": "exclamationmark.triangle.fill",
     ]
 }
 

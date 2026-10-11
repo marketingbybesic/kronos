@@ -34,7 +34,7 @@ enum KronosSounds {
     private static var generator = SystemRandomNumberGenerator()
 
     static func play(_ cue: Cue) {
-        guard isEnabled else { return }
+        guard isEnabled, SoundSettingsPrefs.isCueEnabled(cue.rawValue) else { return }
         playAlways(cue)
     }
 

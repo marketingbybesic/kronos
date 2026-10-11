@@ -12,6 +12,10 @@ import KronosCore
 final class ListDropOverlayView: NSView {
     weak var controller: ListDropController?
     private weak var cachedScrollView: NSScrollView?
+    /// True while `NSCursor.operationNotAllowed` is pushed for a rejected drop target — popped
+    /// the moment the target becomes valid again or the drag leaves/ends, so the stack never
+    /// leaks a cursor push into ordinary pointer behaviour after the drag.
+    private var rejectedCursorPushed = false
 
     /// The overlay currently mounted in the main window (the live UI test drives it).
     nonisolated(unsafe) static weak var live: ListDropOverlayView?
@@ -75,6 +79,7 @@ final class ListDropOverlayView: NSView {
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
+        popRejectedCursor()
         controller?.end()
     }
 
@@ -89,6 +94,7 @@ final class ListDropOverlayView: NSView {
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
+        popRejectedCursor()
         controller?.end()
     }
 
@@ -96,8 +102,24 @@ final class ListDropOverlayView: NSView {
         guard let controller else { return [] }
         let point = convert(sender.draggingLocation, from: nil)
         let accepted = controller.update(pointer: point, viewHeight: bounds.height)
+        if accepted { popRejectedCursor() } else { pushRejectedCursor() }
         guard accepted else { return [] }
         return Self.operation(for: controller.payload, mask: sender.draggingSourceOperationMask)
+    }
+
+    /// Over a target that cannot accept this drop: the system "not allowed" cursor, never a red
+    /// flash on the row — pushed once per rejection streak, matching the resize-divider
+    /// push/pop convention (AppShellView.swift).
+    private func pushRejectedCursor() {
+        guard !rejectedCursorPushed else { return }
+        rejectedCursorPushed = true
+        NSCursor.operationNotAllowed.push()
+    }
+
+    private func popRejectedCursor() {
+        guard rejectedCursorPushed else { return }
+        rejectedCursorPushed = false
+        NSCursor.pop()
     }
 
     /// Move for Kronos's own rows, copy for everything coming from another app.

@@ -413,6 +413,11 @@ public extension TaskStoring {
     /// Active rules only, which is what triage and Impuls always want.
     func activeRules() -> [KRule] { allRules(includeInactive: false) }
 
+    /// How many house rules are active right now — the count the 50-rule cap
+    /// (`TaskStore.maxActiveRules`, §6.5) is measured against. The rule list is always small
+    /// (bounded by the cap itself), so a plain count over `allRules` needs no extra fetch.
+    func activeRuleCount() -> Int { allRules(includeInactive: false).count }
+
     /// The 30-day purge with the standard window and the current clock.
     func purgeDeletedOlderThanStandardWindow() {
         purgeDeletedOlderThan(days: 30, now: Date())

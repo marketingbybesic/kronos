@@ -9,6 +9,7 @@ import KronosCore
 
 struct AppShellView: View {
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let model: AppModel
 
     @State private var inspectorWidth: CGFloat = AppShellView.restoredInspectorWidth()
@@ -162,8 +163,9 @@ struct AppShellView: View {
             .background(WindowWidthReader { windowWidthObserver.attach(to: $0) })
             // Guided tour (Kronos/Welcome/Tour*.swift): reads the parts marked .tourAnchor.
             .overlayPreferenceValue(TourAnchorKey.self) { TourOverlay(anchors: $0) }
-            .onAppear { offerMorningPlanIfDue() }
+            .onAppear { offerMorningPlanIfDue(); OSDynamicType.apply(dynamicTypeSize) }
             .onChange(of: model.scope) { _, _ in offerMorningPlanIfDue() }
+            .onChange(of: dynamicTypeSize) { _, newValue in OSDynamicType.apply(newValue); model.didMutate() }
             .onChange(of: model.isImpulsOpen) { _, open in
                 if open { OnboardingCenter.shared.noteOpened(.impuls, model: model) }
             }

@@ -98,4 +98,45 @@ struct IndexArithmeticTests {
         // create() -> appendIndex(.tasksGlobal) -> exactly one taskExtremeSortIndex fetch.
         #expect(store.fetchCounts.byReason["taskExtremeSortIndex(max:)"] == 1)
     }
+
+    @Test func multiSendAppendPreservesListOrder() throws {
+        let store = try TaskStore(inMemory: true)
+        let a = store.create(title: "A")
+        let b = store.create(title: "B")
+        let c = store.create(title: "C")
+        store.sendToOrdo([a.id, b.id, c.id], top: false)
+        let order = [a, b, c].sorted { $0.ordoIndex! < $1.ordoIndex! }.map(\.title)
+        #expect(order == ["A", "B", "C"], "append must preserve the ids order, not reverse it")
+    }
+
+    @Test func multiSendTopPreservesListOrderWithFirstIDFrontmost() throws {
+        let store = try TaskStore(inMemory: true)
+        let a = store.create(title: "A")
+        let b = store.create(title: "B")
+        let c = store.create(title: "C")
+        // Regression for the bulk "send to top" bug: a naive ascending loop over
+        // sendToOrdo(_:top:true) recomputes pushTopIndex fresh each call and stacks each
+        // later id ABOVE the one before it, so A,B,C used to land C,B,A. The multi-id
+        // overload must keep A frontmost, then B, then C.
+        store.sendToOrdo([a.id, b.id, c.id], top: true)
+        let order = [a, b, c].sorted { $0.ordoIndex! < $1.ordoIndex! }.map(\.title)
+        #expect(order == ["A", "B", "C"], "top must keep the ids order with the first id frontmost")
+    }
+
+    @Test func multiSendSingleTaskBehaviourUnchanged() throws {
+        let store = try TaskStore(inMemory: true)
+        let a = store.create(title: "A")
+        store.sendToOrdo([a.id])
+        #expect(store.task(a.id)?.ordoIndex == 0, "a lone id must still land at the same index the single-task writer would use")
+    }
+
+    @Test func multiSendSkipsSubtasksLikeTheSingleTaskWriter() throws {
+        let store = try TaskStore(inMemory: true)
+        let parent = store.create(title: "Parent")
+        let sub = store.addSubtask(parent.id, title: "Sub")!
+        let other = store.create(title: "Other")
+        store.sendToOrdo([sub.id, other.id])
+        #expect(store.task(sub.id)?.ordoIndex == nil, "a subtask must never become an ORDO member")
+        #expect(store.task(other.id)?.ordoIndex != nil)
+    }
 }

@@ -37,7 +37,9 @@ extension View {
 
 extension TaskListScreen {
     /// What the engine needs to know about this list right now: display order, each task's step
-    /// order, whether level-0 order is the user's own (manual sort), and the scope new tasks land in.
+    /// order, whether level-0 order is the user's own (manual sort), the scope new tasks land in,
+    /// and the active "Group by" mode (a manual reorder that would cross a group is rejected —
+    /// ListGrouping.crossesGroup, spec §4.5).
     func dropConfig(_ ctx: ListContext) -> ListDropConfig {
         let manual = ctx.options.sort == [.asc(.manual)]
         let display = ctx.rows.map(\.id)
@@ -48,6 +50,6 @@ extension TaskListScreen {
             if !ordered.isEmpty { steps[task.id] = ordered.map(\.id) }
         }
         return ListDropConfig(order: DropOrder(tasks: display, subtasks: steps), manualOrder: manualOrder,
-                              isManualSort: manual, scope: model.scope)
+                              isManualSort: manual, scope: model.scope, groupBy: ctx.options.groupBy)
     }
 }

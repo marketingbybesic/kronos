@@ -38,7 +38,7 @@ struct SubtaskMetaBadges: View {
                     .uiTestAnchor("subtask.badge.due")
             }
             if subtask.priority != .none {
-                KPriorityIndicator(level: subtask.priority.rawValue, of: 4, label: subtask.priority.displayName, size: Metrics.iconS)
+                PriorityGlyph(level: subtask.priority.rawValue, label: subtask.priority.displayName, size: Metrics.iconS)
                     .uiTestAnchor("subtask.badge.priority")
             }
         }

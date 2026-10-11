@@ -71,6 +71,22 @@ enum ViewOptionsMapper {
         opts.replacingSort(with: descriptors(from: rules))
     }
 
+    // MARK: - Group by (spec §4.5-4.6)
+
+    /// "Group by" picker labels: Status/Project/Priority reuse the exact field-name strings the
+    /// sort/filter builders already show for those same fields (checked against the catalog:
+    /// identical EN wording, "Status"/"Project"/"Priority"); None and Due have no existing field
+    /// of their own to borrow from, so they get their own keys.
+    static func groupByName(_ g: KGroupBy) -> String {
+        switch g {
+        case .none: return String(localized: "list.groupby.none")
+        case .status: return sortField(.status).name
+        case .project: return sortField(.project).name
+        case .priority: return sortField(.priority).name
+        case .due: return String(localized: "list.groupby.due")
+        }
+    }
+
     // MARK: - Filter fields
 
     enum FilterFieldID: Hashable {

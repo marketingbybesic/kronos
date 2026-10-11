@@ -90,7 +90,7 @@ struct ChildTaskRow: View {
     var body: some View {
         HStack(spacing: Space.x2) {
             HStack(spacing: Metrics.listCheckboxTitleGap) {
-                KCheckbox(isChecked: child.isDone, size: Metrics.listCheckboxSize, label: child.title) {
+                StatusCircle(status: child.isDone ? .done : .todo, size: Metrics.listCheckboxSize, label: child.title) {
                     let wasDone = child.isDone
                     model.store.toggleSubtask(child.id)
                     let format = wasDone ? String(localized: "undo.uncompleted.name") : String(localized: "undo.completed.name")
@@ -140,7 +140,12 @@ struct ChildTaskRow: View {
             open()
             return .handled
         }
-        .onDrag { DragOut.provider(id: child.id, title: child.title, isChild: true, dossier: TaskDragText.render(TaskDragText.Input(task: child))) }
+        .onDrag {
+            DragOut.provider(id: child.id, title: child.title, isChild: true, dossier: TaskDragText.render(TaskDragText.Input(task: child)))
+        } preview: {
+            DragLiftPreview(title: child.title,
+                             selectionCount: model.selectedIDs.contains(child.id) ? model.selectedIDs.count : 1)
+        }
         .reportsDropRow(id: child.id, parentID: parent.id)
         .contentShape(Rectangle())
         .kSubtaskContextMenu(child, parent: parent, model: model, place: "subrow")
@@ -226,7 +231,7 @@ struct ChildTaskRow: View {
                     .uiTestAnchor("subrow.due." + child.title)
             }
             if child.priority != .none {
-                KPriorityIndicator(level: child.priority.rawValue, of: 4, label: ViewOptionsMapper.priorityName(child.priority), size: 12)
+                PriorityGlyph(level: child.priority.rawValue, label: ViewOptionsMapper.priorityName(child.priority), size: 12)
                     .uiTestAnchor("subtask.badge.priority")
             }
             if child.effort != .none {

@@ -318,4 +318,9 @@ public extension Notification.Name {
     /// Posted by the UI when the open list's first row changes. The menu-bar
     /// item observes this and re-renders from the `OrdoFocus` in the payload.
     static let kronosOrdoFocusDidChange       = Notification.Name("kronosOrdoFocusDidChange")
+    /// Posted when `AIRouter.eligibleCandidates` has just dropped a metered (Anthropic)
+    /// candidate because `DailyAIBudget.isAtCeiling()` is true — at most once per day (see
+    /// `DailyAIBudget.shouldShowCeilingToast()`). The app layer shows the one non-blocking
+    /// toast for this (`AIWiring.swift`).
+    static let kronosAIPaidBudgetReached      = Notification.Name("kronosAIPaidBudgetReached")
 }

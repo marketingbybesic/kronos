@@ -207,9 +207,9 @@ struct CaptureReviewRow: View {
     }
 
     /// Bars only, no name text ("No priority" spelled out on most rows read as noise) — same
-    /// construction as ListRowView.priorityMenu. No extra dimming on top: `KPriorityIndicator`
-    /// already draws an unfilled bar at 18% white, which alone says "none" — stacking another
-    /// opacity multiplier on top made it nearly invisible on true black.
+    /// construction as ListRowView.priorityMenu. No extra dimming on top: `PriorityGlyph`
+    /// already draws an unfilled bar at its own faint `Tok.prioNone` tone, which alone says
+    /// "none" — stacking another opacity multiplier on top made it nearly invisible on true black.
     private var priorityColumn: some View {
         Menu {
             ForEach(KPriority.allCases, id: \.self) { p in
@@ -226,8 +226,8 @@ struct CaptureReviewRow: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .overlay {
-            KPriorityIndicator(level: row.proposal.priority.rawValue, of: 4,
-                               label: CapturePriorityOption(row.proposal.priority).title, size: 14)
+            PriorityGlyph(level: row.proposal.priority.rawValue,
+                          label: CapturePriorityOption(row.proposal.priority).title, size: 14)
                 .allowsHitTesting(false)
         }
         .frame(width: CaptureSlotWidth.priority, alignment: .leading)

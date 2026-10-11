@@ -2,7 +2,7 @@
 // One computed snapshot of what the current scope shows: title, options and final rows. The
 // header, chips, body, keyboard and the "next" publisher all read the same list, and they read
 // ONE build of it per state: `ListContext(model:)` returns the memoised snapshot for the current
-// (version, scope, search, options, Earlier open, lingering rows, day); only a change of one of
+// (version, scope, search, options, Earlier open, grouping collapse, lingering rows, day); only
 // those builds again (ListContextMemo).
 import SwiftUI
 import KronosCore
@@ -38,6 +38,20 @@ struct ListContext {
     let title: String
     let options: ViewOptions
     let rows: [KTask]
+    /// `rows`'s present slice (before the missing group and Earlier), re-ordered to match what
+    /// "Group by" actually draws (`ListGrouping.displayOrder`) — a collapsed group's rows are
+    /// skipped entirely, not just hidden — then the same missing/Earlier rows `rows` appends.
+    /// Keyboard navigation (TaskListScreen+Keys.swift's `moveSelection`/`extendSelection`) and
+    /// the post-complete/delete neighbour (ListCompletion.swift's `neighbourToSelect`) walk THIS
+    /// for anything order-dependent; a membership/lookup check (`rows.first(where:)`) stays on
+    /// `rows`. Identical to `rows`'s own present slice when `groupBy` is `.none` (ListGrouping's
+    /// identity fast-path) — grouping off changes nothing here.
+    let displayRows: [KTask]
+    /// "Group by"'s own partition of the present rows (`ListGrouping.sections`), computed once
+    /// per build and shared by `displayRows` above and the grouped renderer
+    /// (ListGroupedSections.swift's `groupedMainSections`) so the two can never compute it
+    /// differently. Empty when not grouped — the renderer never reads this for `.none` either.
+    let groupedSections: [ListGrouping.Section]
     let activeRuleCount: Int
     /// Labels of a positive label filter. A child carrying one is never a row of its own: its
     /// parent row is listed (KFilter) and the child is marked under it, like a due-driving step
@@ -145,8 +159,21 @@ struct ListContext {
             if !split.missing.isEmpty { present = split.present; missingRows = split.missing; groupKey = key }
         }
         let visibleMissing = ListMissingState.shared.isExpanded ? missingRows : []
+        let visibleEarlier = scope == .today && ListEarlierState.shared.isExpanded ? earlierRows : []
+        // Partitioned once here (and reused below for `displayRows`, and by the grouped renderer
+        // via `ctx.groupedSections`) rather than letting the renderer call `ListGrouping.sections`
+        // again on its own — review finding 2: two independent partitions of the same rows could
+        // silently drift, so there must be exactly one.
+        let groupedSections: [ListGrouping.Section] = opts.groupBy == .none ? []
+            : ListGrouping.sections(present, mode: opts.groupBy)
+        let displayPresent: [KTask] = opts.groupBy == .none ? present
+            : ListGrouping.displayOrder(sections: groupedSections) { key in
+                ListGroupingState.shared.isCollapsed(scope, opts.groupBy, key)
+            }
+        self.groupedSections = groupedSections
         self.earlier = earlierRows
-        self.rows = present + visibleMissing + (scope == .today && ListEarlierState.shared.isExpanded ? earlierRows : [])
+        self.rows = present + visibleMissing + visibleEarlier
+        self.displayRows = displayPresent + visibleMissing + visibleEarlier
         self.missing = missingRows
         self.missingKey = groupKey
         self.presentCount = present.count
@@ -180,6 +207,7 @@ struct ListContextKey: Equatable {
     let earlierExpanded: Bool
     let missingExpanded: Bool
     let lingerGeneration: Int
+    let groupingGeneration: Int
     let today: Int
 
     init(model: AppModel) {
@@ -191,12 +219,17 @@ struct ListContextKey: Equatable {
         earlierExpanded = ListEarlierState.shared.isExpanded
         missingExpanded = ListMissingState.shared.isExpanded
         lingerGeneration = ListLinger.generation
+        groupingGeneration = ListGroupingState.shared.generation
         today = Day.today()
     }
 }
 
 /// Rows completed from a list a moment ago, keyed by the list they were completed in. They stay
-/// visible, struck through, for `seconds`; then the list refreshes and they leave.
+/// visible, struck through, for `seconds`; then the list refreshes and they leave. This hold is
+/// a workflow affordance ("the click visibly lands before the row leaves"), not a decorative
+/// animation, so it does NOT read `SoundSettingsPrefs.completionAnimationActive`: Reduce Motion
+/// alone never shortened it either (checked before that pref existed), so the animation-off
+/// path mirrors that existing behaviour rather than inventing a new one.
 @MainActor
 enum ListLinger {
     static let seconds: Double = 1.0

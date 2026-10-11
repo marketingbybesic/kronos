@@ -67,7 +67,7 @@ struct InspectorAttributesRow: View {
                     }
                 }
             } leading: {
-                if task.priority != .none { KPriorityIndicator(level: task.priority.rawValue, of: 4, label: task.priority.displayName, size: Metrics.iconM) }
+                if task.priority != .none { PriorityGlyph(level: task.priority.rawValue, label: task.priority.displayName, size: Metrics.iconM) }
             }
             .accessibilityLabel(String(localized: "viewoptions.field.priority"))
             .accessibilityValue(task.priority.displayName)

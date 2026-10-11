@@ -7,7 +7,7 @@
 //
 // IMPORTANT macOS `Menu` quirks (all four confirmed by direct repro):
 // 1. `Menu`'s own `label:` closure silently drops any Shape-drawn content (a Circle/
-//    RoundedRectangle-based glyph like KPriorityIndicator renders as nothing —
+//    RoundedRectangle-based glyph like PriorityGlyph renders as nothing —
 //    `.drawingGroup()` does not fix it). Image/SF Symbol-backed content (Icon,
 //    Image(systemName:)) renders fine inside a Menu label.
 // 2. `Menu` always draws its own chevron unless `.menuIndicator(.hidden)` is set.
