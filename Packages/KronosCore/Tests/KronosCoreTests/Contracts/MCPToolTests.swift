@@ -6,12 +6,12 @@ import Foundation
 /// be unique, and the params structs must decode what the schema advertises.
 struct MCPToolTests {
 
-    @Test func thirtyFiveToolsWithUniqueNames() {
-        #expect(MCPTool.allCases.count == 35)
+    @Test func thirtyEightToolsWithUniqueNames() {
+        #expect(MCPTool.allCases.count == 38)
         let names = MCPTool.allCases.map(\.name)
-        #expect(Set(names).count == 35)
+        #expect(Set(names).count == 38)
         // scope-12 alpha set plus list_projects, list_areas, rules_delete, the agent loop, the upnext_* aliases,
-        // the nine full-control tools and review_status (finish-round-1 B3).
+        // the nine full-control tools, review_status (finish-round-1 B3) and the run contract (Kronos v1.2).
         #expect(Set(names) == Set([
             "list_tasks", "get_task", "create_task", "update_task",
             "complete_task", "delete_task", "restore_task",
@@ -20,7 +20,8 @@ struct MCPToolTests {
             "list_projects", "list_areas", "rules_delete", "upnext_get", "upnext_set",
             "whoami", "propose_tasks", "propose_update", "comment_task", "events_poll", "events_ack", "next",
             "list_labels", "create_label", "update_label", "create_project", "update_project",
-            "create_area", "update_area", "delete_area", "move_task", "review_status"
+            "create_area", "update_area", "delete_area", "move_task", "review_status",
+            "run_start", "run_update", "run_finish"
         ]))
     }
 
@@ -60,7 +61,7 @@ struct MCPToolTests {
         #expect(MCPTool.createTask.isMutating)
         #expect(MCPTool.ordoSet.isMutating)
         #expect(MCPTool.rulesAdd.isMutating)
-        #expect(MCPTool.allCases.filter(\.isMutating).count == 23)
+        #expect(MCPTool.allCases.filter(\.isMutating).count == 26)
     }
 
     // MARK: - create_task field protection (build-7)

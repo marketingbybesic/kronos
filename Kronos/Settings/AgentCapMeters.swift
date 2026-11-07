@@ -28,6 +28,7 @@ struct AgentCapMeters: View {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: Radius.keycap, style: .continuous)
                     .fill(Tok.controlFill)
+                    .kBorder(Tok.borderControl, radius: Radius.keycap)
                 RoundedRectangle(cornerRadius: Radius.keycap, style: .continuous)
                     .fill(used >= max(cap, 1) ? Tok.textSecondary : Tok.textTertiary)
                     .frame(width: Metrics.capMeterWidth * min(1, CGFloat(used) / CGFloat(max(cap, 1))))

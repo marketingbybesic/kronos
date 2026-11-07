@@ -163,15 +163,14 @@ struct KeymapReferenceView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// "hotkey.scope.window" / "hotkey.scope.popover" / "hotkey.scope.editor" do not exist in
-    /// the catalog yet (reported below) — "hotkey.scope.global" and "hotkey.scope.list" reuse
-    /// the two closest real keys that already name the same grouping ("settings.shortcuts.global"
-    /// and the ledger's own wording "In the list").
+    /// "hotkey.scope.global" reuses the closest real key that already names the same grouping
+    /// ("settings.shortcuts.global"); the rest are this screen's own "hotkey.scope.*" keys.
     private func scopeTitleKey(_ scope: HotkeyScope) -> String {
         switch scope {
         case .global:  return "settings.shortcuts.global"
         case .window:  return "hotkey.scope.window"
         case .list:    return "hotkey.scope.list"
+        case .board:   return "hotkey.scope.board"
         case .popover: return "hotkey.scope.popover"
         case .editor:  return "hotkey.scope.editor"
         }

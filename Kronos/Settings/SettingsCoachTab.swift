@@ -218,6 +218,9 @@ struct SettingsCoachTab: View {
     @ViewBuilder
     private var learnedLinksSection: some View {
         let learned = model.coach.settings.learnedEventTitles
+        // One project fetch for the whole section, not one per row: `allProjects` runs a real
+        // SwiftData fetch, and `learnedLinkRow` used to call it once per learned title.
+        let projectNames = Dictionary(uniqueKeysWithValues: model.store.allProjects(includeArchived: true).map { ($0.id, $0.name) })
         VStack(alignment: .leading, spacing: Space.x1) {
             Text(String(localized: "settings.coach.learned.title"))
                 .font(Typo.metaStrong)
@@ -228,14 +231,13 @@ struct SettingsCoachTab: View {
                                  anchor: "settings.empty.learned")
             } else {
                 ForEach(Array(learned.keys.sorted()), id: \.self) { title in
-                    learnedLinkRow(eventTitle: title, projectID: learned[title])
+                    learnedLinkRow(eventTitle: title, projectName: learned[title].flatMap { projectNames[$0] })
                 }
             }
         }
     }
 
-    private func learnedLinkRow(eventTitle: String, projectID: UUID?) -> some View {
-        let projectName = projectID.flatMap { id in model.store.allProjects(includeArchived: true).first { $0.id == id }?.name }
+    private func learnedLinkRow(eventTitle: String, projectName: String?) -> some View {
         return HStack {
             Text(eventTitle).font(Typo.row).foregroundStyle(Tok.textPrimary).lineLimit(1)
             Icon("arrow-right", size: Metrics.iconXS).foregroundStyle(Tok.textTertiary)
@@ -265,17 +267,23 @@ struct SettingsCoachTab: View {
                     SettingsEmptyRow(text: String(localized: "settings.planning.blocks.empty"),
                                      anchor: "settings.empty.todayblocks")
                 } else {
+                    // One project fetch for the whole strip, not one per block: `allProjects`
+                    // runs a real SwiftData fetch, and `todayBlockRow` used to call it per block.
+                    let allProjects = model.store.allProjects(includeArchived: true)
+                    let projectNames = Dictionary(uniqueKeysWithValues: allProjects.map { ($0.id, $0.name) })
+                    let linkableProjects = allProjects.filter { !$0.isArchived }
                     ForEach(model.coach.todaysBlocks, id: \.event.id) { block in
-                        todayBlockRow(block)
+                        todayBlockRow(block, projectName: block.projectID.flatMap { projectNames[$0] },
+                                     linkableProjects: linkableProjects)
                     }
                 }
             }
         }
     }
 
-    private func todayBlockRow(_ block: (event: KCalendarEvent, projectID: UUID?)) -> some View {
-        let projectName = block.projectID.flatMap { id in model.store.allProjects(includeArchived: true).first { $0.id == id }?.name }
-        return HStack {
+    private func todayBlockRow(_ block: (event: KCalendarEvent, projectID: UUID?), projectName: String?,
+                               linkableProjects: [KProject]) -> some View {
+        HStack {
             Text(Self.timeFormatter.string(from: block.event.start))
                 .font(Typo.mono)
                 .foregroundStyle(Tok.textTertiary)
@@ -290,7 +298,7 @@ struct SettingsCoachTab: View {
                 // `model.coach.link(eventTitle:to:)` call and the same `KMenuButton` design-
                 // system component, this row only needed its own menu of projects.
                 KMenuButton(text: String(localized: "settings.coach.today.link")) {
-                    ForEach(model.store.allProjects(includeArchived: false)) { project in
+                    ForEach(linkableProjects) { project in
                         Button(project.name) { model.coach.link(eventTitle: block.event.title, to: project.id) }
                     }
                 }

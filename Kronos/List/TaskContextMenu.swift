@@ -61,29 +61,47 @@ enum TaskMenu {
             model.didMutate()
             UndoToastCenter.shared.showNotice(String(format: String(localized: isReviewed ? "undo.unreviewed.name" : "undo.reviewed.name"), task.title))
         }, at: reviewedAt3)
-        // "Delegate to…" (person-agent delegation): hands the task to a configured agent via
-        // the same agentID + assigneeRaw pair `complete_task` already reads (no new KTask
-        // field — see Contracts.swift). Any task, child or top-level: a step can be worked by
-        // an agent the same as its parent. Hidden entirely (not dimmed) when there is nothing
-        // to offer: no enabled agent and this task is not currently delegated — same "hide,
-        // don't dim" rule every other submenu here follows.
+        // "Hand off to…" / "Hand off and run…" (person-agent delegation, v1.2 Phase 2 slice C):
+        // hands the task to a configured agent via the same agentID + assigneeRaw pair
+        // complete_task already reads (no new KTask field — see Contracts.swift). Any task,
+        // child or top-level: a step can be worked by an agent the same as its parent. Hidden
+        // entirely (not dimmed) when there is nothing to offer: no enabled agent and this task
+        // is not currently delegated — same "hide, don't dim" rule every other submenu here
+        // follows. Replaces the v1.1 "Delegate to…" item (same picker, renamed, joined by
+        // "Hand off and run" and "Stop agent").
         let pickableAgents = TaskDelegation.enabledAgents()
         let isDelegated = task.assigneeRaw == 1 && task.agentID != nil
         if !pickableAgents.isEmpty || isDelegated {
             var kids: [CtxNode] = pickableAgents.map { (agent: KAgent) -> CtxNode in
-                .action("delegate.\(agent.slug)", agent.displayName,
+                .action("handoff.\(agent.slug)", agent.displayName,
                         checked: task.agentID == agent.id && task.assigneeRaw == 1) {
-                    TaskDelegation.delegate(task.id, to: agent, model: model)
+                    TaskDelegation.handoff([task.id], to: agent, model: model)
                 }
             }
             if isDelegated {
-                if !pickableAgents.isEmpty { kids.append(.divider("delegate.div")) }
-                kids.append(.action("delegate.none", String(localized: "ctx.task.delegate.remove")) {
+                if !pickableAgents.isEmpty { kids.append(.divider("handoff.div")) }
+                kids.append(.action("handoff.none", String(localized: "ctx.task.handoff.remove")) {
                     TaskDelegation.undelegate(task.id, model: model)
                 })
             }
-            let delegateAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
-            nodes.insert(.submenu(delegateNodeID, String(localized: "ctx.task.delegate"), kids), at: delegateAt)
+            let handoffAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+            nodes.insert(.submenu(delegateNodeID, String(localized: "ctx.task.handoff"), kids), at: handoffAt)
+            if !pickableAgents.isEmpty {
+                let runKids: [CtxNode] = pickableAgents.map { (agent: KAgent) -> CtxNode in
+                    .action("handoffrun.\(agent.slug)", agent.displayName) {
+                        HandoffAndRun.attempt([task.id], to: agent, model: model)
+                    }
+                }
+                nodes.insert(.submenu(handoffRunNodeID, String(localized: "ctx.task.handoffrun"), runKids), at: handoffAt + 1)
+            }
+        }
+        if model.runs?.activeRun(taskID: task.id) != nil {
+            let stopAt = nodes.lastIndex { $0.id == TaskMenuItem.divider3.rawValue } ?? nodes.endIndex
+            nodes.insert(.action(stopAgentNodeID, String(localized: "ctx.task.stopagent")) {
+                guard let run = model.runs?.activeRun(taskID: task.id) else { return }
+                LiveRuns.stop(runID: run.id)
+                model.didMutate()
+            }, at: stopAt)
         }
         insertSendToUpNext(into: &nodes, task: task, model: model)
         return nodes
@@ -110,8 +128,13 @@ enum TaskMenu {
     static let saveTemplateNodeID = "savetemplate"
     /// Node id of "Mark reviewed" / "Unmark reviewed".
     static let markReviewedNodeID = "reviewed"
-    /// Node id of the "Delegate to…" submenu.
+    /// Node id of the "Hand off to…" submenu (id kept as "delegate" — only the display text
+    /// and its sibling items changed; see the two ids below).
     static let delegateNodeID = "delegate"
+    /// Node id of the "Hand off and run…" submenu.
+    static let handoffRunNodeID = "handoffrun"
+    /// Node id of the "Stop agent" action.
+    static let stopAgentNodeID = "stopagent"
 
     /// Node ids of "Send to Up next" / "Send to Up next (top)" (the ORDO queue — interaction.md
     /// §10.1, layouts-components.md §6.10). Top-level tasks only: TaskStore.sendToOrdo silently
@@ -318,6 +341,26 @@ enum TaskDelegation {
         model.commit(String(format: String(localized: "undo.delegated.name"), task.title, agent.displayName))
     }
 
+    /// Hands every task in `ids` to `agent` as one undo step (`groupedUndo`) with ONE pill
+    /// naming the agent and, for 2+, the count — the H / ⇧H multi-select path. A single id
+    /// reuses `delegate` exactly (same single-task pill wording already in use elsewhere).
+    static func handoff(_ ids: [UUID], to agent: KAgent, model: AppModel) {
+        guard let first = ids.first else { return }
+        guard ids.count > 1 else { delegate(first, to: agent, model: model); return }
+        let store = model.store
+        let targets = ids.compactMap { store.task($0) }.filter { !($0.agentID == agent.id && $0.assigneeRaw == 1) }
+        guard !targets.isEmpty else { return }
+        let message = ListPills.handoffMany(targets.count, agent: agent.displayName)
+        store.groupedUndo(message) {
+            for t in targets {
+                store.update(t.id) { $0.agentID = agent.id; $0.assigneeRaw = 1 }
+                ReviewedMarkHub.shared?.append(actor: "me", verb: ActivityVerb.assigned, taskID: t.id, agentID: agent.id,
+                                               payload: ["title": .string(t.title)])
+            }
+        }
+        model.commit(message)
+    }
+
     static func undelegate(_ id: UUID, model: AppModel) {
         let store = model.store
         guard let task = store.task(id), task.assigneeRaw == 1 else { return }
@@ -337,6 +380,11 @@ enum ListPills {
     static func due(_ day: Int?, title: String) -> String {
         guard let day else { return String(format: String(localized: "list.pill.dueclear"), title) }
         return String(format: String(localized: "list.pill.due"), ViewOptionsMapper.mediumDate(day), title)
+    }
+    static func handoffMany(_ n: Int, agent: String) -> String {
+        KPlural.hr(n, one: String(localized: "list.pill.handoff.one"),
+                   few: String(localized: "list.pill.handoff.few"),
+                   many: String(localized: "list.pill.handoff.many")) + " " + agent
     }
 }
 

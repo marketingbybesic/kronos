@@ -88,10 +88,13 @@ struct MCPDispatcherTests {
         expectHandled(.deleteArea, ["id": UUID().uuidString, "confirm": true])
         expectHandled(.moveTask, ["id": task.id.uuidString, "project": NSNull()])
         expectHandled(.reviewStatus, ["ids": [task.id.uuidString]])
+        expectHandled(.runStart, ["taskID": task.id.uuidString])
+        expectHandled(.runUpdate, ["runID": UUID().uuidString])
+        expectHandled(.runFinish, ["runID": UUID().uuidString, "outcome": "done", "summary": "x"])
 
-        #expect(ran == 35)
+        #expect(ran == 38)
         #expect(ran == MCPTool.allCases.count)
-        #expect(Set(MCPTool.allCases.map(\.name)).count == 35)
+        #expect(Set(MCPTool.allCases.map(\.name)).count == 38)
     }
 
     // MARK: - Required: rejectsMissingOrWrongBearer
@@ -234,7 +237,7 @@ struct MCPDispatcherTests {
         let response = d.handle(request)!
         let obj = try JSONSerialization.jsonObject(with: response.result!) as! [String: Any]
         let tools = obj["tools"] as! [[String: Any]]
-        #expect(tools.count == 35)
+        #expect(tools.count == 38)
         #expect(tools.count == MCPTool.allCases.count)
         for t in tools {
             #expect(t["inputSchema"] is [String: Any])

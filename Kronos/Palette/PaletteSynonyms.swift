@@ -25,6 +25,11 @@ enum PaletteSynonyms {
         "task.duplicate": ["copy", "clone", "kopija", "dupliciraj"],
         "task.copylink": ["link", "url", "poveznica"],
         "session.morningplan": ["morning", "plan", "jutro", "jutarnji", "today"],
+        // Kronos v1.2 Phase 2 slice C: "Hand off to…" replaced v1.1's "Delegate to…" — someone
+        // still typing the old word must find it.
+        "task.handoff": ["delegate", "delegiraj", "assign", "dodijeli", "agent"],
+        "task.handoffrun": ["delegate", "delegiraj", "run", "launch", "pokreni", "agent"],
+        "task.stopagent": ["stop", "cancel", "zaustavi", "prekini", "agent"],
     ]
 
     static func aliases(for id: String) -> [String] { table[id] ?? [] }

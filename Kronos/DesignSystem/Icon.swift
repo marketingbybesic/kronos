@@ -93,6 +93,9 @@ public struct Icon: View {
         "grip-vertical": "line.3.horizontal", "panel-right": "sidebar.right", "eye": "eye", "eye-off": "eye.slash",
         "bookmark-plus": "bookmark.fill", "more-horizontal": "ellipsis", "trash": "trash", "pencil": "pencil",
         "lock": "lock.fill", "cpu": "cpu",
+        // Kronos v1.2 Phase 2 slice C: agent-status row glyphs and run-artifact chip glyphs.
+        "alert-circle": "exclamationmark.circle", "badge-check": "checkmark.seal", "clock-alert": "clock.badge.exclamationmark",
+        "file": "doc.fill", "file-diff": "doc.text", "git-commit": "arrow.triangle.branch", "git-pull-request": "arrow.triangle.pull",
         "play": "play.fill", "copy": "doc.on.doc", "tag": "tag", "settings": "gearshape", "command": "command", "keyboard": "keyboard",
         "download": "arrow.down.circle", "upload": "arrow.up.circle", "refresh": "arrow.clockwise",
         "undo": "arrow.uturn.backward", "redo": "arrow.uturn.forward", "info": "info.circle",

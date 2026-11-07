@@ -27,36 +27,18 @@ extension MCPDispatcher {
         if let bad = linkError(extras.result?.links?.map(\.url)) { return bad }
         // A task handed to an agent is not closed by the agent: it goes back to the person to
         // check, unless the agent holds the person-granted done.trusted scope, in which case it
-        // closes the task itself and the person's check is skipped.
+        // closes the task itself and the person's check is skipped. Shared with `RunStore.finish`
+        // (Kronos v1.2 "run contract"): one store path, so a run's "done" lands in Review exactly
+        // like this does.
         if let me = identity, t.assigneeRaw == 1, t.agentID == me.agentID {
-            var result = AgentTaskResult()
-            result.outcome = "done"
-            result.by = me.actor
-            result.note = extras.result?.note
-            result.links = extras.result?.links
-            result.completedAt = Date()
-            if me.scopes.has(.doneTrusted) {
-                result.verdict = AgentReview.accepted
-                result.verdictAt = result.completedAt
-                result.decision = "auto"
-                store.updateNoUndo(params.id) { $0.reviewRaw = ReviewState.approved; $0.resultJSON = result.encoded() }
-                store.completeNoUndo(params.id)
-                hub?.append(actor: me.actor, verb: ActivityVerb.doneByAgent, taskID: params.id, agentID: me.agentID,
-                            payload: ["title": .string(t.title), "auto": .bool(true)])
-                guard let final = store.task(params.id) else {
-                    return .error(.internalError, message: "task vanished during completion")
-                }
-                struct AutoAccepted: Encodable { let completed: Bool; let review: String; let task: MCPTaskFull }
-                return .ok(AutoAccepted(completed: true, review: "autoApproved",
-                                        task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id))))
+            let outcome = AgentDoneReport.reportDone(params.id, agent: me, note: extras.result?.note,
+                                                      links: extras.result?.links, store: store, hub: hub)
+            guard let final = store.task(params.id) else {
+                return .error(.internalError, message: "task vanished during completion")
             }
-            store.updateNoUndo(params.id) { $0.reviewRaw = ReviewState.awaitingCheck; $0.resultJSON = result.encoded() }
-            hub?.append(actor: me.actor, verb: ActivityVerb.doneByAgent, taskID: params.id, agentID: me.agentID,
-                        payload: ["title": .string(t.title)])
-            guard let waiting = store.task(params.id) else { return .error(.internalError, message: "task vanished") }
-            struct Waiting: Encodable { let completed: Bool; let review: String; let task: MCPTaskFull }
-            return .ok(Waiting(completed: false, review: "awaitingCheck",
-                               task: MCPTaskFull(waiting, today: today(), blocked: store.isBlocked(waiting.id))))
+            struct AgentReportResult: Encodable { let completed: Bool; let review: String; let task: MCPTaskFull }
+            return .ok(AgentReportResult(completed: outcome.autoApproved, review: outcome.review,
+                                         task: MCPTaskFull(final, today: today(), blocked: store.isBlocked(final.id))))
         }
         if let result = extras.result, identity == nil || t.agentID == identity?.agentID {
             var r = AgentTaskResult()

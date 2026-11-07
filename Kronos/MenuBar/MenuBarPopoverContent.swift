@@ -47,6 +47,9 @@ struct PopoverContent: View {
     /// shows a picker even before anything is tapped in the strip.
     @State private var linkingEvent: KCalendarEvent?
     @State private var zone: MenuBarZone = .now
+    /// D1 (Kronos v1.2 Phase 2 slice D): bumped after "Stop all" so `runningRuns` (a plain
+    /// computed read, not `@Observable`) re-evaluates on the next render.
+    @State private var runsRefreshTick = 0
 
     private var isPinned: Bool { model.pinnedFocusTaskID != nil }
 
@@ -93,6 +96,8 @@ struct PopoverContent: View {
             case .capture:
                 captureZone
             }
+
+            agentActivitySection
 
             KHairline()
             footerRow
@@ -220,6 +225,68 @@ struct PopoverContent: View {
         // The ghost buttons carry their own inset; pull the first one back so its text lines up
         // with the content above.
         .padding(.leading, -Space.x3)
+    }
+
+    // MARK: - D1: agent activity — waiting review, running agents
+
+    private var reviewWaitingCount: Int {
+        let today = Day.today(calendar: KronosLocale.calendar)
+        ReviewSnooze.prune(today: today)
+        return ReviewQueue.count(in: model.store.allTasks(), snoozed: ReviewSnooze.table, today: today)
+    }
+
+    private var runningRuns: [KAgentRun] {
+        _ = runsRefreshTick
+        return LiveRuns.activeRuns()
+    }
+
+    @ViewBuilder
+    private var agentActivitySection: some View {
+        let waiting = reviewWaitingCount
+        let running = runningRuns
+        if waiting > 0 || !running.isEmpty {
+            VStack(alignment: .leading, spacing: Space.x1) {
+                if waiting > 0 {
+                    Button(String(format: String(localized: "menubar.popover.waiting"), waiting), action: openReviewNext)
+                        .kButton(.ghost, size: .compact)
+                        .fixedSize()
+                        .uiTestAnchor("menubar.popover.waiting")
+                }
+                if !running.isEmpty {
+                    HStack(spacing: Space.x2) {
+                        Text(String(format: String(localized: "menubar.popover.running"), running.count))
+                            .font(Typo.row)
+                            .foregroundStyle(Tok.textSecondary)
+                        Spacer(minLength: Space.x2)
+                        Button(String(localized: "menubar.popover.stopall"), action: { stopAllRuns(running) })
+                            .kButton(.ghost, size: .compact)
+                            .fixedSize()
+                            .uiTestAnchor("menubar.popover.stopall")
+                    }
+                }
+            }
+        }
+    }
+
+    private func openReviewNext() {
+        openKronosWindow()
+        model.isReviewNextOpen = true
+    }
+
+    /// One confirm for the whole batch — it stops more than one thing — same `NSAlert`
+    /// pattern `ListBulkActions.confirmBulkDelete` uses.
+    private func stopAllRuns(_ running: [KAgentRun]) {
+        guard !running.isEmpty else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = KPlural.hr(running.count, one: String(localized: "menubar.popover.stopall.confirm.one"),
+                                        few: String(localized: "menubar.popover.stopall.confirm.few"),
+                                        many: String(localized: "menubar.popover.stopall.confirm.many"))
+        alert.addButton(withTitle: String(localized: "menubar.popover.stopall"))
+        alert.addButton(withTitle: String(localized: "common.cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        for run in running { LiveRuns.stop(runID: run.id) }
+        runsRefreshTick += 1
     }
 
     private func projectName(_ id: UUID) -> String? { model.store.allProjects().first { $0.id == id }?.name }

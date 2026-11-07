@@ -151,6 +151,12 @@ extension LiveUITest {
         await waitUntil(timeout: 4) { UITestAnchors.frames["morning.sweep"] != nil }
         let sunday = UITestAnchors.frames["morning.sweep"] != nil
         let token = TriageLaunch.shared.token
+        // Sibling interactions in this file settle after the card's `.task` focus-reclaim loop
+        // starts before clicking into it (morningReturn above); this one did not, and the
+        // card's own first layout pass was still settling often enough to miss the Sweep
+        // button's click under full-run load (confirmed live: the click posts, nothing in the
+        // card's action ever ran) — matching every other interaction's own pre-click settle.
+        await settle(300)
         _ = await click("morning.sweep")
         await waitUntil(timeout: 3) { model.isTriageOpen }
         let opened = model.isTriageOpen

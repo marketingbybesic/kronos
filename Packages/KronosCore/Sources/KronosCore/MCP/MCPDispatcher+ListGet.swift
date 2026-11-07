@@ -117,10 +117,13 @@ extension MCPDispatcher {
         let nextCursor = hasMore ? encodeCursor(offset: offset + page.count, signature: signature) : nil
 
         let blockedIDs = store.blockedIDs(in: page)
+        // One active-run key per row (A5): running state only, no lease filtering — a plain
+        // "who is on this right now" snapshot, same as RunStore.activeRuns().
+        let activeByTask: [UUID: KAgentRun] = (runs?.activeRuns() ?? []).reduce(into: [:]) { $0[$1.taskID] = $1 }
         let tasks: [AnyEncodable] = page.map { t in
             params.fields == .full
-                ? AnyEncodable(jsonObject(MCPTaskFull(t, today: day, blocked: blockedIDs.contains(t.id))))
-                : AnyEncodable(jsonObject(MCPTaskCompact(t, blocked: blockedIDs.contains(t.id))))
+                ? AnyEncodable(jsonObject(MCPTaskFull(t, today: day, blocked: blockedIDs.contains(t.id), run: activeByTask[t.id])))
+                : AnyEncodable(jsonObject(MCPTaskCompact(t, blocked: blockedIDs.contains(t.id), run: activeByTask[t.id])))
         }
 
         // Built in typed steps: as one chained expression this exceeded the type-checker budget.
@@ -214,16 +217,20 @@ extension MCPDispatcher {
             return .error(.notFound, message: "no task \(params.id)")
         }
         // `children`: every subtask as a full task object (each one works with every task
-        // tool by its id). `subtasks`: the same rows in the older compact step shape.
+        // tool by its id). `subtasks`: the same rows in the older compact step shape. `runs`:
+        // this task's own runs, newest first, last 5.
         struct Result: Encodable {
             let task: MCPTaskFull
             let children: [MCPTaskFull]
             let subtasks: [MCPSubtaskDTO]
+            let runs: [MCPRunDetail]
         }
         let kids = t.orderedChildren
+        let recentRuns = (runs?.runs(taskID: t.id) ?? []).prefix(5).map(MCPRunDetail.init)
         return .ok(Result(task: MCPTaskFull(t, today: today(), blocked: store.isBlocked(t.id)),
                           children: kids.map { MCPTaskFull($0, today: today(), blocked: store.isBlocked($0.id)) },
-                          subtasks: kids.map { MCPSubtaskDTO($0, taskID: t.id) }))
+                          subtasks: kids.map { MCPSubtaskDTO($0, taskID: t.id) },
+                          runs: Array(recentRuns)))
     }
 
 }

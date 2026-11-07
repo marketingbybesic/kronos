@@ -17,7 +17,7 @@ import KronosCore
 /// every other scope is only live while its part of the window has focus — plain SwiftUI
 /// `.keyboardShortcut` / `.onKeyPress`.
 public enum HotkeyScope: String, Codable, CaseIterable, Sendable {
-    case global, window, list, popover, editor
+    case global, window, list, board, popover, editor
 }
 
 // HotkeyBinding's core struct + `displayKeys` live in HotkeyBinding.swift (Foundation-only,
@@ -251,6 +251,16 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "window.goto.6", titleKey: "sidebar.all", scope: .window,
                     defaultBinding: HotkeyBinding("6", command: true), isRebindable: true,
                     registrationSite: "Kronos/App/KronosApp.swift"),
+        HotkeyEntry(id: "window.goto.flow", titleKey: "menu.go.toggleflow", scope: .window,
+                    defaultBinding: HotkeyBinding("g", option: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/App/KronosApp.swift"),
+        // Kronos v1.2 Phase 2 slice F3 wired this directly on WeekStrip's own collapse button
+        // (not a Commands item), registered here in the Phase 3 audit so it gets keymap-card
+        // coverage, Settings rebinding and HotkeyConflictChecker's protected-standard-shortcut
+        // check — the same treatment every other `.window` entry already gets.
+        HotkeyEntry(id: "today.weekstrip.collapse", titleKey: "week.strip.collapse", scope: .window,
+                    defaultBinding: HotkeyBinding("w", option: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/Today/WeekStrip.swift"),
 
         // MARK: List (TaskListScreen.swift; live only while the list has focus)
         // No "hotkey.list.*" string keys exist in the catalog. Each below reuses the closest
@@ -340,6 +350,31 @@ public enum HotkeyRegistry {
         HotkeyEntry(id: "list.priority.urgent", titleKey: "hotkey.list.priority.urgent", scope: .list,
                     defaultBinding: HotkeyBinding("4"), isRebindable: false,
                     registrationSite: "Kronos/List/TaskListScreen.swift"),
+        // Kronos v1.2 Phase 2 slice C. Plain H is taken by list.snooze (same scope); ⌃⌘H / ⌃⇧⌘H
+        // chosen after `HotkeyConflictChecker.duplicatesWithinScope` flagged plain H/⇧H against
+        // it — see GATES-1.2.md's status-ui section for the recorded check.
+        HotkeyEntry(id: "list.handoff", titleKey: "ctx.task.handoff", scope: .list,
+                    defaultBinding: HotkeyBinding("h", control: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen+AgentKeys.swift"),
+        HotkeyEntry(id: "list.handoffrun", titleKey: "ctx.task.handoffrun", scope: .list,
+                    defaultBinding: HotkeyBinding("h", shift: true, control: true, command: true), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen+AgentKeys.swift"),
+        HotkeyEntry(id: "list.stopagent", titleKey: "ctx.task.stopagent", scope: .list,
+                    defaultBinding: HotkeyBinding(".", command: true), isRebindable: true,
+                    registrationSite: "Kronos/List/TaskListScreen+AgentKeys.swift"),
+
+        // MARK: Board (BoardScreen.swift; live only while Board has focus). A dedicated scope,
+        // not `.list`: both bindings are bare (no modifier, matching how `[`/`]` already move a
+        // card by drag too — a key and a drop must never disagree), and `.list`'s own
+        // registration-site check (scripts/verify-hotkeys.mjs's `checkListRegistrationSite`)
+        // looks only at TaskListScreen's own files, so a `.list`-scope entry whose real handler
+        // lives in BoardScreen.swift would always read back as unclaimed there.
+        HotkeyEntry(id: "board.movecolumn.left", titleKey: "hotkey.board.movecolumn.left", scope: .board,
+                    defaultBinding: HotkeyBinding("["), isRebindable: true,
+                    registrationSite: "Kronos/Board/BoardScreen.swift"),
+        HotkeyEntry(id: "board.movecolumn.right", titleKey: "hotkey.board.movecolumn.right", scope: .board,
+                    defaultBinding: HotkeyBinding("]"), isRebindable: true,
+                    registrationSite: "Kronos/Board/BoardScreen.swift"),
     ]
 
     // MARK: User overrides (UserDefaults; hermetic under KRONOS_SNAPSHOT, mirrors AppModel.persist)

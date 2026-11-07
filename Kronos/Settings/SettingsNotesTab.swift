@@ -12,6 +12,7 @@ import KeyboardShortcuts
 struct SettingsNotesTab: View {
     let model: AppModel
     @State private var inboxFolder: String
+    @State private var noteApp: NoteAppPreference
     @State private var testState: TestState = .idle
 
     private enum TestState: Equatable {
@@ -31,9 +32,31 @@ struct SettingsNotesTab: View {
     init(model: AppModel) {
         self.model = model
         _inboxFolder = State(initialValue: model.coach.settings.notesInboxFolder)
+        _noteApp = State(initialValue: NoteAppPreference.current())
     }
 
     var body: some View {
+        SettingsSection(title: String(localized: "settings.notes.section.noteapp")) {
+            SettingsRow(label: String(localized: "settings.notes.noteapp")) {
+                Picker("", selection: $noteApp) {
+                    Text(String(localized: "settings.notes.noteapp.apple")).tag(NoteAppPreference.appleNotes)
+                    Text(String(localized: "settings.notes.noteapp.obsidian")).tag(NoteAppPreference.obsidian)
+                    Text(String(localized: "settings.notes.noteapp.notion")).tag(NoteAppPreference.notion)
+                }
+                .labelsHidden()
+                .accessibilityLabel(String(localized: "settings.notes.noteapp"))
+                .frame(width: SettingsMetrics.trailingColumn, alignment: .trailing)
+                .onChange(of: noteApp) { _, v in NoteAppPreference.set(v) }
+                .uiTestAnchor("settings.notes.noteapp")
+            }
+            SettingsHelpRow {
+                Text(String(localized: "settings.notes.noteapp.help"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                Spacer()
+            }
+        }
+
         SettingsSection(title: String(localized: "settings.notes.section.inbox")) {
             SettingsRow(label: String(localized: "settings.notes.folder")) {
                 KTextField("Kronos", text: $inboxFolder)

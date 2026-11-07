@@ -10,6 +10,19 @@
 
 ---
 
+## What's new in 1.2
+
+Kronos is now the easiest place to see what your AI agents are doing and to hand work to them.
+
+- **Runs.** An agent working a task is a *run*: the row shows a pulsing glyph while it works, a seal when it is ready for your review, and plain words when it failed or went quiet. The inspector shows the agent's latest note, its artifacts (commits, PRs, files) and a live log.
+- **Hand off.** Press `H` on a task to hand it to an agent; `⇧H` also launches the agent's own CLI (pin it once in Settings > Agents). Pick the model per hand-off, or leave it on Auto. `⌘.` stops a run — really stops it, process and all. Open in Terminal jumps straight to a running agent's shell.
+- **Review that cannot rot.** The menu bar counts what waits for you; `A` approves, `X` asks for changes, `⇧A` approves everything from one agent. Items older than a day say so.
+- **Flow.** A dependency view for a to-do list, not a node editor: three columns — what can start, what is next, what comes later — with keyboard navigation and an agent lens (`⌥⌘G`).
+- **Board and Week.** A five-column status board (`[` and `]` move cards) and a seven-day strip on Today.
+- **Morning plan** scrolls properly and says exactly what *Let's go* will do.
+- **Linked notes.** Choose Apple Notes, Obsidian or Notion in Settings; the linked-note row on a task opens in whichever app you picked.
+- **Report a bug** from Settings > About or the Help menu. It opens a GitHub issue with your version and build already filled in.
+
 ## Why it exists
 
 Most task apps are built for people who can look at a list of forty things and simply begin. If starting is the hard part, a long list is the problem, not the solution. Kronos is designed around **low initiation energy**:
@@ -26,11 +39,11 @@ Most task apps are built for people who can look at a list of forty things and s
 |---|---|
 | **Quick add from anywhere** (⌃⌥K) | `Call Alex tomorrow !!! ** #acme` sets the date, priority, effort and project as you type. Dates in plain English and Croatian (`next month`, `by friday`, `za tjedan dana`, `do petka`), typo-tolerant, plus the date words of your macOS languages. `Task > subtask > subtask` creates the outline in one line. |
 | **Capture from notes** (⇧⌘N) | Paste meeting notes or a brain dump. Kronos splits it into tasks, subtasks and notes on the spot; with AI on, it also estimates priority and effort. A guard rejects anything the model invents that is not in your text. |
-| **Sort (formerly Triage)** (⌥⌘T) | Keyboard-first review of whatever still lacks a priority, effort, deadline or project. |
+| **Sort** (⌥⌘T) | Keyboard-first review of whatever still lacks a priority, effort, deadline or project. |
 | **Time blocks** | Follows your calendar: the block you are in decides which tasks the menu bar offers. |
 | **Menu bar** | The current task, "Not now" and "Tomorrow", without opening the window. |
 | **Apple Notes** | Link a note to a task and open it from the inspector. |
-| **Siri and Shortcuts** | Add a Task, What's Next, Complete Current Task, Capture Notes, Start Pick one (formerly Impuls), Pin Focus Task, Switch Up next (formerly Ordo) Preset. |
+| **Siri and Shortcuts** | Add a Task, What's Next, Complete Current Task, Capture Notes, Start Pick one, Pin Focus Task, Switch Up next Preset. |
 | **Spotlight** | Your tasks are searchable system-wide. |
 | **AI agents (MCP)** | An optional local MCP server lets tools such as Claude Code read and update your tasks. Off by default, loopback only, token protected. |
 | **Look** | True-black OLED interface, three colour modes, custom accent, three text sizes. English and Croatian. |
@@ -79,7 +92,7 @@ Tests for the core library: `cd Packages/KronosCore && swift test`.
 
 ## AI agents (MCP)
 
-**Settings > AI access (MCP)**: turn it on and copy the snippet for your client. Tools: `list_tasks`, `get_task`, `create_task`, `update_task`, `complete_task`, `delete_task`, `restore_task`, `add_subtask`, `toggle_subtask`, `ordo_get`, `ordo_set`, `rules_list`, `rules_add`. Calls never bring the app to the front.
+**Settings > AI access (MCP)**: turn it on and copy the snippet for your client. 38 tools: the full task CRUD, subtasks, Up next, rules, events — and the **run protocol** (`run_start`, `run_update`, `run_finish`) that lets an agent claim a task, report progress with artifacts, and hand the result to your review. See [docs/MCP.md](docs/MCP.md) for the 10-line agent recipe. Calls never bring the app to the front.
 
 ## Architecture
 
@@ -94,6 +107,8 @@ SwiftUI + AppKit app over **KronosCore**, a Swift package with the model (SwiftD
 ## Contributing
 
 Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
+
+Found a bug? [Open an issue](https://github.com/marketingbybesic/kronos/issues/new) — Settings > About and the Help menu do the same thing for you, prefilled with your version and build.
 
 ## License
 

@@ -43,6 +43,7 @@ struct SettingsAgentsList: View {
     @State private var invalid = false
     @State private var copied = false
     @State private var viewingActivity: AgentsSettingsController.Row?
+    @State private var harnessEditing: String?
 
     private enum Confirmation: Equatable { case token(String), revert(String), remove(String), fullControl(String), autoApprove(String) }
 
@@ -60,6 +61,7 @@ struct SettingsAgentsList: View {
             }
             .uiTestAnchor("settings.agents.intro")
             AgentNotifyRow()
+            AgentsAtOnceRow()
             if controller.unavailable {
                 Text(String(localized: "agents.unavailable"))
                     .font(Typo.meta)
@@ -76,8 +78,8 @@ struct SettingsAgentsList: View {
             }
             KHairline().padding(.vertical, Space.x1)
             addRow
-            if let message = controller.message {
-                Text(message)
+            if let addMessage = controller.addMessage {
+                Text(addMessage)
                     .font(Typo.meta)
                     .foregroundStyle(Tok.textTertiary)
                     .textSelection(.enabled)
@@ -126,6 +128,9 @@ struct SettingsAgentsList: View {
             AgentCapMeters(row: row)
             fullControlRow(row)
             autoApproveRow(row)
+            if row.harnessStatus == .changed {
+                detail(String(localized: "agents.harness.changed"))
+            }
             if row.undelivered > 0 {
                 detail(String(format: String(localized: "agents.row.undelivered"), row.undelivered))
             }
@@ -134,7 +139,18 @@ struct SettingsAgentsList: View {
             }
             actions(row)
             if editing == row.slug { deliveryEditor(row) }
+            HarnessEditorRow(controller: controller, row: row,
+                             isEditing: Binding(get: { harnessEditing == row.slug },
+                                                set: { harnessEditing = $0 ? row.slug : nil }))
             confirmation(row)
+            if let rowMessage = controller.rowMessage, rowMessage.slug == row.slug {
+                Text(rowMessage.text)
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, Space.x1)
+            }
         }
         .padding(.vertical, Space.x1)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -206,6 +222,9 @@ struct SettingsAgentsList: View {
             Button(String(localized: "agents.activity")) { viewingActivity = row }
                 .kButton(.secondary, size: .compact)
                 .uiTestAnchor("settings.agents.activity.\(row.slug)")
+            Button(String(localized: "agents.harness")) { harnessEditing = harnessEditing == row.slug ? nil : row.slug }
+                .kButton(.secondary, size: .compact)
+                .uiTestAnchor("settings.agents.harness.\(row.slug)")
             if !row.isShared {
                 Button(String(localized: "agents.token.new")) { confirming = .token(row.slug) }
                     .kButton(.secondary, size: .compact)
@@ -387,7 +406,7 @@ struct SettingsAgentsList: View {
             Button(String(localized: "agents.add")) {
                 if controller.add(name: newName) { newName = "" }
             }
-            .kButton(.secondary, size: .compact)
+            .kButton(.primary, size: .compact)
             .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             .uiTestAnchor("settings.agents.add")
         }

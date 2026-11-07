@@ -68,6 +68,9 @@ extension MCPTool {
         case .commentTask:   return write("Comment on a task", destructive: false, idempotent: false)
         case .eventsAck:     return write("Acknowledge events", destructive: false, idempotent: true)
         case .reviewStatus:  return read("Review status")
+        case .runStart:      return write("Start a run", destructive: false, idempotent: true)
+        case .runUpdate:     return write("Update a run", destructive: false, idempotent: true)
+        case .runFinish:     return write("Finish a run", destructive: true, idempotent: false)
         case .upnextGet, .upnextSet: return read("")   // unreachable: canonical never returns an alias
         }
     }

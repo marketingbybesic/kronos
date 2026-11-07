@@ -15,6 +15,16 @@ enum PaletteCommit {
         if let message { UndoToastCenter.shared.show(message) }
     }
 
+    /// Refreshes after a write already performed elsewhere (`LiveRuns.stop`, which routes
+    /// through the live `RunSupervisor` for a real SIGTERM) and shows `message` as a notice
+    /// with no Undo affordance — for an action that is not on the task undo stack. Keeps the
+    /// bare `model.didMutate()` call inside this one commit-helper file instead of scattered
+    /// across command bodies (palette-selftest.swift's `no-bare-didMutate-outside-the-commit-helper`).
+    static func notice(_ model: AppModel, message: String) {
+        model.didMutate()
+        UndoToastCenter.shared.showNotice(message)
+    }
+
     /// Formats a catalog pattern. Every call site passes a literal key, so the string-key lint sees it.
     static func text(_ pattern: String, _ args: CVarArg...) -> String {
         String(format: pattern, arguments: args)

@@ -61,6 +61,14 @@ struct SettingsAboutTab: View {
                     .fixedSize()
                     .uiTestAnchor("settings.about.acknowledgements")
                 }
+                SettingsRow(label: String(localized: "settings.about.reportbug.label")) {
+                    Button(String(localized: "settings.about.reportbug.open")) {
+                        open(BugReportURL.make())
+                    }
+                    .kButton(.secondary, size: .compact)
+                    .fixedSize()
+                    .uiTestAnchor("settings.about.reportbug")
+                }
             }
         }
 

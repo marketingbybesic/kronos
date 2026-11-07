@@ -389,12 +389,11 @@ extension LiveUITest {
         let project = store.createProject(name: "Clist empty project", colorHex: "#5B8DEF", icon: "folder", area: nil)
         model.scope = .project(project.id)
         model.didMutate()
-        let shown = await waitUntil(timeout: 3) { UITestAnchors.frames["list.empty"] != nil && UITestAnchors.frames["empty.action"] != nil }
-        let clicked = await click("empty.action")
-        let fieldFocused = await waitUntil(timeout: 2) { window.firstResponder is NSTextView }
-        if window.firstResponder is NSTextView { window.makeFirstResponder(nil) }
-        record("an empty project says what it is for and its New task action focuses the new-task row",
-               shown && clicked && fieldFocused, "shown=\(shown) clicked=\(clicked) focused=\(fieldFocused)")
+        let shown = await waitUntil(timeout: 3) { UITestAnchors.frames["list.empty"] != nil }
+        await settle(300)
+        let noButton = UITestAnchors.frames["empty.action"] == nil
+        record("an empty project says what it is for and offers no New task button (the row above is the way in)",
+               shown && noButton, "shown=\(shown) noButton=\(noButton)")
         let chord = (HotkeyRegistry.current(for: "window.nest")?.displayKeys ?? []).joined()
         let nest = DropHintText.text(for: .nest)
         let promote = DropHintText.text(for: .promote)

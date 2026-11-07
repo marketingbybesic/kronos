@@ -6,8 +6,10 @@
 // `kronos-mcp` bridge (Tools/kronos-mcp), which forwards every request over that same
 // loopback endpoint.
 //
-// 35 tools: the 13 alpha tools, `list_projects` and `list_areas`, `rules_delete`, the agent loop
-// (whoami, propose_*, comment_task, events_*, next), the two `upnext_*` aliases of `ordo_get` /
+// 38 tools: the 13 alpha tools, `list_projects` and `list_areas`, `rules_delete`, the agent loop
+// (whoami, propose_*, comment_task, events_*, next, run_start, run_update, run_finish — the last
+// three are the "run contract", Kronos v1.2: a run is an agent working on a task; while it is
+// active its task is claimed), the two `upnext_*` aliases of `ordo_get` /
 // `ordo_set` (the queue is shown as "Up next" in the app; the old names keep working), the
 // nine tools of full control (list_labels, create_label, update_label, create_project,
 // update_project, create_area, update_area, delete_area, move_task), and `review_status`
@@ -56,6 +58,12 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
     case eventsPoll    = "events_poll"
     case eventsAck     = "events_ack"
     case next          = "next"
+    // The run contract (Kronos v1.2): run_start claims a task, run_update renews the claim and
+    // reports progress, run_finish ends it (done, failed or handoff). RunStore does the work;
+    // see MCPDispatcher+Runs.swift.
+    case runStart      = "run_start"
+    case runUpdate     = "run_update"
+    case runFinish     = "run_finish"
     // Full control (scope write.all, off by default, set per agent in Settings): the app's
     // structure and any task, as the person would edit it. list_labels only reads.
     case listLabels    = "list_labels"
@@ -160,6 +168,12 @@ public enum MCPTool: String, CaseIterable, Codable, Sendable {
             return "Needs the write.all scope. Move a task to a project (project, null = none), make it a subtask of another task (parentID) or a top-level task again (parentID null), or place a subtask before one of its siblings (before; omitted = last). Works on tasks the owner made too."
         case .reviewStatus:
             return "Whether and how the owner has reviewed one or more tasks: pass ids (up to 200) or project (every task in it), never both. Read-only — no tool can set this, only the owner's own UI (inspector or context menu). For each task: state (todo or done), verdict (the agent-proposal decision — none, pending, approved or rejected; distinct from the reviewed mark, which exists on any task), and reviewedAt/reviewedBy when the owner has marked it reviewed."
+        case .runStart:
+            return "Claim a task as an active run. Refused (CONFLICT) naming who holds it and until when if another agent is already running it; refused if the task is not approved yet. Call this before working a task long enough that another agent, or Kronos itself, should not also pick it up."
+        case .runUpdate:
+            return "Renew your claim on a run and report progress: a one-line note (truncated to 280 characters), 0 to 1 progress, and any new artifacts (file, diff, commit, pr or url). Call this at each milestone — an unanswered run's claim lapses when its lease passes."
+        case .runFinish:
+            return "End a run. done sends the task to the owner's review exactly like complete_task on a delegated task (or auto-approves under the done.trusted scope); failed reopens the task with your summary appended to its notes; handoff assigns the task to another agent by slug and ends your run. Do not also call complete_task."
         }
     }
 

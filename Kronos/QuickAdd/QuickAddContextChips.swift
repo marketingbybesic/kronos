@@ -46,15 +46,12 @@ struct QuickAddContextChips: View {
         }
     }
 
-    static func iconName(_ kind: ContextLink.Kind) -> String {
-        switch kind {
-        case .web: return "globe"
-        case .email: return "mail"
-        case .file: return "receipt"
-        case .folder: return "folder"
-        case .appleNote: return "receipt"
-        }
-    }
+    /// Delegates to the one canonical mapping (`ContextLinkActions.iconName`, Kronos/Detail/
+    /// ContextLinkChips.swift) — the Inspector's LINKS row renders the exact same `ContextLink`s
+    /// later, and this used to keep its own copy that put File AND Apple Note on the same
+    /// "receipt" glyph (a bug: indistinguishable chips, and neither matched the Inspector's own
+    /// "link" / "note.text").
+    static func iconName(_ kind: ContextLink.Kind) -> String { ContextLinkActions.iconName(kind) }
 
     /// What VoiceOver adds after the chip's title.
     static func kindName(_ kind: ContextLink.Kind) -> String {

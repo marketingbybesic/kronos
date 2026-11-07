@@ -24,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Owns the MCP listener: Settings toggles it live and reads its real port / last error.
     let mcpBackground = MCPBackgroundLaunch()
     private(set) lazy var mcpLive = MCPLiveController(store: store, ranking: RankingEngine())
+    /// Set by `MCPAppBinding` while the MCP server (and so the run-contract store) is live;
+    /// nil whenever MCP is off. `Kronos/Runs/RunSupervisor.swift`.
+    var runSupervisor: RunSupervisor?
     private var blockTimer: Timer?
     private var spotlightIndexer: SpotlightIndexer?
     /// Fills empty fields of new tasks from the rest of the list (Settings > Coach).
@@ -86,6 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.quickAdd = QuickAddController(model: model)
         super.init()
         AppDelegate.shared = self
+        // Kronos v1.2 Phase 2 slice C: thread the SAME RunStore/AgentHub instance `mcpLive` owns
+        // into AppModel so every screen reads runs through one source of truth (never a second
+        // store opened on Kronos-runs.store). `mcpLive` is `lazy`; touching it here simply moves
+        // its (side-effect-free) construction earlier than its first other use below.
+        model.mcpLive = mcpLive
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -127,6 +135,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // chords get a second chance to be seen too.
         OptionChordMonitor.install()
         LaunchTrace.mark("OptionChordMonitor.install")
+        // Kronos v1.2 Phase 2 slice C3: same reasoning as OptionChordMonitor just above, for the
+        // Command-held ⌃⌘H / ⌃⇧⌘H / ⌘. list chords — a second, independent path to
+        // AgentKeyActions, parallel to TaskListScreen's own `.onKeyPress`.
+        AgentKeyMonitor.install()
+        LaunchTrace.mark("AgentKeyMonitor.install")
+        // Kronos v1.2 Phase 2 slice F2 follow-up: same reasoning as OptionChordMonitor/
+        // AgentKeyMonitor just above, for Board's plain `[`/`]` — a second, independent path to
+        // BoardKeyActions, parallel to BoardScreen's own `.onKeyPress`.
+        BoardKeyMonitor.install()
+        LaunchTrace.mark("BoardKeyMonitor.install")
+        // In-process notification observers only (palette "New from template…",
+        // `.kronosQuickAddPanelRequested` — Dock menu, URL scheme, onboarding, and
+        // AppShellView's ⌘N-in-Flow/Board redirect): same reasoning as the monitors just
+        // above, installed for both the real launch and the live UI test below so every
+        // notification-driven open path is actually exercised under it. The OS-level global
+        // hotkeys stay in `startGlobalHotkeys()`, called only on the normal-launch path below.
+        quickAdd.start()
+        LaunchTrace.mark("quickAdd.start")
         // The live UI test runs beside a normal running app: no menu-bar item, no global
         // hotkeys, no Keychain, no Spotlight, no permission window. It only drives its own
         // window.
@@ -153,8 +179,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LaunchTrace.mark("menuBarOrdo.install")
         if launchKind == .normal { offerWelcomeOnce() }
         LaunchTrace.mark("offerWelcomeOnce")
-        quickAdd.start()
-        LaunchTrace.mark("quickAdd.start")
+        quickAdd.startGlobalHotkeys()
+        LaunchTrace.mark("quickAdd.startGlobalHotkeys")
         AIWiring.configure(model)
         AIWiring.observe(model)
         LaunchTrace.mark("AIWiring")

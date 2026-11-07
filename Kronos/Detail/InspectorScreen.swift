@@ -131,6 +131,10 @@ struct InspectorScreen: View {
                 if let rationale = task.triageRationale, !rationale.isEmpty {
                     InspectorRationalePanel(rationale: rationale)
                 }
+                // Kronos v1.2 Phase 2 slice C2: above Details, shown only when the task has a run.
+                InspectorRunSection(model: model, task: task)
+                // handoff-ui slice: below the run section, shown only when an agent is registered.
+                InspectorHandoffSection(model: model, task: task)
                 detailsSection(task)
                 InspectorFooter(model: model, task: task)
             }

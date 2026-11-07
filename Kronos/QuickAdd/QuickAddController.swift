@@ -75,29 +75,15 @@ final class QuickAddController: NSObject, NSWindowDelegate {
 
     init(model: AppModel) { self.model = model }
 
-    /// Registers the global hotkeys. Called once from `AppDelegate`. A conflicting or
-    /// failed registration never surfaces as an alert — the panel shows a calm inline
-    /// notice instead, the next time it opens (spec: never a modal for this).
-    ///
-    /// Meeting capture (`global.meetingcapture`) and show-Ordo (`global.showordo`) are
-    /// registered here per their `HotkeyRegistry` entries; this file only posts the
-    /// notification (observed elsewhere, in the menu-bar cockpit and triage) to actually
-    /// act on it.
+    /// Registers the two in-process notification observers that open the panel without any
+    /// OS-level global hotkey: the palette's "New from template…" and
+    /// `.kronosQuickAddPanelRequested` (Dock menu, URL scheme, onboarding, and AppShellView's
+    /// ⌘N-in-Flow/Board redirect). Always safe to call, including under the live UI test — it
+    /// touches nothing outside this process, unlike `startGlobalHotkeys()` below. Called once
+    /// from `AppDelegate`, unconditionally (before the live-UI-test early return), so every
+    /// notification-driven open path the app ships is actually exercised under live UI test
+    /// too, not just the `toggle()` call the existing panel-content steps use directly.
     func start() {
-        HotkeyRegistry.migrateLegacyQuickAddDefaultIfNeeded()
-        repairQuickAddShortcutIfMigrationDisabledIt()
-
-        KeyboardShortcuts.onKeyUp(for: .quickAdd) { [weak self] in self?.toggle() }
-        if KeyboardShortcuts.getShortcut(for: .quickAdd) == nil {
-            hotkeyNotice = String(localized: "quickadd.hint.noshortcut")
-        }
-
-        KeyboardShortcuts.onKeyUp(for: .meetingCapture) {
-            NotificationCenter.default.post(name: .kronosMeetingCaptureRequested, object: nil)
-        }
-        KeyboardShortcuts.onKeyUp(for: .showOrdo) {
-            NotificationCenter.default.post(name: .kronosShowOrdoRequested, object: nil)
-        }
         // Palette "New from template…": open fresh with `/` typed so the template list shows.
         NotificationCenter.default.addObserver(forName: .kronosNewFromTemplate, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -113,6 +99,34 @@ final class QuickAddController: NSObject, NSWindowDelegate {
                 guard let self, !(self.panel?.isVisible ?? false) else { return }
                 self.open()
             }
+        }
+    }
+
+    /// Registers the global hotkeys. Called once from `AppDelegate`, only on a normal launch —
+    /// the live UI test runs beside a normal running app and must never register OS-level
+    /// global hotkeys (AppDelegate's own comment: "no menu-bar item, no global hotkeys, no
+    /// Keychain, no Spotlight, no permission window"). A conflicting or failed registration
+    /// never surfaces as an alert — the panel shows a calm inline notice instead, the next
+    /// time it opens (spec: never a modal for this).
+    ///
+    /// Meeting capture (`global.meetingcapture`) and show-Ordo (`global.showordo`) are
+    /// registered here per their `HotkeyRegistry` entries; this file only posts the
+    /// notification (observed elsewhere, in the menu-bar cockpit and triage) to actually
+    /// act on it.
+    func startGlobalHotkeys() {
+        HotkeyRegistry.migrateLegacyQuickAddDefaultIfNeeded()
+        repairQuickAddShortcutIfMigrationDisabledIt()
+
+        KeyboardShortcuts.onKeyUp(for: .quickAdd) { [weak self] in self?.toggle() }
+        if KeyboardShortcuts.getShortcut(for: .quickAdd) == nil {
+            hotkeyNotice = String(localized: "quickadd.hint.noshortcut")
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .meetingCapture) {
+            NotificationCenter.default.post(name: .kronosMeetingCaptureRequested, object: nil)
+        }
+        KeyboardShortcuts.onKeyUp(for: .showOrdo) {
+            NotificationCenter.default.post(name: .kronosShowOrdoRequested, object: nil)
         }
     }
 

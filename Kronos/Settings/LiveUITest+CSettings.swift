@@ -64,6 +64,7 @@ extension LiveUITest {
         win.orderOut(nil)
 
         await csKeyboard(breakMode: breakMode)
+        await csAgentsScrollReach(model, breakMode: breakMode)
     }
 
     private static func csWindow(_ host: NSViewController, width: CGFloat, height: CGFloat) -> NSWindow {
@@ -356,6 +357,69 @@ extension LiveUITest {
         let shown = UITestAnchors.frames["settings.general.animation"] != nil
         record("General > Advanced carries the completion-animation row",
                breakMode ? !shown : shown, "")
+    }
+
+    // MARK: 9. Agents pane: reachability at a realistic window height
+
+    private static func csAgentsScopes(_ slug: String) -> AgentScopes? {
+        guard let hub = try? AgentHub(directory: KronosStore.containerDirectory(), tokenFiles: nil) else { return nil }
+        return hub.agent(slug: slug).map { AgentScopes(csv: $0.scopesRaw) }
+    }
+
+    /// Every step above opens the pane at 900x1100 — taller than any real agent list, so it
+    /// would pass even if the pane could never scroll. Here the window is 600pt, inside
+    /// Settings' own minHeight (560) and the floor a second agent's controls were found
+    /// unreachable at: Full control starts below the bottom edge on purpose, and only a real
+    /// scroll — not a taller window — brings it into the clickable area.
+    private static func csAgentsScrollReach(_ model: AppModel, breakMode: Bool) async {
+        guard let seed = try? AgentHub(directory: KronosStore.containerDirectory(), tokenFiles: nil),
+              let first = seed.addAgent(displayName: "Scroll Probe One"),
+              let second = seed.addAgent(displayName: "Scroll Probe Two") else {
+            record("Agents pane: a second agent's Full control is reachable in a 600pt window", false, "could not seed two scratch agents")
+            return
+        }
+        let slug = second.agent.slug
+        defer {
+            (try? AgentHub(directory: KronosStore.containerDirectory(), tokenFiles: nil))?.remove(slug: first.agent.slug)
+            (try? AgentHub(directory: KronosStore.containerDirectory(), tokenFiles: nil))?.remove(slug: slug)
+        }
+        let toggle = "settings.agents.fullcontrol.\(slug)"
+        let confirm = "settings.agents.confirm.\(slug)"
+
+        let main = window
+        let win = csWindow(NSHostingController(rootView:
+            SettingsScreen(model: model, initialTab: .agents).frame(width: 900, height: 600).background(Tok.bg)),
+            width: 900, height: 600)
+        window = win
+        defer { window = main; win.orderOut(nil) }
+        NSApp.activate(ignoringOtherApps: true)
+        win.makeKeyAndOrderFront(nil)
+        _ = await waitUntil(timeout: 5) { UITestAnchors.frames[toggle] != nil }
+        await settle(300)
+
+        let height = win.contentView?.bounds.height ?? 0
+        // Repro: two agents at 600pt put the second one's Full control past the bottom edge.
+        let startsBelowFold = (UITestAnchors.frames[toggle]?.minY ?? 0) >= height
+        let startsOff = csAgentsScopes(slug)?.has(.writeAll) == false
+
+        await csScrollToEnd(win)
+        let afterScroll = UITestAnchors.frames[toggle]
+        let reachable = afterScroll.map { $0.minY >= 0 && $0.maxY <= height } ?? false
+
+        _ = await click(toggle)
+        var asked = await waitUntil(timeout: 3) { UITestAnchors.frames[confirm] != nil }
+        if !asked {   // a first press can be spent on focusing the window; press once more
+            _ = await click(toggle)
+            asked = await waitUntil(timeout: 3) { UITestAnchors.frames[confirm] != nil }
+        }
+        _ = await click(confirm)
+        let granted = await waitUntil(timeout: 3) { csAgentsScopes(slug)?.has(.writeAll) == true }
+
+        let healthy = startsBelowFold && startsOff && reachable && asked && granted
+        // Break: claim this holds without the pane ever having scrolled, which it cannot.
+        record("Agents pane: a second agent's Full control starts below the fold at 600pt, then is reachable and clickable once the pane scrolls",
+               healthy == !breakMode,
+               "startsBelowFold=\(startsBelowFold) reachable=\(reachable) asked=\(asked) granted=\(granted) height=\(Int(height))")
     }
 }
 #endif

@@ -33,6 +33,10 @@ struct KronosApp: App {
                           let url = URL(string: "https://github.com/marketingbybesic/kronos") else { return }
                     NSWorkspace.shared.open(url)
                 }
+                Button(String(localized: "welcome.menu.reportbug")) {
+                    guard ProcessInfo.processInfo.environment["KRONOS_SNAPSHOT"] == nil else { return }
+                    NSWorkspace.shared.open(BugReportURL.make())
+                }
             }
         }
 
@@ -228,6 +232,18 @@ private struct KronosCommands: Commands {
                     .hotkey("window.goto.\(index + 1)")
                 }
             }
+            // v1.2 person feedback (a): the old destination (scope .all, layout .flow) made
+            // "All" permanently show Flow after one press — ⌥⌘G now toggles list<->Flow on
+            // whatever scope is CURRENT, the same write the header's own List|Flow|Board
+            // control makes (FlowScreen.swift / TaskListScreen.swift). Same hotkey id
+            // (window.goto.flow, HotkeyRegistry.swift) so Settings rebinding/keymap-card
+            // coverage carries over; retitled since this is a toggle, not a destination.
+            Button(String(localized: "menu.go.toggleflow")) {
+                var opts = model.options(for: model.scope)
+                opts.layout = (opts.layout == .flow) ? .list : .flow
+                model.setOptions(opts, for: model.scope)
+            }
+            .hotkey("window.goto.flow")
         }
     }
 }

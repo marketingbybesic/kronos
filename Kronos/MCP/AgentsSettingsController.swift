@@ -28,20 +28,28 @@ final class AgentsSettingsController {
         let pendingCap: Int
         let callsMinute: Int
         let perMinute: Int
+        let harnessPath: String                  // "" = unpinned
+        let harnessArgvPreview: [String]          // pinned argv, or the default template when unpinned
+        let harnessStatus: HarnessValidation
     }
 
     enum DeliveryKind: String, CaseIterable { case off, webhook, ntfy, command }
 
     private(set) var rows: [Row] = []
     private(set) var unavailable = false
-    /// A one-line outcome shown under the list (revert result, add result).
-    var message: String?
+    /// A one-line outcome tied to the agent row it is about (add confirmation, revert result):
+    /// shown under THAT row only, so it can never read as being about a different agent.
+    private(set) var rowMessage: (slug: String, text: String)?
+    /// A one-line outcome for the add row itself: only a failed add lands here, since nothing
+    /// was created to attach the message to instead.
+    private(set) var addMessage: String?
     /// A signing secret shown once, per agent.
     private(set) var shownSecret: [String: String] = [:]
 
     private var hub: AgentHub?
     private let store: (any TaskStoring)?
     private let fixture: Bool
+    private var harness: HarnessStore?
 
     /// `fixture` rows are for snapshots: nothing is read from or written to any store.
     init(live: MCPLiveController?, store: (any TaskStoring)?, fixture: Bool = false) {
@@ -51,6 +59,7 @@ final class AgentsSettingsController {
         if let h = live?.hub { hub = h }
         else if let h = try? AgentHub(directory: KronosStore.containerDirectory()) { hub = h }
         else { unavailable = true }
+        harness = try? HarnessStore(directory: KronosStore.containerDirectory())
         refresh()
     }
 
@@ -62,12 +71,17 @@ final class AgentsSettingsController {
             let created = hub.identity(slug: a.slug).map { hub.createsToday(agent: $0) } ?? 0
             let pendingCount = store.map { hub.pendingProposals(agentID: a.id, store: $0) } ?? 0
             let calls = hub.callsThisMinute(slug: a.slug, perMinute: a.rateLimitPerMinute)
+            let pinned = harness?.harness(agentID: a.id)
+            let pinnedArgv = pinned.map { HarnessArgv.decode($0.argvTemplate) } ?? []
+            let argvPreview = pinnedArgv.isEmpty ? HarnessDefaults.defaultArgv(forSlug: a.slug) : pinnedArgv
             return Row(slug: a.slug, name: a.displayName, glyph: a.glyph.isEmpty ? String(a.displayName.prefix(1)) : a.glyph,
                        isEnabled: a.isEnabled, isShared: a.tokenHash.isEmpty, lastSeen: a.lastSeenAt,
                        writesWeek: hub.writeCount(agentID: a.id, days: 7), scopes: AgentScopes(csv: a.scopesRaw),
                        target: a.webhookURL, undelivered: d.pending, dead: d.dead,
                        createdToday: created, dailyCap: a.dailyCreateCap, pending: pendingCount,
-                       pendingCap: a.maxPendingProposals, callsMinute: calls, perMinute: a.rateLimitPerMinute)
+                       pendingCap: a.maxPendingProposals, callsMinute: calls, perMinute: a.rateLimitPerMinute,
+                       harnessPath: pinned?.executablePath ?? "", harnessArgvPreview: argvPreview,
+                       harnessStatus: harness?.validate(agentID: a.id) ?? .unpinned)
         }
     }
 
@@ -113,20 +127,49 @@ final class AgentsSettingsController {
     func revertToday(slug: String) {
         guard !fixture, let hub, let store, let agent = hub.agent(slug: slug) else { return }
         let s = hub.revertToday(agentID: agent.id, store: store)
-        message = String(format: String(localized: "agents.revert.result"), s.total, s.skipped)
+        rowMessage = (slug: slug, text: String(format: String(localized: "agents.revert.result"), s.total, s.skipped))
         NotificationCenter.default.post(name: .kronosStoreDidChangeExternally, object: nil)
         refresh()
     }
 
     @discardableResult
     func add(name: String) -> Bool {
-        guard !fixture, let hub else { return false }
+        guard !fixture else { return false }
+        guard let hub else {
+            addMessage = String(localized: "agents.add.failed")
+            return false
+        }
         guard let made = hub.addAgent(displayName: name) else {
-            message = String(localized: "agents.add.failed")
+            addMessage = String(localized: "agents.add.failed")
             return false
         }
         let file = hub.tokenFiles?.directory.appendingPathComponent(made.agent.slug + ".token").path ?? ""
-        message = String(format: String(localized: "agents.add.done"), file, made.agent.slug)
+        addMessage = nil
+        rowMessage = (slug: made.agent.slug, text: String(format: String(localized: "agents.add.done"), file, made.agent.slug))
+        refresh()
+        return true
+    }
+
+    // MARK: harness
+
+    /// Searches the four known folders for the agent's binary (B1's Find button).
+    func findHarnessPath(slug: String) -> String? {
+        guard !fixture else { return nil }
+        return HarnessDefaults.find(forSlug: slug)
+    }
+
+    /// The argv template that will be pinned for `slug` if nothing more specific is set — the
+    /// known default for omp/claude/codex, or just the prompt for anything else.
+    func defaultArgv(slug: String) -> [String] { HarnessDefaults.defaultArgv(forSlug: slug) }
+
+    /// Pins `path` with the slug's default argv template (B1: "Saving pins the path and argv" —
+    /// argv is not separately editable in this UI). False for an empty path or an unknown slug.
+    @discardableResult
+    func pinHarness(slug: String, path: String) -> Bool {
+        guard !fixture, let hub, let harness, let agent = hub.agent(slug: slug) else { return false }
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        harness.pin(agentID: agent.id, executablePath: trimmed, argvTemplate: HarnessDefaults.defaultArgv(forSlug: slug))
         refresh()
         return true
     }
@@ -203,19 +246,23 @@ final class AgentsSettingsController {
         return [
             Row(slug: "claude-code", name: names[0], glyph: "C", isEnabled: true, isShared: false,
                 lastSeen: now.addingTimeInterval(-600), writesWeek: 12, scopes: .standard, target: nil, undelivered: 0, dead: 0,
-                createdToday: 3, dailyCap: 40, pending: 1, pendingCap: 15, callsMinute: 2, perMinute: 60),
+                createdToday: 3, dailyCap: 40, pending: 1, pendingCap: 15, callsMinute: 2, perMinute: 60,
+                harnessPath: "/opt/homebrew/bin/claude", harnessArgvPreview: ["-p", "{prompt}"], harnessStatus: .ok),
             Row(slug: "research", name: names[1], glyph: "R", isEnabled: true, isShared: false,
                 lastSeen: now.addingTimeInterval(-86_400), writesWeek: 3,
                 scopes: AgentScopes([.read, .propose, .writeOwn, .comment, .writeTrusted]),
                 target: "https://agent.example.com/ingest", undelivered: 2, dead: 1,
-                createdToday: 12, dailyCap: 40, pending: 4, pendingCap: 15, callsMinute: 0, perMinute: 60),
+                createdToday: 12, dailyCap: 40, pending: 4, pendingCap: 15, callsMinute: 0, perMinute: 60,
+                harnessPath: "", harnessArgvPreview: ["{prompt}"], harnessStatus: .unpinned),
             Row(slug: "unnamed", name: names[2], glyph: "U", isEnabled: false, isShared: true,
                 lastSeen: nil, writesWeek: 0, scopes: .legacy, target: nil, undelivered: 0, dead: 0,
-                createdToday: 0, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60),
+                createdToday: 0, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60,
+                harnessPath: "", harnessArgvPreview: ["{prompt}"], harnessStatus: .unpinned),
             // Made by Connect all (token file only): its own token, so it holds Full control like the rest.
             Row(slug: "pi", name: names[3], glyph: "P", isEnabled: true, isShared: false,
                 lastSeen: now.addingTimeInterval(-3_600), writesWeek: 1, scopes: .standard, target: nil, undelivered: 0, dead: 0,
-                createdToday: 1, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60),
+                createdToday: 1, dailyCap: 40, pending: 0, pendingCap: 15, callsMinute: 0, perMinute: 60,
+                harnessPath: "", harnessArgvPreview: ["{prompt}"], harnessStatus: .unpinned),
         ]
     }
 }

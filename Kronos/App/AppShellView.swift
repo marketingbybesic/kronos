@@ -56,10 +56,21 @@ struct AppShellView: View {
 
                     KHairline(vertical: true)
 
-                    ListWithMorningPlan(model: model, showsMorning: Binding(
-                        get: { morningOpen && (model.scope == .today || model.scope == .inbox) },
-                        set: { morningOpen = $0 }))
-                        .frame(minWidth: Metrics.listMin, maxWidth: .infinity, maxHeight: .infinity)
+                    // Kronos v1.2 Phase 2 slices E/F: a scope's own ViewOptions.layout decides
+                    // list vs. graph vs. board rendering; sidebar and inspector are unaffected.
+                    Group {
+                        switch model.options(for: model.scope).layout {
+                        case .flow:
+                            FlowScreen(model: model)
+                        case .board:
+                            BoardScreen(model: model)
+                        case .list:
+                            ListWithMorningPlan(model: model, showsMorning: Binding(
+                                get: { morningOpen && (model.scope == .today || model.scope == .inbox) },
+                                set: { morningOpen = $0 }))
+                        }
+                    }
+                    .frame(minWidth: Metrics.listMin, maxWidth: .infinity, maxHeight: .infinity)
 
                     if !inspectorCollapsed {
                         inspectorDivider
@@ -119,6 +130,7 @@ struct AppShellView: View {
                     // The palette sizes and clips ITSELF (max 560, narrower in a small window).
                     // A second, narrower frame + clip here cut its left edge off.
                     CommandPaletteView(model: model)
+                        .id(model.paletteOpenGeneration)
                         .padding(.horizontal, Space.x4)
                         .padding(.top, Space.x8)
                         .frame(maxHeight: .infinity, alignment: .top)
@@ -165,6 +177,11 @@ struct AppShellView: View {
             .overlayPreferenceValue(TourAnchorKey.self) { TourOverlay(anchors: $0) }
             .onAppear { offerMorningPlanIfDue(); OSDynamicType.apply(dynamicTypeSize) }
             .onChange(of: model.scope) { _, _ in offerMorningPlanIfDue() }
+            // Review next shows ONE task at a time: switching lists out from under it (sidebar
+            // click, a numbered scope hotkey, a saved view) should not leave it floating over an
+            // unrelated screen — the scrim/Esc already close it by hand, this is the same close
+            // reached by a different route.
+            .onChange(of: model.scope) { _, _ in model.isReviewNextOpen = false }
             .onChange(of: dynamicTypeSize) { _, newValue in OSDynamicType.apply(newValue); model.didMutate() }
             .onChange(of: model.isImpulsOpen) { _, open in
                 if open { OnboardingCenter.shared.noteOpened(.impuls, model: model) }
@@ -196,6 +213,14 @@ struct AppShellView: View {
                 })
             }
         }
+        // H / ⇧H agent-picker overlay (Kronos v1.2 Phase 2 slice C), one popover regardless of
+        // how many rows asked for it and regardless of which center-pane layout is showing —
+        // moved here from TaskListScreen so List's own H key, the context menu and the palette's
+        // "Hand off…"/"Hand off and run…" commands all reach it even while Flow or Board (which
+        // swap List out of the view tree) is the active layout.
+        .popover(item: Binding(get: { model.handoffRequest }, set: { model.handoffRequest = $0 }), arrowEdge: .top) { request in
+            ListHandoffPick(model: model, request: request) { model.handoffRequest = nil }
+        }
         .background(Tok.bg)
         // The ONE injection point for the colour mode; the design system resolves every tint from it.
         .environment(\.chromaMode, model.chromaMode)
@@ -213,6 +238,8 @@ struct AppShellView: View {
         .animation(Motion.curve(Motion.fast), value: model.isTimeBlocksOpen)
         .animation(Motion.curve(Motion.fast), value: undoCenter.current)
         .animation(Motion.curve(Motion.fast), value: model.isKeymapOpen)
+        .animation(Motion.curve(Motion.fast), value: morningOpen)
+        .animation(Motion.curve(Motion.fast), value: model.isReviewNextOpen)
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosCapturePrefillRequested"))) { note in
             // Menu-bar meeting capture and Siri hand their text over here.
             model.openCapture(with: note.userInfo?["text"] as? String)
@@ -232,6 +259,16 @@ struct AppShellView: View {
         .onReceive(NotificationCenter.default.publisher(for: .kronosToggleInspectorRequested)) { _ in
             toggleInspector()
         }
+        // v1.2 person feedback (b): ⌘N in Flow/Board has no inline row to focus (List's own
+        // listeners — ListInlineNewTaskRow.swift, TaskListScreen.swift — are unmounted there),
+        // so it did nothing visible. Redirect to the floating QuickAdd panel instead, which
+        // already pre-fills the project/area pill from `model.scope` when Kronos is frontmost
+        // (QuickAddController.prefilledPills) — no layout switch, no scope change; the task
+        // lands straight in whichever layout is already showing.
+        .onReceive(NotificationCenter.default.publisher(for: .kronosNewTaskRequested)) { _ in
+            guard model.options(for: model.scope).layout != .list, !model.isAnyOverlayOpen else { return }
+            NotificationCenter.default.post(name: .kronosQuickAddPanelRequested, object: nil)
+        }
         // The sort card's B posts a bare notification; the Steps section reads BreakdownRequests.
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosBreakdownRequested"))) { note in
             guard let id = note.userInfo?["taskID"] as? UUID else { return }
@@ -250,8 +287,7 @@ struct AppShellView: View {
         // certainly stale because the new scope does not list it. A route that switches the
         // scope AND opens a task (open by id, palette) keeps its selection: this runs after it.
         .onChange(of: model.scope) { _, _ in
-            guard let id = model.selectedTaskID,
-                  ListContext(model: model).rows.contains(where: { $0.id == id }) else {
+            guard let id = model.selectedTaskID, ListContext(model: model).holds(id) else {
                 model.selectedTaskID = nil
                 return
             }

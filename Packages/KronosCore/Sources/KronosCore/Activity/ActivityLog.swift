@@ -32,13 +32,24 @@ public enum ActivityVerb {
     /// SchemaV1Frozen.swift's header).
     public static let reviewed = "task.reviewed"
     public static let unreviewed = "task.unreviewed"
+    // Kronos v1.2 "run contract" (Phase 1 slice A3): a run is an agent working on a task. Started
+    // and finished/failed are writes (an agent's own audit trail, like `created`); stopped and
+    // expired are reported back, because an agent must hear that it lost its claim. Updated is
+    // neither — it is the heartbeat, appended only when the note or artifacts actually change, and
+    // never delivered (a 30-minute lease renewal is not news).
+    public static let runStarted = "run.started"
+    public static let runUpdated = "run.updated"
+    public static let runFinished = "run.finished"
+    public static let runFailed = "run.failed"
+    public static let runStopped = "run.stopped"
+    public static let runExpired = "run.expired"
     // Bookkeeping.
     public static let ack = "cursor.ack"
 
     /// Verbs an agent may hear about.
-    public static let delivered: Set<String> = [completed, approved, rejected, reopened, deleted, assigned, commented, edited, reviewed, unreviewed]
+    public static let delivered: Set<String> = [completed, approved, rejected, reopened, deleted, assigned, commented, edited, reviewed, unreviewed, runStopped, runExpired]
     /// Verbs that count as a write by an agent (the 7-day figure in Settings).
-    public static let writes: Set<String> = [created, updated, completed, deleted, restored, doneByAgent, commented, structure]
+    public static let writes: Set<String> = [created, updated, completed, deleted, restored, doneByAgent, commented, structure, runStarted, runFinished, runFailed]
 }
 
 extension AgentHub {

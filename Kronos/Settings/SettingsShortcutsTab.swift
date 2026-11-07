@@ -180,6 +180,7 @@ struct SettingsShortcutsTab: View {
         case .global: return String(localized: "settings.shortcuts.scope.global")
         case .window: return String(localized: "settings.shortcuts.scope.window")
         case .list: return String(localized: "settings.shortcuts.scope.list")
+        case .board: return String(localized: "settings.shortcuts.scope.board")
         case .popover: return String(localized: "settings.shortcuts.scope.popover")
         case .editor: return String(localized: "settings.shortcuts.scope.editor")
         }
@@ -225,7 +226,7 @@ struct SettingsShortcutsTab: View {
                     // equivalent internally for its own Name).
                     HotkeyRecorderField(id: entry.id, binding: binding,
                                         isOverridden: binding != entry.defaultBinding,
-                                        allowsBareKey: entry.scope == .list,
+                                        allowsBareKey: entry.scope == .list || entry.scope == .board,
                                         actionName: title(for: entry)) { recorded in
                         HotkeyRegistry.setOverride(recorded, for: entry.id)
                         overrideVersion += 1
@@ -260,7 +261,7 @@ struct SettingsShortcutsTab: View {
             return HotkeyConflictChecker.globalConflict(binding, systemDefaults: systemDefaults, installedBundleIDs: installedBundleIDs)
         case .window:
             return HotkeyConflictChecker.windowConflict(binding, entryID: entry.id)
-        case .list, .popover, .editor:
+        case .list, .board, .popover, .editor:
             let effective = HotkeyRegistry.entries.map { e in
                 (id: e.id, scope: e.scope, binding: HotkeyRegistry.current(for: e.id) ?? e.defaultBinding)
             }

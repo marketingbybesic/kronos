@@ -183,7 +183,12 @@ extension LiveUITest {
         let pill = UndoToastCenter.shared.current != nil
         key("\u{1B}", keyCode: 53)
         _ = await waitUntil { !model.isTriageOpen }
-        let after = await waitUntil(timeout: 4) { UITestAnchors.frames["row.dr.approve.visible"] != nil }
+        // The row's own first mount after the Triage overlay's close animation finishes is not
+        // always inside 4 s once the full run's queued background work delays this render
+        // (confirmed live: the task is correctly `reviewRaw == 2` and matches scope well before
+        // the row itself appears) — the same under-provisioned-timeout shape as the saved-view
+        // row's own delete check; widened rather than guessed shorter and retried.
+        let after = await waitUntil(timeout: 8) { UITestAnchors.frames["row.dr.approve.visible"] != nil }
         record("Return approves: the proposal is not in Today before and is after, one undo step with a pill",
                !before && !beforeData && after == !reviewBreak && one && pill,
                "before=\(before)/\(beforeData) after=\(after) depth=\(store.undoDepth) was=\(depth) pill=\(pill)")

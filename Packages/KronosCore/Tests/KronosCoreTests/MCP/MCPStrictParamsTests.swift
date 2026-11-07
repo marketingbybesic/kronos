@@ -144,7 +144,8 @@ import Foundation
             "list_labels": (true, false, true), "create_label": (false, false, true), "update_label": (false, true, true),
             "create_project": (false, false, false), "update_project": (false, true, true),
             "create_area": (false, false, false), "update_area": (false, true, true),
-            "delete_area": (false, true, true), "move_task": (false, true, true), "review_status": (true, false, true)
+            "delete_area": (false, true, true), "move_task": (false, true, true), "review_status": (true, false, true),
+            "run_start": (false, false, true), "run_update": (false, false, true), "run_finish": (false, true, false)
         ]
         let tools = try toolsList(d)
         #expect(tools.count == table.count)

@@ -216,7 +216,11 @@ enum PaletteCommands {
                             registryID: "window.viewoptions", group: .view) { _ in
                 NotificationCenter.default.post(name: .kronosViewOptionsRequested, object: nil)
             },
-            PaletteCommand(id: "view.toggleinspector", titleKey: "menu.view.inspector", glyph: "panel-right",
+            // "sidebar.trailing" (a real SF Symbol, resolved directly): view.togglesidebar below
+            // owns "panel-right"/sidebar.right for the LEFT sidebar (SidebarScreen.swift's own
+            // icons-only/full toggle) — the inspector is the trailing panel, so it needs its own
+            // glyph rather than sharing that one in the same View group.
+            PaletteCommand(id: "view.toggleinspector", titleKey: "menu.view.inspector", glyph: "sidebar.trailing",
                             registryID: "window.inspector", group: .view) { _ in
                 NotificationCenter.default.post(name: .kronosToggleInspectorRequested, object: nil)
             },
@@ -297,11 +301,11 @@ enum PaletteCommands {
 
     private static var appCommands: [PaletteCommand] {
         [
-            PaletteCommand(id: "app.undo", titleKey: "menu.edit.undo", glyph: "arrow-up",
+            PaletteCommand(id: "app.undo", titleKey: "menu.edit.undo", glyph: "undo",
                             registryID: "window.undo", group: .app, isAvailable: { $0.store.canUndo }) { model in
                 PaletteCommit.run(model) { model.store.undo() }
             },
-            PaletteCommand(id: "app.redo", titleKey: "menu.edit.redo", glyph: "arrow-up",
+            PaletteCommand(id: "app.redo", titleKey: "menu.edit.redo", glyph: "redo",
                             registryID: "window.redo", group: .app, isAvailable: { $0.store.canRedo }) { model in
                 PaletteCommit.run(model) { model.store.redo() }
             },

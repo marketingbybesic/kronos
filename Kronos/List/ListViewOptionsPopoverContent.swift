@@ -342,6 +342,7 @@ struct ListViewOptionsPopoverContent: View {
         )
         let modified = isModifiedSavedView(opts)
         return VStack(alignment: .leading, spacing: Space.x3) {
+            layoutRow(opts)
             groupByRow(opts)
             // A Waiting or Someday list holds no closed task: the switch would do nothing there.
             if scope.shape.offersShowCompleted {
@@ -381,6 +382,29 @@ struct ListViewOptionsPopoverContent: View {
             ])
         }
         .uiTestAnchor("list.viewoptions.groupby")
+    }
+
+    /// Kronos v1.2 Phase 2: List vs. Flow (the dependency-depth graph, Kronos/Flow/FlowScreen.swift)
+    /// vs. Board (the five-column status kanban, Kronos/Board/BoardScreen.swift) for this scope.
+    /// `ListLayout` is the slices' shared contract
+    /// (Packages/KronosCore/Sources/KronosCore/Contracts/ViewOptions.swift).
+    private func layoutRow(_ opts: ViewOptions) -> some View {
+        let binding = Binding<ListLayout>(
+            get: { opts.layout },
+            set: { var o = opts; o.layout = $0; model.setOptions(o, for: scope) }
+        )
+        return VStack(alignment: .leading, spacing: Space.x1) {
+            Text(String(localized: "viewoptions.layout"))
+                .font(Typo.meta)
+                .foregroundStyle(Tok.textSecondary)
+            KSegmented(selection: binding, segments: [
+                KSegment(value: ListLayout.list, text: String(localized: "viewoptions.layout.list")),
+                KSegment(value: ListLayout.flow, text: String(localized: "viewoptions.layout.flow")),
+                KSegment(value: ListLayout.board, text: String(localized: "viewoptions.layout.board")),
+            ])
+            .uiTestAnchor("list.viewoptions.layout.control")
+        }
+        .uiTestAnchor("list.viewoptions.layout")
     }
 
     // MARK: - Name lookups

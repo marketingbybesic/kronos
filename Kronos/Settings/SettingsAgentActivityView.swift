@@ -13,13 +13,8 @@
 //
 // Localization: new keys live under the `agents.*` surface (the only closed-set namespace that
 // fits — see the internal notes §2.1); `agents.activity.*` / `agents.activity.verb.*`.
-// NOT added to the internal notes / Localizable.xcstrings by this file: concurrent
-// finish-round-1 builders were racing non-atomic writes to those two shared generated files
-// (add-strings.mjs/build-strings.mjs do read-modify-write with no locking) at the time this was
-// built, so a second attempt here would only re-race. The orchestrator has the exact
-// [key, en, hr] rows needed (see the agent's final report) to add in one pass during
-// integration; until then `String(localized:)` falls back to printing the bare key for the 23
-// rows below — a cosmetic gap, not a data or behaviour gap.
+// Added to Localizable.xcstrings during integration (both en and hr; see git history for that
+// commit) — the original finish-round-1 note about a pending orchestrator pass is resolved.
 
 import SwiftUI
 import KronosCore

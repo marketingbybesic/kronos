@@ -285,9 +285,14 @@ struct CaptureReviewList: View {
             Text(title)
                 .font(Typo.meta)
                 .foregroundStyle(Tok.textSecondary)
+                // `.frame`/`.contentShape` INSIDE the label: a `.buttonStyle(.plain)` button is
+                // pressable only on its label's opaque pixels — a frame chained AFTER
+                // `.buttonStyle(.plain)` is a wrapper around the finished button and changes
+                // neither (KHitTarget.swift). The reserved minHit padding here used to be dead:
+                // visible but unclickable.
+                .kHitTarget()
         }
         .buttonStyle(.plain)
-        .frame(minHeight: Metrics.minHit)
     }
 
     // MARK: Keyboard

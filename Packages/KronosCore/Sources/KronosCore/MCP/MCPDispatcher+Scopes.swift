@@ -18,6 +18,11 @@ extension MCPDispatcher {
         case .createTask, .proposeTasks, .proposeUpdate: return .propose
         case .commentTask: return .comment
         case .updateTask, .completeTask, .deleteTask, .restoreTask, .addSubtask, .toggleSubtask: return .writeOwn
+        // run_start claims a task like addSubtask names one (`taskID`): owned or assigned, else
+        // write.all. run_update/run_finish name a `runID`, not a task, so the generic ownership
+        // lookup below finds no "id"/"taskID" key and is a no-op; RunStore's own .notYours is the
+        // per-run check.
+        case .runStart, .runUpdate, .runFinish: return .writeOwn
         case .ordoSet: return .ordo
         case .rulesAdd: return .rules
         case .rulesDelete: return .rulesDelete
@@ -77,7 +82,7 @@ extension MCPDispatcher {
         case .writeOwn:
             let full = me.scopes.has(.writeAll)
             guard me.scopes.has(.writeOwn) || full else { return forbidden("this agent may not change tasks", scope: .writeOwn, hint: "use propose_update") }
-            let target = tool.canonical == .addSubtask ? uuid("taskID") : uuid("id")
+            let target = (tool.canonical == .addSubtask || tool.canonical == .runStart) ? uuid("taskID") : uuid("id")
             if let target {
                 // restore_task names a deleted task, so look through deletions too.
                 guard let t = store.taskIncludingDeleted(target) else { return nil }   // NOT_FOUND comes from the handler

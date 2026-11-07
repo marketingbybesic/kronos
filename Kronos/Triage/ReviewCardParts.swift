@@ -50,10 +50,17 @@ extension TriageFlowView {
     }
 
     private func agentName(of task: KTask) -> String {
-        switch InspectorSourceLabel.kind(source: task.source, hasAgentID: task.agentID != nil) {
+        switch InspectorSourceLabel.kind(source: task.source, hasAgentID: task.agentID != nil, resolveDisplayName: Self.agentDisplayName) {
         case .agent(let name): return name
         case .generic, .none: return String(localized: "review.agent.unnamed")
         }
+    }
+
+    /// The agent's own stored display name (Settings > Agents), shown verbatim — never
+    /// re-capitalised from its slug the way InspectorSourceLabel's own fallback guesses.
+    private static func agentDisplayName(slug: String) -> String? {
+        let hub = AppDelegate.shared?.mcpLive.hub ?? (try? AgentHub(directory: KronosStore.containerDirectory()))
+        return hub?.agent(slug: slug)?.displayName
     }
 
     private func reviewTitle(_ item: ReviewItem) -> some View {

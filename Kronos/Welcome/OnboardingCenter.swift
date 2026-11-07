@@ -58,6 +58,11 @@ final class OnboardingCenter {
         guard state.startedAt == nil else { return }
         state.startedAt = Date()
         state.baselineAttachments = Self.attachmentCount(model.store)
+        // A store that already has a task in Today is not a fresh install: the card defaults to
+        // its single-line collapsed state so it never fills the fold above real work. Expanded
+        // only when Today is genuinely empty, which is also what a truly fresh store looks like.
+        let today = Day.today(calendar: KronosLocale.calendar)
+        state.collapsed = model.store.allTasks().contains { ScopeFilter.countsInSidebar($0, scope: .today, today: today) }
         save()
     }
 

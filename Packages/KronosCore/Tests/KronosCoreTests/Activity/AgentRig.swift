@@ -4,11 +4,13 @@ import Foundation
 import SwiftData
 @testable import KronosCore
 
-/// A store, an in-memory agent hub with a controllable clock, and a dispatcher wired to both.
+/// A store, an in-memory agent hub and run store with a controllable clock, and a dispatcher
+/// wired to all three.
 @MainActor
 final class AgentRig {
     let store: TaskStore
     let hub: AgentHub
+    let runs: RunStore
     let dispatcher: MCPDispatcher
     var clock: Date
     let day: Int
@@ -21,9 +23,11 @@ final class AgentRig {
         let box = ClockBox(start)
         hub = AgentHub(context: ctx, tokenFiles: nil, now: { box.now })
         self.box = box
+        runs = RunStore(context: ModelContext(try KronosRunsStore.makeContainer(inMemory: true)), store: store, hub: hub)
         let d = day
         dispatcher = MCPDispatcher(store: store, ranking: RankingEngine(), today: { d })
         dispatcher.hub = hub
+        dispatcher.runs = runs
     }
 
     private let box: ClockBox

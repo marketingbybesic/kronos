@@ -20,6 +20,10 @@ public struct KNowCard<Attributes: View>: View {
     let title: String
     /// Kept only so the design-gallery call sites still compile; never drawn (no count beside the one task).
     let remaining: Int
+    /// The task is already started (status in progress, and pinned as the focus task): shows
+    /// a plain word next to the eyebrow instead of nothing at all — the only visible change
+    /// otherwise was the Start button disappearing from the actions row below.
+    var isInProgress = false
     var projectIcon: String?
     var projectColorHex: String?
     var projectName: String?
@@ -37,13 +41,14 @@ public struct KNowCard<Attributes: View>: View {
     // SwiftUI EnvironmentKey named \.reduceMotion; the macOS 27 SDK rejects it.
     private var reduceMotion: Bool { Motion.reduceMotion }
 
-    public init(firstMove: String?, title: String, remaining: Int = 0,
+    public init(firstMove: String?, title: String, remaining: Int = 0, isInProgress: Bool = false,
                 projectIcon: String? = nil, projectColorHex: String? = nil, projectName: String? = nil,
                 @ViewBuilder attributes: @escaping () -> Attributes,
                 onComplete: @escaping () -> Void) {
         self.firstMove = firstMove
         self.title = title
         self.remaining = remaining
+        self.isInProgress = isInProgress
         self.projectIcon = projectIcon
         self.projectColorHex = projectColorHex
         self.projectName = projectName
@@ -58,13 +63,22 @@ public struct KNowCard<Attributes: View>: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(move == nil
-                 ? String(localized: "nowcard.now", defaultValue: "Now")
-                 : String(localized: "detail.firstmove"))
-                .font(Typo.caption)
-                .tracking(Tracking.caption)
-                .textCase(.uppercase)
-                .foregroundStyle(Tok.textTertiary)
+            HStack(spacing: Space.x2) {
+                Text(move == nil
+                     ? String(localized: "nowcard.now", defaultValue: "Now")
+                     : String(localized: "detail.firstmove"))
+                    .font(Typo.caption)
+                    .tracking(Tracking.caption)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Tok.textTertiary)
+                if isInProgress {
+                    Text(String(localized: "status.inprogress"))
+                        .font(Typo.caption)
+                        .tracking(Tracking.caption)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Tok.textSecondary)
+                }
+            }
             Text(move ?? title)
                 .font(Typo.hero)
                 .tracking(Tracking.tight)

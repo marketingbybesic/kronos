@@ -91,6 +91,12 @@ extension TaskListScreen {
     /// window edge, and one gap, so no row ever sits behind it.
     var bulkBarClearance: CGFloat { Metrics.controlRegular + Space.x2 + Space.x8 + Space.x6 + Space.x3 }
 
+    /// Bottom inset the rows keep while the undo pill alone floats over the window's own
+    /// bottom edge (no bulk bar): the pill's own height, its distance from the edge
+    /// (`Space.x4`, AppShellView's own padding on it), and one gap, so the last row never
+    /// sits behind it.
+    var toastClearance: CGFloat { Metrics.undoPillHeight + Space.x4 + Space.x3 }
+
     /// Bottom-centre of the list, only while 2+ rows are selected. Sits above the undo pill
     /// (which owns the very bottom edge of the window) so the two never overlap.
     @ViewBuilder

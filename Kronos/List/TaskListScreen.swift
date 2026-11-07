@@ -10,7 +10,8 @@ struct TaskListScreen: View {
     @Bindable var model: AppModel
     /// Snapshot-only; see CoachBanner.swift. Always nil on the real screen.
     var previewBlockSuggestion: BlockSuggestion?? = nil
-    @State private var showPopover = false
+    // Not `private`: TaskListScreen+Chips.swift's extension drives this popover.
+    @State var showPopover = false
     @Environment(\.kAccent) var accent   // not private: ListGroupedSections.swift (group leading colour)
     // Not `private`: TaskListScreen+Parts.swift's extension (the Now card) reads/writes it.
     // One global key (not per scope): a user who folds the card wants it folded everywhere.
@@ -35,6 +36,10 @@ struct TaskListScreen: View {
     /// first launch" framing (§3.2).
     @State private var hasResolvedFirstLoad = false
 
+    /// `ScrollViewReader` target for ⌘N (body(ctx) below): the one inline new-task row that
+    /// lives inside the scrollable content (the empty-list branch's own row is never off-screen).
+    private static let inlineNewTaskRowID = "list.inline.newtask"
+
     /// Calm mode was removed in rev18; this stays false so the header count always shows.
     private var isCalm: Bool { false }
     
@@ -53,6 +58,15 @@ struct TaskListScreen: View {
         let ctx = context
         VStack(alignment: .leading, spacing: 0) {
             header(ctx)
+            // v1.2 Phase 2 slice F: a project's own line (progress, can-start, blocked, review,
+            // due) right under its title, and Today's week strip right under its own title.
+            // Flow (slice E) mounts ProjectHeaderStrip at the top of FlowScreen itself.
+            if case .project(let projectID) = model.scope {
+                ProjectHeaderStrip(model: model, projectID: projectID)
+            }
+            if model.scope == .today {
+                WeekStrip(model: model)
+            }
             if ruleCount(ctx) > 0 {
                 KActiveRulesBar(chips: chips(ctx), onReset: resetOptions)
                     .uiTestAnchor("rules.bar")
@@ -66,17 +80,22 @@ struct TaskListScreen: View {
             }
             AwayDigestBanner(model: model)
             CoachBannerSlot(model: model, previewSuggestion: previewBlockSuggestion, isCalm: isCalm)
-            // "Start here" (Kronos/Welcome/OnboardingCard.swift): renders nothing unless a tour runs.
-            OnboardingCard(model: model)
-                .tourAnchor(.learnCard)
-                .padding(.horizontal, Space.x4)
-                .padding(.top, Space.x3)
+            // "Start here" (Kronos/Welcome/OnboardingCard.swift): renders nothing unless a tour
+            // runs. Hidden while a search is active too: a committed query with zero matches must
+            // show the no-matches state above the fold, not this card plus the Now card filling it.
+            if model.searchText.isEmpty {
+                OnboardingCard(model: model)
+                    .tourAnchor(.learnCard)
+                    .padding(.horizontal, Space.x4)
+                    .padding(.top, Space.x3)
+            }
             // The Now card toggle (Settings > Appearance > Layout,
             // `CoachSettings.nowCardEnabled`) is the ONLY thing gating this card; it used to
             // also hide under `!isCalm`, so Calm mode silently overrode a setting the user had
             // turned on. Calm mode still hides the rules bar and header count above/below
-            // (unrelated), but the Now card itself no longer depends on chromaMode at all.
-            if model.coach.settings.nowCardEnabled, showsNowCard(ctx), let focusTask = focusTask {
+            // (unrelated), but the Now card itself no longer depends on chromaMode at all. Also
+            // hidden while searching, same reason as the onboarding card above.
+            if model.searchText.isEmpty, model.coach.settings.nowCardEnabled, showsNowCard(ctx), let focusTask = focusTask {
                 nowCard(focusTask, ctx)
                     .tourAnchor(.nowCard)
                     .padding(.horizontal, Space.x4)
@@ -148,15 +167,28 @@ struct TaskListScreen: View {
                     .tracking(Tracking.tight)
                     .foregroundStyle(Tok.textPrimary)
                 if !isCalm {
-                    Text("\(ctx.currentCount)")
-                        .font(Typo.count)
-                        .foregroundStyle(Tok.textTertiary)
+                    HStack(spacing: Space.x1) {
+                        Text("\(ctx.currentCount)")
+                            .font(Typo.count)
+                            .foregroundStyle(Tok.textTertiary)
+                        // Today only: `currentCount` excludes the carried-over "Earlier" rows the
+                        // sidebar badge still counts (ScopeFilter.countsInSidebar) — the two measure
+                        // genuinely different things (today's own run vs. everything open in Today),
+                        // so name this one instead of leaving it to silently disagree with the badge.
+                        if model.scope == .today, !ctx.earlier.isEmpty {
+                            Text(String(localized: "list.header.count.shown"))
+                                .font(Typo.count)
+                                .foregroundStyle(Tok.textTertiary)
+                        }
+                    }
                 }
             }
+            if model.scope == .today { reviewRunningLine }
             Spacer(minLength: Space.x4)
             KTextField(String(localized: "sidebar.search.placeholder"), text: $model.searchText, leading: "search")
                 .frame(maxWidth: 260)
                 .focused($searchFocused)
+            layoutControl
             KViewOptionsIconButton(activeCount: ruleCount(ctx)) { showPopover.toggle() }
                 .popover(isPresented: $showPopover, arrowEdge: .bottom) {
                     ListViewOptionsPopoverContent(model: model, scope: model.scope)
@@ -164,6 +196,25 @@ struct TaskListScreen: View {
         }
         .padding(.horizontal, Space.x4)
         .frame(height: Metrics.toolbarHeight)
+    }
+
+    /// List | Flow | Board, always visible — v1.2 person feedback (a): the sidebar's old
+    /// dedicated "Flow" row made "All" permanently show Flow after one click with no visible
+    /// way back (it set scope .all + that scope's layout .flow, then just stuck). This control
+    /// writes the SAME per-scope `ViewOptions.layout` the view-options popover's own secondary
+    /// `layoutRow` does (ListViewOptionsPopoverContent.swift) — one write, two doors — so
+    /// where-you-are and how-to-leave are obvious from whichever of the three is on screen.
+    private var layoutControl: some View {
+        let binding = Binding<ListLayout>(
+            get: { model.options(for: model.scope).layout },
+            set: { var o = model.options(for: model.scope); o.layout = $0; model.setOptions(o, for: model.scope) }
+        )
+        return KSegmented(selection: binding, segments: [
+            KSegment(value: ListLayout.list, icon: "list.bullet", text: String(localized: "viewoptions.layout.list")),
+            KSegment(value: ListLayout.flow, icon: "point.3.connected.trianglepath.dotted", text: String(localized: "viewoptions.layout.flow"), hint: String(localized: "sidebar.help.flow")),
+            KSegment(value: ListLayout.board, icon: "rectangle.split.3x1", text: String(localized: "viewoptions.layout.board")),
+        ])
+        .uiTestAnchor("header.layout.control")
     }
 
     /// The mark before the view title. A project view shows the project's icon in the project's
@@ -193,54 +244,6 @@ struct TaskListScreen: View {
         return model.store.task(id)
     }
 
-    /// The filter as chips and the rule count see it: a saved view's own project is where the view lives, not a
-    /// rule to show or remove (it is the locked row in the options popover), so it is left out.
-    private func visibleFilter(_ options: ViewOptions) -> KFilter {
-        var f = options.filter
-        if ListViewReset.pin(model: model, scope: model.scope) != nil { f.clear(.project) }
-        return f
-    }
-
-    private func ruleCount(_ ctx: ListContext) -> Int {
-        ViewOptionsMapper.activeRuleCount(sort: ctx.options.sort, filter: visibleFilter(ctx.options))
-    }
-
-    private func chips(_ ctx: ListContext) -> [KActiveRulesBar.RuleChip] {
-        var chips: [KActiveRulesBar.RuleChip] = []
-        if ctx.options.sort != KSortDescriptor.default {
-            for (i, d) in ctx.options.sort.enumerated() {
-                chips.append(.init(id: "sort.\(i)", text: ViewOptionsMapper.sortChipText(d), onTap: { showPopover = true }, onRemove: {
-                    var opts = ctx.options
-                    opts.sort.remove(at: i)
-                    if opts.sort.isEmpty { opts.sort = KSortDescriptor.default }
-                    model.setOptions(opts, for: model.scope)
-                }))
-            }
-        }
-        let shownFilter = visibleFilter(ctx.options)
-        if shownFilter != .empty {
-            let texts = ViewOptionsMapper.filterChipTexts(shownFilter, projectName: projectName, areaName: areaName, labelName: labelName)
-            for (i, text) in texts.enumerated() {
-                chips.append(.init(id: "filter.\(i)", text: text, onTap: { showPopover = true }, onRemove: {
-                    removeFilterRule(at: i, from: ctx.options)
-                }))
-            }
-        }
-        return chips
-    }
-
-    private func removeFilterRule(at index: Int, from options: ViewOptions) {
-        let shown = visibleFilter(options)
-        let rules = ViewOptionsMapper.filterRules(from: shown, projectName: projectName, areaName: areaName, labelName: labelName)
-        guard rules.indices.contains(index) else { return }
-        var opts = options
-        opts.filter = ViewOptionsMapper.clearing(ViewOptionsMapper.filterFieldID(rules[index].field), from: options.filter)
-        model.setOptions(opts, for: model.scope)
-    }
-
-    private func resetOptions() {
-        ListViewReset.clearAll(model: model, scope: model.scope)
-    }
 
     // MARK: - Body
 
@@ -280,26 +283,42 @@ struct TaskListScreen: View {
                 // The title floor grows with the text size: 120 pt holds fewer characters at L than at M.
                 let titleFloor: CGFloat = 120 * DSScale.text
                 let trailingBudget = geo.size.width - chrome - titleFloor
-                let columnMode = ColumnMode.fitting(available: trailingBudget)
+                // needs: never reserve a column nothing in THIS build's rows uses (a lone Inbox
+                // row with no project, no subtasks, no recurrence gets the title that width back).
+                let columnMode = ColumnMode.fitting(available: trailingBudget, needs: columnNeeds(ctx))
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: Space.x1, pinnedViews: [.sectionHeaders]) {
-                        ListInlineNewTaskRow(model: model, scope: model.scope)
-                            .tourAnchor(.newTask)
-                        mainRows(ctx, columnMode)
-                        // Sorted by an attribute some tasks lack: they end the list under their
-                        // own sticky header (GroupHeader; spec §4.6).
-                        missingGroupSection(ctx, columnMode)
-                        earlierGroupSection(ctx, columnMode)
-                        if ctx.totalCount == 0 {
-                            KEmptyState(icon: "search", title: noMatchesTitle)
-                                .frame(maxWidth: .infinity)
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: Space.x1, pinnedViews: [.sectionHeaders]) {
+                            ListInlineNewTaskRow(model: model, scope: model.scope)
+                                .id(Self.inlineNewTaskRowID)
+                                .tourAnchor(.newTask)
+                            mainRows(ctx, columnMode)
+                            // Sorted by an attribute some tasks lack: they end the list under their
+                            // own sticky header (GroupHeader; spec §4.6).
+                            missingGroupSection(ctx, columnMode)
+                            earlierGroupSection(ctx, columnMode)
+                            if ctx.totalCount == 0 {
+                                KEmptyState(icon: "search", title: noMatchesTitle,
+                                           action: model.searchText.isEmpty ? nil : KEmptyState.Action(
+                                               title: String(localized: "empty.search.clear")) { model.searchText = "" })
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
+                        .padding(.horizontal, Space.x3)
+                        .padding(.vertical, Space.x2)
+                        // While the bulk bar floats over the bottom, the last rows can still scroll
+                        // above it; while the undo pill floats there instead (no bulk selection), the
+                        // narrower toastClearance keeps the last row from sitting behind IT.
+                        .padding(.bottom, isMultiSelected ? bulkBarClearance : (UndoToastCenter.shared.current != nil ? toastClearance : 0))
                     }
-                    .padding(.horizontal, Space.x3)
-                    .padding(.vertical, Space.x2)
-                    // While the bulk bar floats over the bottom, the last rows can still scroll above it.
-                    .padding(.bottom, isMultiSelected ? bulkBarClearance : 0)
+                    // ⌘N focuses the inline row (ListInlineNewTaskRow's own listener) but that is
+                    // invisible when the row sits off-screen under the Learn Kronos/Now card chrome
+                    // above it — bring it on screen too.
+                    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("kronosNewTaskRequested"))) { _ in
+                        guard !model.isAnyOverlayOpen else { return }
+                        withAnimation(Motion.curve(Motion.fast)) { scrollProxy.scrollTo(Self.inlineNewTaskRowID, anchor: .top) }
+                    }
                 }
                 // The one drop destination of the list (rows report their frames into it).
                 .listDropLayer(model: model, config: dropConfig(ctx))
@@ -348,8 +367,16 @@ struct TaskListScreen: View {
             }
             .onKeyPress(.escape) { handleEscape() }
             .onKeyPress(characters: CharacterSet(charactersIn: "aA")) { handleSelectAll($0, ctx) }
-            .onKeyPress(characters: listCharacterSet) { press in
+            // Agent keys (⌃⌘H / ⌃⇧⌘H / ⌘.) and the plain grammar both claim "h" as a character
+            // (hand-off vs. snooze): SwiftUI does not reliably re-dispatch to a SECOND chained
+            // .onKeyPress(characters:) modifier on the same view once the first one whose set
+            // contains the pressed character returns .ignored, so both must live in ONE handler.
+            // Agent keys are always chord-gated (checked first, narrower); a plain unmodified
+            // press falls through to the grammar exactly as `handleGrammarKey`'s own doc comment
+            // describes ("a chord... so the press falls through").
+            .onKeyPress(characters: listCharacterSet.union(CharacterSet(charactersIn: "h."))) { press in
                 guard !Self.isTyping else { return .ignored }
+                if handleAgentKey(press, ctx) { return .handled }
                 return handleGrammarKey(press, ctx) ? .handled : .ignored
             }
         }
@@ -396,7 +423,8 @@ struct TaskListScreen: View {
             .tourAnchor(.firstRow, when: task.id == ctx.rows.first?.id)
     }
 
-    private var showsProjectGlyph: Bool {
+    // Not `private`: TaskListScreen+Parts.swift's columnNeeds(ctx) reads it.
+    var showsProjectGlyph: Bool {
         switch model.scope {
         case .project: return false
         default: return true
@@ -422,7 +450,7 @@ struct TaskListScreen: View {
     /// an auto-selected replacement.
     private func pruneSelection(_ ctx: ListContext) {
         pruneBulk(ctx)
-        guard let id = model.selectedTaskID, !ctx.rows.contains(where: { $0.id == id }) else { return }
+        guard let id = model.selectedTaskID, !ctx.holds(id) else { return }
         model.selectedTaskID = nil
     }
 
@@ -461,13 +489,6 @@ struct TaskListScreen: View {
                                          listName: ctx.title, remaining: others))
     }
 
-    // MARK: - Name lookups (chips, filter builder)
-
-    private func projectName(_ id: UUID) -> String? { model.store.allProjects().first { $0.id == id }?.name }
-    private func areaName(_ id: UUID) -> String? { model.store.allProjects().compactMap(\.area).first { $0.id == id }?.name }
-    private func labelName(_ id: UUID) -> String? {
-        model.store.allTasks().flatMap { $0.labels ?? [] }.first { $0.id == id }?.name
-    }
 
     // MARK: - Context (scope title + sorted/filtered rows)
 

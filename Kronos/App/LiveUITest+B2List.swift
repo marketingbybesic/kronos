@@ -272,10 +272,21 @@ extension LiveUITest {
         let probe = store.createNoUndo(title: "Clear probe last", notes: "", project: nil, status: .todo, priority: .none, dueDay: today)
         model.didMutate()
         await waitUntil { UITestAnchors.frames["row." + probe.title] != nil }
+        // A long full run can leave this screen's own `lastTodayRows` tracking out of step
+        // with the live row count (it is plain `@State`, never reset between leaves): a scope
+        // round-trip forces `TaskListScreen`'s `.onChange(of: model.scope)` handler to resync
+        // it from a fresh `observedRows` read before this step measures its own baseline — the
+        // same "stuck, so force it a different way" idiom Flow's own column remount relies on.
+        model.scope = .inbox
+        await settle(200)
+        model.scope = .today
+        model.didMutate()
+        await settle(300)
         let before = TodayClear.cuesPlayed
         _ = await click("row." + probe.title, xFraction: 0.45)
         await waitUntil { model.selectedTaskID == probe.id }
         key(" ", keyCode: 49)
+        await settle(300)
         await waitUntil(timeout: 4) { TodayClear.cuesPlayed > before }
         let cue = TodayClear.cuesPlayed - before
         let shown = await waitUntil { UITestAnchors.frames["today.clear"] != nil }

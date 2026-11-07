@@ -35,6 +35,8 @@ public struct MCPTaskCompact: Codable, Sendable {
     public let parentID: UUID?
     /// w22e: present (true) only while the task waits on an open task; absent otherwise.
     public let blocked: Bool?
+    /// Present while an agent holds an active run on this task.
+    public let run: MCPRunRowSummary?
 }
 
 /// Full task shape for `fields: .full`, `get_task`, and every tool that
@@ -91,6 +93,8 @@ public struct MCPTaskFull: Codable, Sendable {
     /// The person's verdict on this task (Accept or Reject, with his word); absent until he decides.
     /// Only the person's review actions write it: no tool can.
     public let verdict: MCPVerdict?
+    /// Present while an agent holds an active run on this task.
+    public let run: MCPRunRowSummary?
 }
 
 /// The person's verdict on agent work: `accepted` or `rejected`, his optional comment and when.
@@ -196,10 +200,30 @@ public struct MCPLabelRef: Codable, Sendable {
     public let name: String
 }
 
+/// The active-run signal on a task row: "someone is on this right now" (list_tasks, and
+/// MCPTaskFull generally). Absent when no run is active.
+public struct MCPRunRowSummary: Codable, Sendable {
+    public let agent: String
+    public let state: String
+    public let progress: Double?
+}
+
+/// One run's full detail: `get_task`'s `runs` (last 5, newest first).
+public struct MCPRunDetail: Codable, Sendable {
+    public let id: UUID
+    public let agent: String
+    public let state: String
+    public let progress: Double?
+    public let note: String
+    public let startedAt: Date
+    public let endedAt: Date?
+    public let artifacts: [RunArtifact]
+}
+
 // MARK: - Builders
 
 extension MCPTaskCompact {
-    init(_ t: KTask, blocked isBlocked: Bool = false) {
+    init(_ t: KTask, blocked isBlocked: Bool = false, run activeRun: KAgentRun? = nil) {
         id = t.id
         title = t.title
         status = MCPStatus(t.status)
@@ -208,11 +232,12 @@ extension MCPTaskCompact {
         projectName = t.project?.name
         parentID = t.parentID
         blocked = isBlocked ? true : nil
+        run = activeRun.map(MCPRunRowSummary.init)
     }
 }
 
 extension MCPTaskFull {
-    init(_ t: KTask, today: Int, blocked isBlocked: Bool = false) {
+    init(_ t: KTask, today: Int, blocked isBlocked: Bool = false, run activeRun: KAgentRun? = nil) {
         id = t.id
         title = t.title
         notes = t.notes
@@ -254,6 +279,7 @@ extension MCPTaskFull {
         context = t.contextJSON.flatMap(AgentJSON.parse).map(AgentJSON.object)
         result = t.resultJSON.flatMap(AgentJSON.parse).map(AgentJSON.object)
         verdict = AgentTaskResult.decode(t.resultJSON).flatMap(MCPVerdict.init)
+        run = activeRun.map(MCPRunRowSummary.init)
     }
 
     static func reviewName(_ raw: Int) -> String? {
@@ -267,6 +293,27 @@ extension MCPTaskFull {
     }
 }
 
+
+extension MCPRunRowSummary {
+    init(_ run: KAgentRun) {
+        agent = run.agentSlug
+        state = run.stateRaw
+        progress = run.progress >= 0 ? run.progress : nil
+    }
+}
+
+extension MCPRunDetail {
+    init(_ run: KAgentRun) {
+        id = run.id
+        agent = run.agentSlug
+        state = run.stateRaw
+        progress = run.progress >= 0 ? run.progress : nil
+        note = run.note
+        startedAt = run.startedAt
+        endedAt = run.endedAt
+        artifacts = RunArtifact.decodeList(run.artifactsJSON)
+    }
+}
 
 extension MCPRuleDTO {
     init(_ r: KRule) {

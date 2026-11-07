@@ -336,6 +336,13 @@ public enum Metrics {
     public static let settingsLabelColumn: CGFloat   = 140
     /// Emoji picker's scrollable grid viewport — tall enough for ~4 rows before scrolling.
     public static let pickerViewportHeight: CGFloat  = 176
+
+    // MARK: Flow (Kronos v1.2 Phase 2 slice E) — the dependency-depth graph's own card/column
+    // geometry, named here like every other screen's layout numbers.
+    public static let flowCardWidth: CGFloat          = 220
+    public static let flowColumnGap: CGFloat          = Space.x6
+    public static let flowCardGap: CGFloat            = Space.x2
+    public static let flowColumnHeaderHeight: CGFloat = 28
 }
 
 @MainActor

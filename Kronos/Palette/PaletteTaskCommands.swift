@@ -45,12 +45,12 @@ extension PaletteCommands {
         rows += statusRows(hasSelection)
         rows += [
             PaletteCommand(id: "task.moveto", titleKey: "palette.task.moveto", glyph: "folder",
-                           keepsOpen: true, group: .selected, isAvailable: hasTopLevel) { model in
+                           group: .selected, isAvailable: hasTopLevel) { model in
                 guard let id = model.inspectedTaskID else { return }
                 PalettePromptCenter.shared.request(.moveTo(id))
             },
             PaletteCommand(id: "task.rename", titleKey: "palette.task.rename", glyph: "pencil",
-                           keepsOpen: true, group: .selected, isAvailable: hasSelection) { model in
+                           group: .selected, isAvailable: hasSelection) { model in
                 guard let id = model.inspectedTaskID else { return }
                 PalettePromptCenter.shared.request(.rename(id))
             },
@@ -121,6 +121,43 @@ extension PaletteCommands {
                 UndoToastCenter.shared.show(PaletteCommit.text(String(localized: "undo.unpinned.name"), title),
                                             customUndo: { model.pinnedFocusTaskID = before })
             },
+            // Kronos v1.2 Phase 2 slice C3: single-task palette path for the same H / ⇧H / ⌘.
+            // actions (Kronos/List/ListHandoffPick.swift, TaskContextMenu.swift). Multi-select
+            // stays reachable only via the list keys/context menu — PaletteCommands.swift's
+            // `bulkCommands` writes straight through `ListBulk`, which hand-off (a second-step
+            // agent pick, not a literal value) does not fit without its own bulk path.
+            PaletteCommand(id: "task.handoff", titleKey: "ctx.task.handoff", glyph: "arrowshape.turn.up.right",
+                           registryID: "list.handoff", group: .selected,
+                           isAvailable: { hasSelection($0) && !TaskDelegation.enabledAgents().isEmpty }) { model in
+                guard let id = model.inspectedTaskID else { return }
+                model.handoffRequest = HandoffRequest(taskIDs: [id], andRun: false)
+            },
+            PaletteCommand(id: "task.handoffrun", titleKey: "ctx.task.handoffrun", glyph: "arrowshape.turn.up.right",
+                           registryID: "list.handoffrun", group: .selected,
+                           isAvailable: { hasSelection($0) && !TaskDelegation.enabledAgents().isEmpty }) { model in
+                guard let id = model.inspectedTaskID else { return }
+                model.handoffRequest = HandoffRequest(taskIDs: [id], andRun: true)
+            },
+            // "stop.circle" (a real SF Symbol, resolved directly — Icon.swift's doc comment) reads
+            // as Stop rather than Delete: task.delete already owns "x"/xmark, and this row can be
+            // visible alongside it for the same task (an active run can still be deleted).
+            PaletteCommand(id: "task.stopagent", titleKey: "ctx.task.stopagent", glyph: "stop.circle",
+                           registryID: "list.stopagent", group: .selected,
+                           isAvailable: { model in
+                               guard let id = model.inspectedTaskID, model.selectedIDs.count < 2 else { return false }
+                               return model.runs?.activeRun(taskID: id) != nil
+                           }) { model in
+                guard let id = model.inspectedTaskID, let run = model.runs?.activeRun(taskID: id) else { return }
+                // LiveRuns.stop (not model.runs?.stop): routes through the live RunSupervisor
+                // when one exists so a Kronos-launched process is actually sent SIGTERM, falling
+                // back to a DB-only stop otherwise (Kronos/MCP/LiveRuns.swift). Not
+                // PaletteCommit.run either: that shows an Undo button wired to the main task
+                // store, and a stopped run is not on that undo stack — `PaletteCommit.notice`
+                // (no Undo affordance) matches the list key's own `stopSelectedRun()`.
+                LiveRuns.stop(runID: run.id)
+                PaletteCommit.notice(model, message: PaletteCommit.text(String(localized: "run.stopped.notice"),
+                                                                         RunAgentNaming.displayName(forSlug: run.agentSlug)))
+            },
         ]
         return ordered(rows)
     }
@@ -129,6 +166,7 @@ extension PaletteCommands {
     /// then the second steps, dates, status, priority and effort, and Delete always last.
     private static let taskRowOrder = [
         "task.complete", "task.reopen", "task.pin", "task.unpin", "task.snooze", "task.moveto", "task.rename",
+        "task.handoff", "task.handoffrun", "task.stopagent",
         "task.deadline.today", "task.deadline.tomorrow", "task.deadline.nextweek", "task.pickdate", "task.deadline.none",
         "task.waiting", "task.someday", "task.priority.", "task.effort.", "task.duplicate", "task.copylink",
         "task.breakdown", "task.retriage", "task.delete",
@@ -204,7 +242,7 @@ extension PaletteCommands {
             quick("tomorrow", "deadline.quick.tomorrow", offset: 1),
             quick("nextweek", "deadline.quick.nextweek", offset: 7),
             PaletteCommand(id: "task.pickdate", titleKey: "ctx.field.pick", glyph: "calendar",
-                           detailKey: "ctx.task.due", keepsOpen: true, group: .selected, isAvailable: hasSelection) { model in
+                           detailKey: "ctx.task.due", group: .selected, isAvailable: hasSelection) { model in
                 guard let id = model.inspectedTaskID else { return }
                 PalettePromptCenter.shared.request(.pickDate(id))
             },

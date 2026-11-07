@@ -23,7 +23,15 @@ public struct KKeyHint: View {
 /// other cap in the row instead of shrinking to its own narrower text.
 struct KKeyCap: View {
     let key: String
-    init(_ key: String) { self.key = key }
+    /// Default reads on the app's own pure-black ground. A cap drawn inside a PRIMARY button
+    /// sits on the accent fill instead (white by default, any colour the person picks) — the
+    /// caller passes the SAME black/white choice `KButtonStyle` already made for that button's
+    /// own label (`Accent.onFill`), so the glyph is never guessed a second time here.
+    let tone: Color
+    init(_ key: String, tone: Color = Tok.textTertiary) {
+        self.key = key
+        self.tone = tone
+    }
 
     /// What the cap prints for a key. Escape prints the word `esc`, as on a Mac keyboard: the
     /// U+238B glyph renders as a crossed circle in SF Mono and reads as "no entry".
@@ -36,7 +44,7 @@ struct KKeyCap: View {
     var body: some View {
         Text(Self.label(for: key))
             .font(Typo.mono)
-            .foregroundStyle(Tok.textTertiary)
+            .foregroundStyle(tone)
             .lineLimit(1)
             .fixedSize()
             .frame(minWidth: capHeight, minHeight: capHeight)

@@ -49,6 +49,10 @@ extension LiveUITest {
         ("L-SAVED", lSavedSteps),
         ("UP-NEXT", upNextSteps),
         ("L-GROUP", lGroupSteps),
+        ("C-AGENTKEYS", cAgentKeysSteps),
+        ("E-FLOW", eFlowSteps),
+        ("F-BOARD", fBoardSteps),
+        ("D-REVIEWNEXT", dReviewNextSteps),
         // GROUP-STEPS-END
     ]
 

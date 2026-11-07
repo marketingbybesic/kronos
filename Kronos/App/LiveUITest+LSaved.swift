@@ -255,12 +255,16 @@ extension LiveUITest {
         let item = menu?.items.first { $0.title == String(localized: "common.delete") }
         if let menu, let item { menu.performActionForItem(at: menu.index(of: item)) }
         let gone = await waitUntil(timeout: 4) { !store.allSavedViews().contains { $0.id == view.id } }
-        await settle(500)
+        // The sidebar re-derives its saved-view rows from `model.version` (bumped by `commit()`
+        // above): a fixed settle long enough on a quiet Mac is not long enough once a full
+        // run's queued background work delays this render — wait for the row to actually
+        // clear instead of guessing a fixed delay.
+        let rowCleared = await waitUntil(timeout: 3) { UITestAnchors.frames[rowID] == nil }
         let pill = UndoToastCenter.shared.current?.message ?? ""
         record("context menu Delete removes the view row, falls back to the project list, raises a pill, one undo step",
                menu != nil && item != nil && gone && model.scope == projectScope && pill.contains("lsaved.view")
-                 && store.undoDepth == before + 1 && UITestAnchors.frames[rowID] == nil,
-               "menu=\(menu != nil) item=\(item != nil) gone=\(gone) scope=\(model.scope.storageKey) pill=\"\(pill)\" steps=\(store.undoDepth - before) rowAnchor=\(UITestAnchors.frames[rowID] != nil)")
+                 && store.undoDepth == before + 1 && rowCleared,
+               "menu=\(menu != nil) item=\(item != nil) gone=\(gone) scope=\(model.scope.storageKey) pill=\"\(pill)\" steps=\(store.undoDepth - before) rowAnchor=\(!rowCleared)")
         store.undo()
         model.didMutate()
         let back = await waitUntil(timeout: 4) { store.allSavedViews().contains { $0.id == view.id } }

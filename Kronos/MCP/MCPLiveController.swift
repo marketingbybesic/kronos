@@ -40,6 +40,9 @@ public final class MCPLiveController: MCPStatusProviding {
     private let hubSource: AgentHubSource
     /// The live hub once the server runs; Settings > Agents reads it.
     public private(set) var hub: AgentHub?
+    /// The live run-contract store (Kronos v1.2) once the server runs, opened next to the hub's
+    /// device-local store — nil under `.custom`/`.none` (tests), same as `hub` itself.
+    public private(set) var runs: RunStore?
     /// What `next` offers: the list on screen. Installed by the app's binding (see MCPAppBinding).
     public var nextProvider: (@MainActor () -> MCPNextCandidates?)?
 
@@ -109,6 +112,10 @@ public final class MCPLiveController: MCPStatusProviding {
         case .none: hub = nil
         }
         dispatcher.hub = hub
+        if case .standard = hubSource, let hub {
+            runs = runs ?? (try? RunStore(directory: KronosStore.containerDirectory(), store: store, hub: hub))
+        }
+        dispatcher.runs = runs
         dispatcher.nextProvider = { [weak self] in self?.nextProvider?() }
         callAppBinding("attachController:")
         let s = MCPServer(dispatcher: dispatcher, tokenProvider: tokenProvider)

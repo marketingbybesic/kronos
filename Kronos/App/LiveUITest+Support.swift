@@ -195,6 +195,47 @@ extension LiveUITest {
         return false
     }
 
+    /// Re-finds the real app window by size instead of trusting the shared `window` var: a
+    /// `.popover`'s own transient window is always far smaller (confirmed live: 480-560pt wide
+    /// against the main window's 1500). An earlier leaf's popover interaction that returned
+    /// before restoring `window = main` (an early guard failure, say) would otherwise leave
+    /// every later leaf clicking and reading anchors against a window that is not the real one.
+    /// This is the shape C-AGENTKEYS/E-FLOW/F-BOARD's own popover steps showed: 20/20 standalone
+    /// and in every small combination tried, but not after dozens of earlier leaves — nothing
+    /// before them in those smaller runs to leave this behind. Called first, before a leaf's own
+    /// `let main = window!` would otherwise capture whatever was left over.
+    @MainActor
+    static func reacquireMainWindow() {
+        if let largest = NSApp.windows.filter({ $0.isVisible && $0.canBecomeKey })
+            .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }) {
+            window = largest
+        }
+    }
+
+    /// Waits for a NEW visible window (a `.popover`'s own transient window) to appear alongside
+    /// `main`, then explicitly asks it to become the REAL `NSApp.keyWindow`. Confirmed live: a
+    /// transient popover's own `NSWindow` self-reports `isKeyWindow == true` the moment it is
+    /// visible while `NSApp.keyWindow` stays on `main` — `window = pop` alone was then enough to
+    /// target `click()`/`key()` at the right NSWindow (coordinates and hit-testing resolve
+    /// correctly), but SwiftUI's own focus/key-event dispatch (`.onKeyPress`, `@FocusState` ->
+    /// text binding sync) and NOT just plain mouse hit-testing still needs the window to be the
+    /// GENUINE key window: Return-driven `.onKeyPress(.return)` inside the popover never fired,
+    /// and text typed into an already-first-responder NSTextField never reached its SwiftUI
+    /// `$query` binding, until `makeKeyAndOrderFront` was called here.
+    @discardableResult
+    static func awaitPopoverWindow(timeout: TimeInterval = 2, excluding main: NSWindow) async -> NSWindow? {
+        var found: NSWindow?
+        _ = await waitUntil(timeout: timeout) {
+            found = NSApp.windows.first { $0.isVisible && $0 !== main }
+            return found != nil
+        }
+        if let found {
+            found.makeKeyAndOrderFront(nil)
+            _ = await waitUntil(timeout: 1) { NSApp.keyWindow === found }
+        }
+        return found
+    }
+
     /// Puts the app in a known state before a step: no overlay or panel open, no text field editing,
     /// no selection, search cleared, the Today list showing, the main window key. Steps that need
     /// another state set it themselves, so a failure in one step cannot leak into the next.
@@ -203,6 +244,18 @@ extension LiveUITest {
         if let panel = NSApp.windows.first(where: { $0 is NSPanel && $0.isVisible && $0 !== main && $0.canBecomeKey }) {
             AppDelegate.shared.quickAdd.toggle()
             await waitUntil(timeout: 2, { !panel.isVisible })
+        }
+        // Any OTHER extra window a step leaves open (most often a `.popover`'s own transient
+        // window: a step that returned before retargeting `window` back to `main` on every
+        // path, an early guard failure, say) is closed too — full-run diagnostics caught
+        // several of these alive at once, deep into the run. Left open, the NEXT popover-opening
+        // step's own `awaitPopoverWindow` lookup (this file) can match one of these leftovers
+        // instead of the fresh one it just triggered: a click then lands on the right pixels of
+        // the wrong NSWindow and hits nothing live. Nothing beyond `main` should ever still be
+        // visible at the start of a step; this makes that true regardless of how an earlier
+        // step's own cleanup path was skipped.
+        for stray in NSApp.windows where stray !== main && stray.isVisible {
+            stray.orderOut(nil)
         }
         window = main
         model.isPaletteOpen = false

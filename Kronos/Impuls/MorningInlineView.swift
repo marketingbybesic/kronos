@@ -55,7 +55,7 @@ enum MorningPlan {
             FocusStart.begin(first, model: model, followFirstMove: false)
         }
         model.didMutate()
-        UndoToastCenter.shared.show(String(localized: "morning.undo.planned"))
+        UndoToastCenter.shared.show(String(format: String(localized: "morning.undo.started"), first.title, picks.count))
     }
 }
 
@@ -194,20 +194,54 @@ struct MorningInlineView: View {
     }
 }
 
-/// The list column with the morning plan above it, exactly as the window composes it. The shell and
-/// the snapshot both use this, so what a snapshot shows is what the window shows.
+/// The list column with the morning plan above it. The card lives in its own scroll surface,
+/// capped at ~55% of the column height: on a short window or at large text it grows to fit its
+/// content up to that cap (no permanent dead space below short content), then scrolls
+/// internally — so the task list below it always keeps a usable share of the column and is
+/// never squeezed to nothing. The card is a sibling of `TaskListScreen`, not nested inside the
+/// list's own ScrollView: nesting it there (one shared scroll surface) let the list's
+/// `.focusable`/`.onKeyPress(.escape)` subtree steal SwiftUI focus from the card the moment the
+/// list scrolled, so Esc stopped closing the card — proven live, not assumed. Keeping the
+/// card's focus isolated here is what keeps Return/Esc reliable. The shell and the snapshot
+/// both use this struct, so what a snapshot shows is what the window shows.
 struct ListWithMorningPlan: View {
     let model: AppModel
     @Binding var showsMorning: Bool
+    /// The card's own content height (grows with text size, Croatian copy and the pick count);
+    /// the initial guess is close so the first frame doesn't visibly snap once measured.
+    @State private var cardHeight: CGFloat = 320
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsMorning {
-                MorningInlineView(model: model, onClose: { showsMorning = false })
-                KHairline()
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                if showsMorning {
+                    Group {
+                        ScrollView {
+                            MorningInlineView(model: model, onClose: { showsMorning = false })
+                                .fixedSize(horizontal: false, vertical: true)
+                                .background(GeometryReader { box in
+                                    Color.clear.preference(key: MorningCardHeightKey.self, value: box.size.height)
+                                })
+                        }
+                        .onPreferenceChange(MorningCardHeightKey.self) { if $0 > 1 { cardHeight = $0 } }
+                        .frame(height: min(cardHeight, proxy.size.height * 0.55))
+                        KHairline()
+                    }
+                    // Mount/unmount fades like every other overlay on this screen — pairs with
+                    // AppShellView.swift's `.animation(Motion.curve(Motion.fast), value:
+                    // morningOpen)`. Without both, Dismiss/Let's go/Sweep and the auto-offer
+                    // snapped the list instantly while Impuls/Capture/Palette/TimeBlocks/Keymap/
+                    // Inspector all fade.
+                    .transition(.opacity)
+                }
+                TaskListScreen(model: model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            TaskListScreen(model: model)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+}
+
+private struct MorningCardHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }

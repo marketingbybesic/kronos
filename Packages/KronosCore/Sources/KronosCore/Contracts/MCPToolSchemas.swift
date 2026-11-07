@@ -225,7 +225,7 @@ extension MCPTool {
             {"type":"object","additionalProperties":false,
              "properties":{
                "since":{"type":"string","description":"Cursor of the last event you saw. Omitted: continue from your acked cursor."},
-               "kinds":{"type":"array","items":{"type":"string","enum":["task.completed","task.approved","task.rejected","task.edited","task.commented","task.assigned","task.reopened","task.deleted","task.reviewed","task.unreviewed"]}},
+               "kinds":{"type":"array","items":{"type":"string","enum":["task.completed","task.approved","task.rejected","task.edited","task.commented","task.assigned","task.reopened","task.deleted","task.reviewed","task.unreviewed","run.stopped","run.expired"]}},
                "waitSeconds":{"type":"integer","minimum":0,"maximum":55,"default":0},
                "limit":{"type":"integer","minimum":1,"maximum":200,"default":50},
                "format":{"type":"string","enum":["json","md"],"default":"json","description":"md adds a ready-made digest text (what the session-start hook prints)."}}}
@@ -328,11 +328,42 @@ extension MCPTool {
                "ids":{"type":"array","items":{"type":"string","format":"uuid"},"minItems":1,"maxItems":200,"description":"Exactly one of ids or project."},
                "project":{"type":"string","format":"uuid"}}}
             """#
+        case .runStart:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["taskID"],
+             "properties":{"taskID":{"type":"string","format":"uuid"},
+                           "leaseSeconds":{"type":"integer","minimum":60,"maximum":7200,"default":1800}}}
+            """#
+        case .runUpdate:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["runID"],
+             "properties":{"runID":{"type":"string","format":"uuid"},
+                           "progress":{"type":"number","minimum":0,"maximum":1},
+                           "note":{"type":"string","maxLength":280,"description":"Truncated to 280 characters, never refused."},
+                           "artifactsAdd":{"type":"array","maxItems":20,"items":\#(Self.runArtifactSchemaFragment)}}}
+            """#
+        case .runFinish:
+            return #"""
+            {"type":"object","additionalProperties":false,
+             "required":["runID","outcome","summary"],
+             "properties":{"runID":{"type":"string","format":"uuid"},
+                           "outcome":{"type":"string","enum":["done","failed","handoff"]},
+                           "summary":{"type":"string","minLength":1,"maxLength":2000},
+                           "artifactsAdd":{"type":"array","maxItems":20,"items":\#(Self.runArtifactSchemaFragment)},
+                           "handoffTo":{"type":"string","maxLength":80,"description":"Required when outcome is handoff: the target agent's slug."}}}
+            """#
         }
     }
 
     /// Body of the `context` object schema, shared by create_task and propose_tasks.
     static let contextSchemaFragment = #"""
     "type":"object","additionalProperties":false,"description":"What the owner needs to decide in one glance.","properties":{"why":{"type":"string","maxLength":300},"source":{"type":"object","additionalProperties":false,"properties":{"kind":{"type":"string","enum":["email","url","chat","file","repo","meeting","calendar","other"]},"ref":{"type":"string","maxLength":500},"title":{"type":"string","maxLength":200}}},"links":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["url"],"properties":{"url":{"type":"string","maxLength":2000},"title":{"type":"string","maxLength":200}}}},"expectedOutcome":{"type":"string","maxLength":200},"confidence":{"type":"number","minimum":0,"maximum":1},"session":{"type":"string","maxLength":100}}
+    """#
+
+    /// Body of one `artifactsAdd` entry, shared by run_update and run_finish.
+    static let runArtifactSchemaFragment = #"""
+    {"type":"object","additionalProperties":false,"required":["kind","ref"],"properties":{"kind":{"type":"string","enum":["file","diff","commit","pr","url"]},"ref":{"type":"string","minLength":1,"maxLength":2000},"title":{"type":"string","maxLength":200}}}
     """#
 }

@@ -132,7 +132,21 @@ final class AppModel {
     /// Time Blocks overlay (Kronos/TimeBlocks/**): only reachable when
     /// `TimeBlocksPrefs.isEnabled`; the sidebar row and its own hotkey both just set this.
     var isTimeBlocksOpen: Bool = false
-    var isPaletteOpen: Bool = false
+    var isPaletteOpen: Bool = false {
+        didSet {
+            guard isPaletteOpen, !oldValue else { return }
+            paletteOpenGeneration += 1
+        }
+    }
+    /// Bumped on every genuine open. `AppShellView` keys `CommandPaletteView`'s identity off
+    /// this (`.id(model.paletteOpenGeneration)`) so a reopen that lands while the outgoing
+    /// instance's own closing fade (`.animation(_:value: isPaletteOpen)`) is still in flight
+    /// gets a truly fresh view and `@State` instead of SwiftUI reviving the mid-fade instance —
+    /// confirmed live: without this, a fast reopen inherited the outgoing instance's own typed
+    /// query (and, after a prompt command, its still-showing prompt step), so new keystrokes
+    /// landed appended to old text instead of starting clean, and every command past the first
+    /// of a fast sequence silently searched for (and found nothing to run for) a garbled query.
+    private(set) var paletteOpenGeneration = 0
     /// Shortcuts card; lives on the model so overlays below it (triage) can yield the keyboard.
     var isKeymapOpen: Bool = false
     /// Note-link picker sheet, hosted by the shell (always mounted) so it outlives the inspector pane.
@@ -155,6 +169,21 @@ final class AppModel {
     /// The AI router (nil = AI off / not configured: every AI feature falls back to its
     /// deterministic path). Set once by the app delegate; snapshots inject fixtures.
     var ai: (any AIRouting)?
+    /// Kronos v1.2 Phase 2 slice C: the live run contract's single source of truth — the SAME
+    /// `RunStore`/`AgentHub` instance `MCPLiveController` owns (Kronos/MCP/MCPLiveController.swift),
+    /// never a second store opened on the same file. Set once by the app delegate right after
+    /// `mcpLive` is reached; nil in snapshots, self-tests and any AppModel built without a live
+    /// MCP controller — every read through `runs` already tolerates nil (no agent runs to show).
+    var mcpLive: MCPLiveController?
+    var runs: RunStore? { mcpLive?.runs }
+    /// How "Hand off and run" (H/⇧H, the matching context-menu item, and the inspector's "Run
+    /// again") reach slice B's harness launcher — a stub until the orchestrator wires the real
+    /// supervisor in at merge (Kronos/List/RunLaunching.swift).
+    var runLauncher: any RunLaunching = NoHarnessRunLauncher()
+    /// H / ⇧H: the pending agent-picker overlay (Kronos/List/ListHandoffPick.swift), hosted by
+    /// the list like the row's own project picker, but keyed off this property rather than
+    /// per-row `@State` so one popover serves a whole multi-selection.
+    var handoffRequest: HandoffRequest?
     /// Bumped after ANY store mutation so computed lists refresh (SwiftData models are read
     /// through manual fetches, not @Query). Call `didMutate()`; never write `version` directly.
     private(set) var version: Int = 0

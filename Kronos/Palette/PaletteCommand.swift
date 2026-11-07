@@ -50,16 +50,13 @@ struct PaletteCommand: Identifiable {
     /// Catalog key of a small qualifier shown before the caps ("Due date" on "Tomorrow"), and
     /// matched when searching, so a row named only "Tomorrow" is not ambiguous.
     let detailKey: String?
-    /// True for a command whose second step happens inside the palette ("Move to…"): running it
-    /// must not close the card.
-    let keepsOpen: Bool
     let group: PaletteGroup
     let isAvailable: (AppModel) -> Bool
     let run: (AppModel) -> Void
 
     init(id: String, titleKey: String = "", literalTitle: String? = nil, glyph: String,
          projectIcon: String? = nil, projectColorHex: String? = nil,
-         registryID: String? = nil, detailKey: String? = nil, keepsOpen: Bool = false,
+         registryID: String? = nil, detailKey: String? = nil,
          group: PaletteGroup,
          isAvailable: @escaping (AppModel) -> Bool = { _ in true },
          run: @escaping (AppModel) -> Void) {
@@ -71,7 +68,6 @@ struct PaletteCommand: Identifiable {
         self.projectColorHex = projectColorHex
         self.registryID = registryID
         self.detailKey = detailKey
-        self.keepsOpen = keepsOpen
         self.group = group
         self.isAvailable = isAvailable
         self.run = run

@@ -55,7 +55,8 @@ extension TaskListScreen {
                 // Same sentence as the inspector and the menu bar (Detail/FirstMoveText.swift). No
                 // breathing ring: urgency is carried by the sentence and the deadline, not by motion.
                 let move = FirstMoveLogic.text(for: task)
-                KNowCard(firstMove: move, title: task.title,
+                let started = task.status == .inProgress && model.pinnedFocusTaskID == task.id
+                KNowCard(firstMove: move, title: task.title, isInProgress: started,
                          projectIcon: task.project?.icon, projectColorHex: task.project?.colorHex, projectName: task.project?.name,
                          attributes: { nowCardAttributes(task) },
                          onComplete: { ListCompletion.toggle(task, store: model.store, model: model) })
@@ -109,6 +110,15 @@ extension TaskListScreen {
         if due == today { return String(localized: "deadline.quick.today") }
         if due == today + 1 { return String(localized: "deadline.quick.tomorrow") }
         return NowCardDayFormatter.shared.string(from: Day.date(due, calendar: KronosLocale.calendar))
+    }
+
+    /// Which optional trailing columns `ctx.rows` (the list's own visible rows) actually hold a
+    /// value for — what `ColumnMode.fitting` budgets against instead of reserving a column
+    /// nothing uses (a lone Inbox row keeps that width for its title).
+    func columnNeeds(_ ctx: ListContext) -> ColumnNeeds {
+        ColumnNeeds(recurrence: ctx.rows.contains { $0.recurrenceRule != nil },
+                    subtasks: ctx.rows.contains { !$0.orderedChildren.isEmpty },
+                    project: showsProjectGlyph && ctx.rows.contains { $0.project != nil })
     }
 }
 

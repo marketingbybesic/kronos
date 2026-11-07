@@ -429,12 +429,36 @@ struct KeyCaps: View {
 struct PaletteKeyCatcher: NSViewRepresentable {
     let onKey: (NSEvent) -> Bool
 
+    /// At most one of this view's monitors is ever installed at once. A reopened palette's own
+    /// `makeNSView` used to just add a fresh monitor and trust the OUTGOING instance's own
+    /// `Coordinator.deinit` to remove its monitor — but ARC's `deinit` timing is not
+    /// synchronised with SwiftUI mounting the next instance (confirmed live: with two live at
+    /// once, Return silently ran nothing on roughly half the task-row commands in a fast
+    /// reopen sequence). Both monitors pass the same `event.window === cardWindow` check (the
+    /// palette is one in-window overlay, not a separate NSWindow per open, so that check alone
+    /// cannot tell old from new) — whichever fires first swallows the key. The frozen one
+    /// almost always LOOKS like a clean no-op rather than a visible wrong action: its own
+    /// `run()` replays the command it was about to run when it closed, and every task-row
+    /// command here already guards on the task already matching (`guard task.dueDay != day
+    /// else { return }`), so the replay changes nothing. Explicitly removing any previous
+    /// monitor before installing this one makes "at most one" true regardless of teardown
+    /// timing, with no dependence on deinit order.
+    private static var activeMonitor: Any?
+
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async {
-            context.coordinator.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                onKey(event) ? nil : event
+        DispatchQueue.main.async { [weak view] in
+            if let previous = PaletteKeyCatcher.activeMonitor {
+                NSEvent.removeMonitor(previous)
             }
+            let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                // Defence in depth: harmless once a stale monitor can no longer outlive a fresh
+                // one, but still correct if this view's own window is ever torn down first.
+                guard let cardWindow = view?.window, event.window === cardWindow else { return event }
+                return onKey(event) ? nil : event
+            }
+            context.coordinator.monitor = monitor
+            PaletteKeyCatcher.activeMonitor = monitor
         }
         return view
     }
@@ -445,6 +469,16 @@ struct PaletteKeyCatcher: NSViewRepresentable {
 
     final class Coordinator {
         var monitor: Any?
-        deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
+        deinit {
+            guard let monitor else { return }
+            // `NSEvent.removeMonitor` is not safe to call twice on the same token — confirmed
+            // live, a crash (EXC_BAD_ACCESS in objc_release, right here) when a later instance
+            // had already proactively removed this exact monitor and this deinit removed it
+            // again regardless. Only remove — and only then clear the shared slot — when
+            // nothing newer has already superseded (and thus already removed) it.
+            guard let active = PaletteKeyCatcher.activeMonitor, (active as AnyObject) === (monitor as AnyObject) else { return }
+            NSEvent.removeMonitor(monitor)
+            PaletteKeyCatcher.activeMonitor = nil
+        }
     }
 }

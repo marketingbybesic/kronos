@@ -13,19 +13,32 @@ extension ListRowView {
     /// on attachment order. Reuses `ContextLinkActions.iconName` (Kronos/Detail/ContextLinkChips.swift),
     /// the SAME mapping the inspector's and a subtask's own attachment chips already draw, and
     /// `QuickAddContextChips.kindName` for the tooltip text — no new icon or string vocabulary
-    /// invented here.
-    @ViewBuilder var attachmentIndicators: some View {
-        let kinds = attachmentKinds
+    /// invented here. `kinds` is `attachmentKinds`, resolved once by `row` and handed to both
+    /// this cluster and `attachmentAccessibilityText` (ListRowView.swift's `accessibilityValue`)
+    /// — the icons here carry no accessibility label of their own (`KListRow` folds the whole
+    /// row into one accessibility element), so that text is the only way an attachment ever
+    /// reaches VoiceOver.
+    @ViewBuilder func attachmentIndicators(_ kinds: [ContextLink.Kind]) -> some View {
         if !kinds.isEmpty {
             AttachmentIndicatorCluster(kinds: kinds, taskTitle: task.title)
         }
     }
 
-    /// Distinct `ContextLink.Kind`s attached to `task`, in a fixed reading order.
-    private var attachmentKinds: [ContextLink.Kind] {
+    /// Distinct `ContextLink.Kind`s attached to `task`, in a fixed reading order. `row` calls
+    /// this exactly once per row and hands the result to both `attachmentIndicators` and
+    /// `attachmentAccessibilityText`.
+    var attachmentKinds: [ContextLink.Kind] {
         let order: [ContextLink.Kind] = [.file, .folder, .email, .appleNote, .web]
         let present = Set(ContextLink.findAll(in: task.notes).map(\.kind))
         return order.filter(present.contains)
+    }
+
+    /// `QuickAddContextChips.kindName`'s phrases ("Linked file", "Linked email", …) already read
+    /// as complete VoiceOver fragments on their own (that function's own doc: "What VoiceOver
+    /// adds after the chip's title") — joined as-is, nil when `kinds` is empty, no new string key.
+    func attachmentAccessibilityText(_ kinds: [ContextLink.Kind]) -> String? {
+        guard !kinds.isEmpty else { return nil }
+        return kinds.map { QuickAddContextChips.kindName($0) }.joined(separator: ", ")
     }
 }
 

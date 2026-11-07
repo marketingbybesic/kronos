@@ -14,15 +14,28 @@ import KronosCore
 final class AwayDigest {
     static let shared = AwayDigest()
     static let awayThreshold: TimeInterval = 4 * 3600
+    /// D3 (Kronos v1.2 Phase 2 slice D): an item pending (or awaiting the person's check) with
+    /// no change in over this long — the review queue rotting unseen, independent of whether
+    /// the person was ever technically "away".
+    static let agingThreshold: TimeInterval = 24 * 3600
     static let lastActiveKey = "kronos.digest.lastActiveAt"
 
     private(set) var summary: AgentAwaySummary?
+    /// Items stuck past `agingThreshold`, recomputed on every `evaluate()` tick alongside
+    /// `summary` — the SAME banner (AwayDigestBanner.swift) shows this as a second line,
+    /// regardless of whether `summary` itself is nil.
+    private(set) var agingCount: Int = 0
 
     @ObservationIgnored private var hub: AgentHub?
     @ObservationIgnored private var sinceAnchor: Date?
     @ObservationIgnored private var activeObserver: NSObjectProtocol?
     @ObservationIgnored private var resignObserver: NSObjectProtocol?
     @ObservationIgnored private var terminateObserver: NSObjectProtocol?
+    /// Without this, `agingCount` only refreshes on activate/resign/start — a continuous
+    /// foreground session (no app switch for hours) would never notice an item crossing the
+    /// 24h aging threshold, exactly the "review queue rots unseen" gap D3 exists to close.
+    /// 5 min is plenty of granularity against a 24h threshold and cheap (one task-list scan).
+    @ObservationIgnored private var agingTimer: Timer?
 
     func start(hub: AgentHub) {
         self.hub = hub
@@ -36,16 +49,22 @@ final class AwayDigest {
         terminateObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { KronosEnv.defaults.set(Date().timeIntervalSince1970, forKey: Self.lastActiveKey) }
         }
+        agingTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.agingCount = Self.computeAgingCount() }
+        }
     }
 
     func stop() {
         for o in [activeObserver, resignObserver, terminateObserver] { if let o { NotificationCenter.default.removeObserver(o) } }
         activeObserver = nil; resignObserver = nil; terminateObserver = nil
+        agingTimer?.invalidate()
+        agingTimer = nil
         hub = nil
     }
 
     private func evaluate() {
         guard let hub else { return }
+        agingCount = Self.computeAgingCount()
         let stored = KronosEnv.defaults.double(forKey: Self.lastActiveKey)
         guard stored > 0 else { KronosEnv.defaults.set(Date().timeIntervalSince1970, forKey: Self.lastActiveKey); return }
         let storedDate = Date(timeIntervalSince1970: stored)
@@ -55,7 +74,20 @@ final class AwayDigest {
         if !s.isEmpty { summary = s; sinceAnchor = since }
     }
 
-    func dismiss() { summary = nil }
+    /// Live store state, not the activity log: a pending item's "stuck" clock is its task
+    /// row's own `updatedAt` (ReviewQueue.swift's own candidates), not an activity row's
+    /// timestamp — the log records transitions, this wants the last time anything happened.
+    /// The threshold comparison itself is `AgentTeamSignals.agingCount` (KronosCore, table-
+    /// tested); this only gathers the live `updatedAt` dates to feed it.
+    private static func computeAgingCount() -> Int {
+        guard let store = AppDelegate.shared?.store else { return 0 }
+        let today = Day.today(calendar: KronosLocale.calendar)
+        ReviewSnooze.prune(today: today)
+        let items = ReviewQueue.items(in: store.allTasks(), snoozed: ReviewSnooze.table, today: today)
+        return AgentTeamSignals.agingCount(updatedAt: items.map { $0.primary.updatedAt }, threshold: agingThreshold, now: Date())
+    }
+
+    func dismiss() { summary = nil; agingCount = 0 }
 
     func openReview(model: AppModel) {
         model.isReviewNextOpen = true

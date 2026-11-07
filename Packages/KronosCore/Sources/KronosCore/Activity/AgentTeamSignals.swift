@@ -1,7 +1,7 @@
 // Pure, store-free signals the app derives from activity rows it already fetched: what to show
-// in the away digest, who is working on a task right now, and which agent completions are worth
-// a notification. No ModelContext access here, so these are trivial to unit test with any row
-// list a caller (AgentHub, AgentRig, a view model) hands in.
+// in the away digest, and which agent completions are worth a notification. No ModelContext
+// access here, so these are trivial to unit test with any row list a caller (AgentHub, AgentRig,
+// a view model) hands in.
 
 import Foundation
 
@@ -10,12 +10,6 @@ public struct AgentAwaySummary: Equatable, Sendable {
     public let proposed: Int
     public init(finished: Int, proposed: Int) { self.finished = finished; self.proposed = proposed }
     public var isEmpty: Bool { finished == 0 && proposed == 0 }
-}
-
-public struct AgentClaim: Equatable, Sendable {
-    public let slug: String
-    public let at: Date
-    public init(slug: String, at: Date) { self.slug = slug; self.at = at }
 }
 
 public enum AgentTeamSignals {
@@ -44,35 +38,46 @@ public enum AgentTeamSignals {
         return AgentAwaySummary(finished: finished, proposed: proposed)
     }
 
-    /// Walks `rows` in seq order (the order `AgentHub.rows(...)` returns). For an
-    /// `ActivityVerb.updated` row with a taskID whose payload `after["status"]` is present: a
-    /// status of `KStatus.inProgress.rawValue` from an "agent:" actor claims the task; any other
-    /// status value clears an existing claim, whoever changed it (the claim is display-only and
-    /// dies the moment the task leaves in-progress, so clearing does not care who moved it away).
-    /// An in-progress row from a non-agent actor is ignored outright — it neither claims nor
-    /// clears, so an agent's existing claim stands until a later row actually moves the status
-    /// elsewhere. Rows with no taskID or no payload "after status" are skipped.
-    public static func workClaims(_ rows: [KActivity]) -> [UUID: AgentClaim] {
-        var claims: [UUID: AgentClaim] = [:]
-        for row in rows {
-            guard row.verb == ActivityVerb.updated, let taskID = row.taskID,
-                  let status = AgentHub.payload(row)["after"]?.object?["status"]?.int else { continue }
-            if status == KStatus.inProgress.rawValue {
-                if row.actor.hasPrefix("agent:") {
-                    claims[taskID] = AgentClaim(slug: String(row.actor.dropFirst("agent:".count)), at: row.at)
-                }
-            } else {
-                claims[taskID] = nil
-            }
-        }
-        return claims
-    }
-
     /// `ActivityVerb.doneByAgent` rows from an "agent:" actor whose payload "auto" is not `true`
     /// (auto-approved completions never notify).
     public static func notifiable(_ rows: [KActivity]) -> [KActivity] {
         rows.filter {
             $0.verb == ActivityVerb.doneByAgent && $0.actor.hasPrefix("agent:") && AgentHub.payload($0)["auto"]?.bool != true
         }
+    }
+
+    // MARK: - Kronos v1.2 Phase 2 slice D: review that cannot rot
+
+    /// D3: how many of `updatedAt` (one per pending/awaiting-check task row the caller already
+    /// fetched from `ReviewQueue`) have not changed in at least `threshold` — the review queue
+    /// rotting unseen, independent of whether the person was ever technically "away".
+    public static func agingCount(updatedAt: [Date], threshold: TimeInterval, now: Date) -> Int {
+        updatedAt.filter { now.timeIntervalSince($0) >= threshold }.count
+    }
+
+    /// D4: which of the Today header's three count-aware sentences applies, or none when both
+    /// counts are 0. The app formats the matching localized string; this only picks which one.
+    public enum ReviewRunningLine: Equatable, Sendable {
+        case both(review: Int, running: Int)
+        case reviewOnly(Int)
+        case runningOnly(Int)
+        case none
+    }
+
+    public static func reviewRunningLine(reviewCount: Int, runningCount: Int) -> ReviewRunningLine {
+        switch (reviewCount > 0, runningCount > 0) {
+        case (true, true): return .both(review: reviewCount, running: runningCount)
+        case (true, false): return .reviewOnly(reviewCount)
+        case (false, true): return .runningOnly(runningCount)
+        case (false, false): return .none
+        }
+    }
+
+    /// D2's ⇧A: the ids of `itemAgentIDs` (already filtered by the caller to pending/not-yet-
+    /// decided items) that share `targetAgentID` — nil when there is only one (or none), so a
+    /// caller never offers to "approve all" of a single item.
+    public static func bulkApproveGroup(itemAgentIDs: [(id: UUID, agentID: UUID?)], targetAgentID: UUID) -> [UUID]? {
+        let group = itemAgentIDs.compactMap { $0.agentID == targetAgentID ? $0.id : nil }
+        return group.count > 1 ? group : nil
     }
 }

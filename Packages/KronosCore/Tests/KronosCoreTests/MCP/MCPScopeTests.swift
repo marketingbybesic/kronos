@@ -95,6 +95,12 @@ import Foundation
         Case(label: "delete_area", tool: "delete_area", args: { _ in ["id": UUID().uuidString, "confirm": true] }, allowed: [false, false, false, false, false, true]),
         Case(label: "move_task foreign", tool: "move_task", args: { ["id": $0.foreign.uuidString, "project": NSNull()] }, allowed: [false, false, false, false, false, true]),
         Case(label: "review_status", tool: "review_status", args: { ["ids": [$0.mine.uuidString]] }, allowed: [false, true, true, true, true, true]),
+        Case(label: "run_start mine", tool: "run_start", args: { ["taskID": $0.mine.uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "run_start foreign", tool: "run_start", args: { ["taskID": $0.foreign.uuidString] }, allowed: [false, false, false, false, false, true]),
+        // run_update/run_finish name a runID, not a task: no per-run person to check at this layer
+        // (RunStore's own .notYours does that), so only the write.own scope gate applies here.
+        Case(label: "run_update", tool: "run_update", args: { _ in ["runID": UUID().uuidString] }, allowed: [false, false, true, true, false, true]),
+        Case(label: "run_finish", tool: "run_finish", args: { _ in ["runID": UUID().uuidString, "outcome": "done", "summary": "x"] }, allowed: [false, false, true, true, false, true]),
     ]
 
     @Test func everyToolAgainstEverySetAnswersAsTheTableSays() throws {

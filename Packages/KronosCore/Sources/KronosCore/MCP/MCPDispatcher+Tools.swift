@@ -48,6 +48,9 @@ extension MCPDispatcher {
         case .deleteArea:    return deleteArea(arguments)
         case .moveTask:      return moveTask(arguments)
         case .reviewStatus:  return reviewStatus(arguments)
+        case .runStart:      return runStart(arguments)
+        case .runUpdate:     return runUpdate(arguments)
+        case .runFinish:     return runFinish(arguments)
         }
     }
 

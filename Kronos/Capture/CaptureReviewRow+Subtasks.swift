@@ -72,9 +72,15 @@ extension CaptureReviewRow {
                     Text(String(format: String(localized: "capture.row.subtask.more"), remaining))
                         .font(Typo.meta)
                         .foregroundStyle(Tok.textTertiary)
+                        // `.frame`/`.contentShape` INSIDE the label: a `.buttonStyle(.plain)`
+                        // button is pressable only on its label's opaque pixels — a frame
+                        // chained AFTER `.buttonStyle(.plain)` wraps the finished button and
+                        // changes neither (KHitTarget.swift). The reserved row height here
+                        // used to be dead: visible but unclickable past the glyph's own bounds.
+                        .frame(minHeight: Metrics.controlCompact, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(minHeight: Metrics.controlCompact, alignment: .leading)
             }
             if isSelected {
                 HStack(spacing: Space.x2) {

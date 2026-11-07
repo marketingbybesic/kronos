@@ -127,6 +127,15 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
         render()
     }
 
+    /// D1 (Kronos v1.2 Phase 2 slice D): items waiting on the person's review, appended after
+    /// the quiet-line suffix so it always shows in full even when the title truncates.
+    private func reviewCountSuffix() -> String {
+        let today = Day.today(calendar: KronosLocale.calendar)
+        ReviewSnooze.prune(today: today)
+        let count = ReviewQueue.count(in: model.store.allTasks(), snoozed: ReviewSnooze.table, today: today)
+        return MenuBarTitleComposer.reviewSuffix(count: count)
+    }
+
     private func render() {
         guard let button = statusItem?.button else { return }
         guard let focus = resolvedFocus() else {
@@ -138,7 +147,8 @@ final class MenuBarOrdoController: NSObject, NSPopoverDelegate {
             button.setAccessibilityLabel("Kronos — " + String(localized: "menubar.allclear"))
             return
         }
-        let (image, width) = fittedLabelImage(task: focus.firstMove ?? focus.title, subtask: focus.subtask, suffix: quiet.barSuffix ?? "")
+        let (image, width) = fittedLabelImage(task: focus.firstMove ?? focus.title, subtask: focus.subtask,
+                                               suffix: (quiet.barSuffix ?? "") + reviewCountSuffix())
         button.image = image
         button.image?.isTemplate = true
         circleWidth = width

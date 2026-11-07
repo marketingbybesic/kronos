@@ -50,33 +50,6 @@ enum SlotWidth {
     }
 }
 
-/// Which optional trailing slots the list currently has room for. Computed ONCE for the
-/// whole list from its measured width (TaskListScreen, via GeometryReader) and passed down
-/// to every row — never decided per row. Per-row fitting (e.g. `ViewThatFits` per instance)
-/// let two rows in the same list independently choose different variants depending on their
-/// OWN content width, which broke column alignment exactly like the unconstrained slot
-/// widths did: two rows must always agree on which columns exist.
-enum ColumnMode: Equatable {
-    case full           // recurrence + subtasks + project
-    case noRecurrence    // subtasks + project
-    case noSubtasks      // project only
-    case minimal         // none of the three
-
-    var showsRecurrence: Bool { self == .full }
-    var showsSubtasks: Bool { self == .full || self == .noRecurrence }
-    var showsProject: Bool { self != .minimal }
-
-    /// Picks the richest mode whose total slot width fits `available` (the row's trailing
-    /// content budget), falling back progressively — recurrence first, then subtasks, then
-    /// the project glyph, in that priority order.
-    static func fitting(available: CGFloat) -> ColumnMode {
-        for mode: ColumnMode in [.full, .noRecurrence, .noSubtasks, .minimal] {
-            if SlotWidth.totalWidth(for: mode) <= available { return mode }
-        }
-        return .minimal
-    }
-}
-
 struct ListRowView: View {
     @Bindable var model: AppModel
     let task: KTask
@@ -135,11 +108,17 @@ struct ListRowView: View {
         subtasksExpanded = true
     }
 
-    private var row: some View {
+    @ViewBuilder private var row: some View {
+        let blockedText = blockedAccessibilityText
+        let agentDoneText = agentDoneAccessibilityText
+        let agentResolved = agentStatus
+        let attachments = attachmentKinds
         KListRow(isSelected: isSelected, isMultiSelected: isRowMultiSelected,
                   isDone: task.status == .done, isChecked: task.status == .done,
                   status: KTaskStatus(task.status),
-                  accessibilityLabel: accessibilityLabel, accessibilityValue: accessibilityValue,
+                  accessibilityLabel: accessibilityLabel,
+                  accessibilityValue: accessibilityValue(blocked: blockedText, agentDone: agentDoneText, agentStatus: agentResolved?.text,
+                                                         attachments: attachmentAccessibilityText(attachments)),
                   selectionTint: SelectionHue.forTask(task, neutral: chromaMode.isNeutralSelection).color(accent: accent),
                   onToggle: { ListCompletion.toggle(task, store: model.store, model: model) },
                   onSelect: onSelect,
@@ -169,11 +148,10 @@ struct ListRowView: View {
                     }
                 }
                 titleView
-                attachmentIndicators
-                blockedGlyph
-                agentDoneGlyph
-                delegatedGlyph
-                workingGlyph
+                attachmentIndicators(attachments)
+                blockedGlyph(text: blockedText)
+                agentDoneGlyph(text: agentDoneText)
+                agentStatusGlyph(agentResolved)
             }
         } trailing: {
             trailingSlots
@@ -199,23 +177,6 @@ struct ListRowView: View {
                 showStatusPopover = false
                 StatusPick.apply(picked, to: task, model: model)
             }
-        }
-    }
-
-    /// A lock after the title while the task still waits on open tasks; the tooltip names the one
-    /// it waits on, or counts them. Gone as soon as the last open blocker is done or removed.
-    @ViewBuilder private var blockedGlyph: some View {
-        let _ = model.version   // blockers are other tasks: re-read after any store change
-        let blockers = KStatus.open.contains(task.status) ? model.store.openBlockers(of: task.id) : []
-        if !blockers.isEmpty {
-            let text = blockers.count == 1
-                ? String(format: String(localized: "list.row.blocked.one"), blockers[0].waitsOnDisplayName)
-                : String(format: String(localized: "list.row.blocked.many"), blockers.count)
-            Icon("lock.fill", size: Metrics.iconXS, weight: .medium)
-                .foregroundStyle(Tok.textSecondary)
-                .help(text)
-                .accessibilityLabel(text)
-                .uiTestAnchor("row.blocked." + task.title)
         }
     }
 
@@ -475,9 +436,13 @@ struct ListRowView: View {
         return RowAccessibility.label(title: task.title, project: task.project?.name, due: due,
                                       state: ViewOptionsMapper.statusName(task.status))
     }
-
-    /// What follows the label: priority, overdue, "due from a subtask", subtask progress.
-    private var accessibilityValue: String {
+    /// What follows the label: priority, overdue, "due from a subtask", subtask progress,
+    /// attachments, the agent-status glyph's sentence, blocked-on and "completed by" provenance.
+    /// `blocked`/`agentDone`/`agentStatus`/`attachments` are the SAME text `row` already resolved
+    /// for the matching glyphs — passed in rather than recomputed here so a live run lookup
+    /// (`model.runs`, a SwiftData fetch), `openBlockers` (a full-store scan) and a notes parse
+    /// (`ContextLink.findAll`) each run once per row, not twice.
+    private func accessibilityValue(blocked: String?, agentDone: String?, agentStatus: String?, attachments: String?) -> String {
         let progress = task.subtaskProgress
         let overdue = task.status != .done && (task.effectiveDue.map { $0 < today } ?? false)
         return RowAccessibility.value([
@@ -485,6 +450,10 @@ struct ListRowView: View {
             overdue ? String(localized: "a11y.row.overdue") : nil,
             task.isDueDrivenBySubtask ? String(localized: "a11y.row.due.viasubtask") : nil,
             progress.total > 0 ? String(format: String(localized: "a11y.row.subtasks.n_of_m"), progress.done, progress.total) : nil,
+            attachments,
+            blocked,
+            agentDone,
+            agentStatus,
             isRowMultiSelected ? String(localized: "a11y.row.selected") : nil,
         ])
     }

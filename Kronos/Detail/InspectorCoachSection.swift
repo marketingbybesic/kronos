@@ -196,10 +196,11 @@ struct InspectorNoteLinkRow: View {
     let model: AppModel
     let task: KTask
     /// Set by `InspectorScreen` in response to `kronosLinkNoteRequested` (the palette's "Link
-    /// Apple note to selected task" command) — opens the picker exactly as if the user had
-    /// clicked "Link Apple note" themselves, then resets itself.
+    /// Apple note to selected task" command) — opens the picker/paste-field exactly as if the
+    /// user had clicked the row's own button, then resets itself.
     @Binding var requestOpen: Bool
     @State private var isPicking = false
+    @State private var isPastingLink = false
     @State private var linkedTitle: String?
     /// First two lines of the note's body, shown as a summary — kept separate from
     /// `linkedTitle` (line 1 alone) because the unlinked/loading fallback still needs a bare
@@ -207,11 +208,18 @@ struct InspectorNoteLinkRow: View {
     @State private var linkedSummaryLines: [String] = []
     @State private var loadError: NotesError?
 
+    /// Settings > Capture & Notes > Note app — read fresh each render rather than cached, so a
+    /// change made while this row is on screen is picked up the next time `model` triggers a
+    /// re-render (same non-reactive-settings-read pattern `AppearancePrefs` uses elsewhere).
+    private var preference: NoteAppPreference { NoteAppPreference.current() }
     private var linkedNoteID: String? { NoteLink.find(in: task.notes) }
+    /// The tracked Obsidian/Notion link, when `preference` is one of those two apps.
+    private var appLink: ContextLink? { NoteAppLink.find(in: task.notes, app: preference) }
+    private var isLinked: Bool { preference == .appleNotes ? linkedNoteID != nil : appLink != nil }
 
     var body: some View {
         Group {
-            if linkedNoteID != nil {
+            if isLinked {
                 // Linked state is its own card (art-direction.md: borders stay only for
                 // true text surfaces and the first-move panel) rather than squeezed into
                 // KPropertyRow's fixed single-line slot, so the 2-line summary has room.
@@ -231,7 +239,7 @@ struct InspectorNoteLinkRow: View {
         .task(id: task.id) { await loadTitle() }
         .onChange(of: requestOpen) { _, new in
             guard new else { return }
-            isPicking = true
+            if preference == .appleNotes { isPicking = true } else { isPastingLink = true }
             requestOpen = false
         }
         .sheet(isPresented: $isPicking) {
@@ -239,10 +247,22 @@ struct InspectorNoteLinkRow: View {
                 link(noteID: note.id, title: note.title)
             })
         }
+        .sheet(isPresented: $isPastingLink) {
+            NoteAppLinkPasteField(app: preference, onAdd: linkAppLink)
+        }
     }
 
     @ViewBuilder
     private var content: some View {
+        if preference == .appleNotes {
+            appleNoteContent
+        } else {
+            appLinkContent
+        }
+    }
+
+    @ViewBuilder
+    private var appleNoteContent: some View {
         if let loadError, linkedNoteID == nil {
             NotesAccessDeniedInline(error: loadError) { isPicking = true }
         } else if let linkedNoteID {
@@ -294,8 +314,49 @@ struct InspectorNoteLinkRow: View {
         }
     }
 
+    /// Obsidian/Notion sibling of `appleNoteContent`: no title/summary to load (there is no
+    /// bridge into either app), so the card just shows the link's own display name and an
+    /// "Open in <App>" button that reuses `ContextLinkActions.open` — same opening logic the
+    /// general attachment chips use, since this link is an ordinary `.web` `ContextLink`.
+    @ViewBuilder
+    private var appLinkContent: some View {
+        if let appLink {
+            KPanel {
+                VStack(alignment: .leading, spacing: Space.x1) {
+                    HStack(spacing: Space.x2) {
+                        Icon("link", size: Metrics.iconS).foregroundStyle(Tok.textTertiary)
+                        Text(appLink.displayName)
+                            .font(Typo.row).foregroundStyle(Tok.textPrimary).lineLimit(1)
+                            .layoutPriority(1)
+                        Spacer(minLength: Space.x2)
+                        Button { unlinkAppLink(appLink) } label: { Text(String(localized: "detail.calendar.unlink")).kHitTarget() }
+                            .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textTertiary).fixedSize()
+                    }
+                    Button { ContextLinkActions.open(appLink, model: model) } label: {
+                        Text(String(localized: preference == .obsidian ? "detail.notelink.obsidian.open" : "detail.notelink.notion.open")).kHitTarget()
+                    }
+                    .buttonStyle(.plain).font(Typo.meta).foregroundStyle(Tok.textSecondary)
+                    .padding(.leading, Metrics.iconS + Space.x2)
+                    .padding(.top, Space.x1)
+                    .uiTestAnchor("inspector.notelink.open")
+                }
+            }
+        } else {
+            Button {
+                isPastingLink = true
+            } label: {
+                HStack(spacing: Space.x2) {
+                    Icon("link", size: Metrics.iconS)
+                    Text(String(localized: preference == .obsidian ? "detail.notelink.obsidian.add" : "detail.notelink.notion.add"))
+                }
+            }
+            .kButton(.secondary, size: .compact)
+            .uiTestAnchor("inspector.notelink.add")
+        }
+    }
+
     private func loadTitle() async {
-        guard let id = linkedNoteID else { linkedTitle = nil; linkedSummaryLines = []; return }
+        guard preference == .appleNotes, let id = linkedNoteID else { linkedTitle = nil; linkedSummaryLines = []; return }
         do {
             let body = try await model.notes.body(ofNoteID: id)
             let lines = body.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
@@ -337,6 +398,19 @@ struct InspectorNoteLinkRow: View {
         linkedSummaryLines = []
     }
 
+    /// Replaces whichever Obsidian/Notion link is currently tracked (if any) with `link` —
+    /// `NoteAppLink.replacing` keeps the "at most one" contract this row promises.
+    private func linkAppLink(_ link: ContextLink) {
+        model.store.update(task.id) { $0.notes = NoteAppLink.replacing(with: link, app: preference, in: $0.notes) }
+        model.didMutate()
+        isPastingLink = false
+    }
+
+    private func unlinkAppLink(_ link: ContextLink) {
+        model.store.update(task.id) { $0.notes = ContextLink.removing(link, from: $0.notes) }
+        model.didMutate()
+    }
+
     private func openNote(_ id: String) {
         // `id of note` is an `x-coredata://` URL, not the `applenotes://showNote?identifier=`
         // UUID — no documented transform between the two — so this goes through the bridge's
@@ -352,6 +426,54 @@ struct InspectorNoteLinkRow: View {
                 openNotesApp()
             }
         }
+    }
+}
+
+/// The Obsidian/Notion paste field: one text field, Return or "Add" submits a normalized
+/// reference, Escape cancels — same minimal shape as `WebLinkSheet` (LinksSection.swift),
+/// independent of it since this row's "at most one" contract and normalization rules
+/// (`NoteAppLink.normalize`) differ from the general attachments "+ Web link…" dialog.
+private struct NoteAppLinkPasteField: View {
+    let app: NoteAppPreference
+    let onAdd: (ContextLink) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    private var normalized: String? { NoteAppLink.normalize(text, app: app) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x3) {
+            InspectorSectionCaption(String(localized: app == .obsidian ? "detail.notelink.obsidian.title" : "detail.notelink.notion.title"))
+            KTextField(String(localized: app == .obsidian ? "detail.notelink.obsidian.placeholder" : "detail.notelink.notion.placeholder"),
+                       text: $text, leading: "link", autofocus: true)
+                .onSubmit(add)
+                .uiTestAnchor("inspector.notelink.app.url")
+            if !text.isEmpty, normalized == nil {
+                Text(String(localized: "detail.notelink.app.invalid"))
+                    .font(Typo.meta)
+                    .foregroundStyle(Tok.textTertiary)
+            }
+            HStack(spacing: Space.x2) {
+                Spacer()
+                Button(String(localized: "common.cancel")) { dismiss() }
+                    .kButton(.ghost, size: .compact)
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "common.add")) { add() }
+                    .kButton(.primary, size: .compact)
+                    .disabled(normalized == nil)
+                    .uiTestAnchor("inspector.notelink.app.add")
+            }
+        }
+        .padding(Space.x4)
+        .frame(width: 340)
+        .background(Tok.overlay)
+    }
+
+    private func add() {
+        guard let normalized else { return }
+        let name = app == .obsidian ? String(localized: "detail.notelink.obsidian.name") : String(localized: "detail.notelink.notion.name")
+        onAdd(ContextLink(kind: .web, reference: normalized, displayName: name))
+        dismiss()
     }
 }
 

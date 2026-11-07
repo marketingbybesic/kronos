@@ -63,4 +63,13 @@ enum MenuBarTitleComposer {
         // tail-truncate the subtask against the full budget.
         return subtask.count > maxChars ? String(subtask.prefix(maxChars - 1)) + "…" : subtask
     }
+
+    /// D1 (Kronos v1.2 Phase 2 slice D): the status item's own suffix for "something waits on
+    /// your review" — appended by the caller AFTER the quiet-line suffix (MenuBarOrdoController
+    /// .swift's own `reviewCountSuffix()`), so it always shows in full even when the title
+    /// itself truncates (same reasoning `quiet.barSuffix` already relies on there).
+    static func reviewSuffix(count: Int) -> String {
+        guard count > 0 else { return "" }
+        return " · " + String(format: String(localized: "menubar.review.suffix"), count)
+    }
 }

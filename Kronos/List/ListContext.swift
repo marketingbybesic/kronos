@@ -80,6 +80,14 @@ struct ListContext {
     var openEarlierRows: ArraySlice<KTask> { rows.dropFirst(presentCount + openMissingCount) }
     /// Everything the list holds, open sections or not (Today is clear only when this is 0).
     var totalCount: Int { currentCount + earlier.count }
+    /// Whether `id` belongs to this scope's full row set, open sections or not — the right
+    /// test for "is a selection still valid", unlike `rows` alone which drops a collapsed
+    /// Earlier or missing-group row (still part of the list, just folded under its header).
+    /// A task explicitly selected by code (starting it from the morning plan, say) must not
+    /// be pruned just because its group happens to be collapsed right now.
+    func holds(_ id: UUID) -> Bool {
+        rows.contains { $0.id == id } || missing.contains { $0.id == id } || earlier.contains { $0.id == id }
+    }
 
     /// The snapshot for the model's current state: built once per state, then shared.
     init(model: AppModel) {

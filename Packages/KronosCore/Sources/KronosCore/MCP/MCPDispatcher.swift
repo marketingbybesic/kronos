@@ -22,6 +22,9 @@ public final class MCPDispatcher {
     /// The agent registry and activity log. Nil = no agent bookkeeping (the plain dispatcher the
     /// self-tests and the app's own calls use); every caller is then the person and nothing is refused.
     public var hub: AgentHub?
+    /// The run contract store (Kronos v1.2). Nil = no run bookkeeping; run_start/run_update/
+    /// run_finish then answer INVALID_STATE, same shape as events_poll without a hub.
+    public var runs: RunStore?
     /// Who is calling, for the duration of one `handleBody`; nil = the person's own process.
     var identity: AgentIdentity?
     /// Skips the per-minute bucket while a held long poll re-runs its (already counted) call.

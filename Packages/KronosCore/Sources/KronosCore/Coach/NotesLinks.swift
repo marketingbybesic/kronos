@@ -192,6 +192,94 @@ public struct ContextLink: Equatable, Sendable {
     }
 }
 
+// MARK: - Note app preference (Settings > Capture & Notes > Note app)
+
+/// Which app the inspector's single "note" link row targets. Apple Notes keeps today's
+/// `NoteLink` mechanism (a `notes://<id>` line, resolved through `AppleNotesBridge`); Obsidian
+/// and Notion have no such bridge, so they are stored as an ordinary `.web` `ContextLink`
+/// instead — both are reached by opening a URL, and `ContextLink`'s own doc comment already
+/// calls that an acceptable reuse ("a file link stores... exactly like..."). No new
+/// `ContextLink.Kind` is added for them.
+public enum NoteAppPreference: String, CaseIterable, Sendable {
+    case appleNotes, obsidian, notion
+
+    private static let key = "kronos.noteApp"
+
+    public static func current(defaults: UserDefaults = KronosEnv.defaults) -> NoteAppPreference {
+        defaults.string(forKey: key).flatMap(NoteAppPreference.init(rawValue:)) ?? .appleNotes
+    }
+
+    public static func set(_ value: NoteAppPreference, defaults: UserDefaults = KronosEnv.defaults) {
+        defaults.set(value.rawValue, forKey: key)
+    }
+}
+
+/// Recognizing and normalizing a pasted Obsidian or Notion reference, and finding/replacing
+/// the one such link a task carries — the same "at most one" contract `NoteLink` keeps for
+/// Apple Notes, kept here for the other two apps since they share `ContextLink`'s general
+/// multi-link storage instead of a dedicated field.
+public enum NoteAppLink {
+    /// True for any `obsidian://` URI (Obsidian's own scheme for vault/file deep links).
+    public static func isObsidianReference(_ raw: String) -> Bool {
+        URL(string: raw)?.scheme?.lowercased() == "obsidian"
+    }
+
+    /// True for a `notion://` URI, or an `http`/`https` URL on `notion.so` (with or without
+    /// a subdomain, e.g. `www.notion.so`).
+    public static func isNotionReference(_ raw: String) -> Bool {
+        guard let url = URL(string: raw), let scheme = url.scheme?.lowercased() else { return false }
+        if scheme == "notion" { return true }
+        guard scheme == "http" || scheme == "https", let host = url.host?.lowercased() else { return false }
+        return host == "notion.so" || host.hasSuffix(".notion.so")
+    }
+
+    /// Pasted text -> a storable reference for `app`, or nil when it matches neither accepted
+    /// form. Obsidian additionally accepts a bare absolute vault-file path with no
+    /// `obsidian://` prefix, normalized to a `file://` URL so the stored reference is always a
+    /// URL the inspector can hand straight to `NSWorkspace.open`. `.appleNotes` always returns
+    /// nil: that app is never reached through this type.
+    public static func normalize(_ raw: String, app: NoteAppPreference) -> String? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        switch app {
+        case .appleNotes:
+            return nil
+        case .obsidian:
+            if isObsidianReference(text) { return text }
+            guard text.hasPrefix("/"), !text.hasSuffix("/"), text != "/" else { return nil }
+            return URL(fileURLWithPath: text).absoluteString
+        case .notion:
+            return isNotionReference(text) ? text : nil
+        }
+    }
+
+    /// The task's/subtask's currently-tracked link for `app` — nil for `.appleNotes` (that app
+    /// never stores through `ContextLink`).
+    public static func find(in notesText: String, app: NoteAppPreference) -> ContextLink? {
+        guard app != .appleNotes else { return nil }
+        return ContextLink.findAll(in: notesText).first { $0.kind == .web && matches($0.reference, app: app) }
+    }
+
+    private static func matches(_ reference: String, app: NoteAppPreference) -> Bool {
+        switch app {
+        case .appleNotes: false
+        case .obsidian: isObsidianReference(reference)
+        case .notion: isNotionReference(reference)
+        }
+    }
+
+    /// Replaces whichever link `find(in:app:)` currently returns (if any) with `link` — keeps
+    /// the row's "at most one" contract when relinking to a different page.
+    public static func replacing(with link: ContextLink, app: NoteAppPreference, in notesText: String) -> String {
+        var text = notesText
+        if let existing = find(in: text, app: app) {
+            text = ContextLink.removing(existing, from: text)
+        }
+        return link.appending(to: text)
+    }
+}
+
+
 
 // MARK: - Device origin
 

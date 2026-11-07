@@ -74,6 +74,8 @@ public enum EventDigest {
         section(ActivityVerb.commented, { "\($0) new \(plural($0, "comment", "comments")):" }) { e in
             "\(e.title): \(e.note ?? "")"
         }
+        section(ActivityVerb.runStopped, { "Alex stopped \($0) of your runs:" }) { $0.title }
+        section(ActivityVerb.runExpired, { "\($0) of your runs expired:" }) { $0.title }
         return out.joined(separator: "\n")
     }
 
@@ -88,6 +90,8 @@ public enum EventDigest {
         case ActivityVerb.reopened: verb = "reopened"
         case ActivityVerb.deleted: verb = "deleted"
         case ActivityVerb.assigned: verb = "assigned to you"
+        case ActivityVerb.runStopped: verb = "stopped your run on"
+        case ActivityVerb.runExpired: verb = "noted your run expired on"
         default: verb = "commented on"
         }
         let id = (e.taskID?.uuidString ?? "event-\(e.seq)").prefix(8).lowercased()

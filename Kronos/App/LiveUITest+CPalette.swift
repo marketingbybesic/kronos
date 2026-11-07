@@ -31,11 +31,18 @@ extension LiveUITest {
         var shown = false
         for _ in 0..<3 {
             model.isPaletteOpen = true
+            // A full run can leave `window` not genuinely key by the time this runs (confirmed
+            // live: `window.firstResponder` read back as the window itself, no text view at
+            // all, on the very first open of a leaf) — SwiftUI's own focus assignment only
+            // sticks once the hosting window is really key, the same reason every other opener
+            // in this file (`openTriage`, and the rest) calls this before relying on focus.
+            await ensureKey(window)
             shown = await waitUntil(timeout: 3) { UITestAnchors.frames["palette.card"] != nil }
             await waitUntil(timeout: 2) { window.firstResponder is NSTextView }
             await settle(250)
+            let isTextView = window.firstResponder is NSTextView
             let inListField = (window.firstResponder as? NSTextView)?.accessibilityLabel() == String(localized: "list.new")
-            if shown && !inListField { break }
+            if shown && isTextView && !inListField { break }
             model.isPaletteOpen = false
             await settle(400)
         }

@@ -20,6 +20,456 @@
         }
       }
     },
+    "flow.blockedby.few": {
+      "comment": "Flow selection header, Croatian \"few\" count category (via KPlural.hr). %lld = open prerequisite count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked by %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na %lld zadatka"
+          }
+        }
+      }
+    },
+    "flow.blockedby.many": {
+      "comment": "Flow selection header, Croatian \"many\" count category (via KPlural.hr). %lld = open prerequisite count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked by %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na %lld zadataka"
+          }
+        }
+      }
+    },
+    "flow.blockedby.one": {
+      "comment": "Flow selection header, Croatian \"one\" count category (via KPlural.hr). %lld = open prerequisite count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked by %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka na %lld zadatak"
+          }
+        }
+      }
+    },
+    "flow.column.canstart": {
+      "comment": "Flow column header: depth 0, tasks waiting on nothing open.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can start"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Može početi"
+          }
+        }
+      }
+    },
+    "flow.column.later": {
+      "comment": "Flow column header: depth 2 and beyond.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasnije"
+          }
+        }
+      }
+    },
+    "flow.column.next": {
+      "comment": "Flow column header: depth 1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sljedeće"
+          }
+        }
+      }
+    },
+    "flow.empty.message": {
+      "comment": "Flow's empty state (E7), message line under the title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press W on a task to say what it waits on."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pritisni W na zadatku da odrediš na što čeka."
+          }
+        }
+      }
+    },
+    "flow.empty.title": {
+      "comment": "Flow's empty state (E7), title line.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tasks wait on others yet."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nijedan zadatak još ne čeka na drugi."
+          }
+        }
+      }
+    },
+    "flow.handoff.noagents": {
+      "comment": "Flow's H/⇧H picker: no enabled agent exists to hand a task to.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No agents configured yet"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nijedan agent još nije postavljen"
+          }
+        }
+      }
+    },
+    "flow.handoff.noharness": {
+      "comment": "⇧H hand-off-and-run picker row, trailing label: no agent can be launched by Kronos yet in this build (Settings > Agents > Harness, Kronos v1.2 Phase 2 slice B, not shipped).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No harness configured"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent nema postavljen harness"
+          }
+        }
+      }
+    },
+    "flow.handoff.picker.title": {
+      "comment": "Flow's H/⇧H picker, header line. %@ = the focused task's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off “%@” to…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj „%@” agentu…"
+          }
+        }
+      }
+    },
+    "flow.lane.empty": {
+      "comment": "Flow's agent-lanes view: shown instead of any agent lane when no agent currently has an active run or a delegated task in view.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing handed off"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ništa nije predano"
+          }
+        }
+      }
+    },
+    "flow.lane.owner": {
+      "comment": "Flow's agent-lanes view (L key): the owner's own lane title, above every agent lane.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ti"
+          }
+        }
+      }
+    },
+    "flow.showall": {
+      "comment": "Flow's \"Show all (N)\" button, shown only past the 150-card cap (E6). %lld = the pre-cap total card count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show all (%lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži sve (%lld)"
+          }
+        }
+      }
+    },
+    "flow.status.failed": {
+      "comment": "Flow card status glyph tooltip/accessibility label: the task's latest run ended failed. %@ = agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ could not finish"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nije uspio dovršiti"
+          }
+        }
+      }
+    },
+    "flow.status.readyforreview": {
+      "comment": "Flow card status glyph tooltip/accessibility label: the task's run finished and awaits the owner's review.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready for your review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremno za tvoj pregled"
+          }
+        }
+      }
+    },
+    "flow.status.running": {
+      "comment": "Flow card status glyph tooltip/accessibility label: an agent is actively running on this task. %@ = agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is working on this"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ radi na ovome"
+          }
+        }
+      }
+    },
+    "flow.status.stale": {
+      "comment": "Flow card status glyph tooltip/accessibility label: the task's latest run expired (lost its lease). %@ = agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ stopped responding"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ više ne odgovara"
+          }
+        }
+      }
+    },
+    "flow.unblocks.few": {
+      "comment": "Flow selection header, Croatian \"few\" count category (via KPlural.hr). %lld = dependent count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unblocks %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oslobađa %lld zadatka"
+          }
+        }
+      }
+    },
+    "flow.unblocks.many": {
+      "comment": "Flow selection header, Croatian \"many\" count category (via KPlural.hr). %lld = dependent count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unblocks %lld tasks"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oslobađa %lld zadataka"
+          }
+        }
+      }
+    },
+    "flow.unblocks.one": {
+      "comment": "Flow selection header, Croatian \"one\" count category (via KPlural.hr). %lld = dependent count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unblocks %lld task"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oslobađa %lld zadatak"
+          }
+        }
+      }
+    },
+    "flow.undo.waitsonremoved": {
+      "comment": "Undo pill after ⌫ removes a dependency edge in Flow. %1$@ = the dependent task's title, %2$@ = the prerequisite task's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%1$@” no longer waits on “%2$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” više ne čeka na „%2$@”"
+          }
+        }
+      }
+    },
+    "flow.undo.waitsonremoved.gone": {
+      "comment": "Undo pill after ⌫ removes a dependency edge in Flow, fallback when the prerequisite task itself can no longer be found (it was deleted in the moment between selecting the edge and pressing ⌫) — flow.undo.waitsonremoved's own 2-title message cannot be built. %1$@ = the dependent task's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed the dependency from “%1$@”"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uklonjena ovisnost iz „%1$@”"
+          }
+        }
+      }
+    },
+    "flow.waitson.picker.empty": {
+      "comment": "Flow's W picker: no candidate task matches the typed search.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matches"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nema podudaranja"
+          }
+        }
+      }
+    },
+    "flow.waitson.picker.title": {
+      "comment": "Flow's W picker, header line. %@ = the focused task's title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What does “%@” wait on?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na što čeka „%@”?"
+          }
+        }
+      }
+    },
     "hotkey.list.sendtoupnext": {
       "comment": "Send to Up next (append), shown in Settings > Shortcuts, keymap sheet, context menu, bulk bar.",
       "extractionState": "manual",
@@ -142,6 +592,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bez grupiranja"
+          }
+        }
+      }
+    },
+    "list.handoff.title": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Heading of the H agent-picker overlay (plain hand-off).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off to"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj agentu"
+          }
+        }
+      }
+    },
+    "list.handoff.titlerun": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Heading of the ⇧H agent-picker overlay (hand off and run).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off and run"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj i pokreni"
           }
         }
       }
@@ -347,13 +833,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No activity in the last 7 days."
+            "value": "No activity in the last 7 days. Hand off a task to see it work here."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nema aktivnosti u zadnjih 7 dana."
+            "value": "Nema aktivnosti u zadnjih 7 dana. Predaj mu zadatak da ga vidiš na djelu ovdje."
           }
         }
       }
@@ -381,13 +867,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No activity yet."
+            "value": "No activity yet. Hand off a task to see it work here."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Još nema aktivnosti."
+            "value": "Još nema aktivnosti. Predaj mu zadatak da ga vidiš na djelu ovdje."
           }
         }
       }
@@ -681,6 +1167,42 @@
         }
       }
     },
+    "review.next.approveall": {
+      "comment": "Review next's fourth action button: approve every other pending item from the same agent. %1$@ agent name, %2$lld count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve all from %1$@ (%2$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odobri sve od %1$@ (%2$lld)"
+          }
+        }
+      }
+    },
+    "review.next.approveall.undo": {
+      "comment": "Undo toast after Review next's approve-all-from-agent action. %1$lld count, %2$@ agent name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approved %1$lld from %2$@."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odobreno %1$lld od %2$@."
+          }
+        }
+      }
+    },
     "review.next.empty": {
       "extractionState": "manual",
       "localizations": {
@@ -728,6 +1250,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zatraži izmjenu"
+          }
+        }
+      }
+    },
+    "review.next.run.toggle": {
+      "comment": "Review next: disclosure button for an agent-done card's run summary/artifacts/log (Space).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run details"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalji izvođenja"
+          }
+        }
+      }
+    },
+    "review.next.sendback.run": {
+      "comment": "Kronos v1.2 agent loop. Review-next's reject note field: reopens with the typed comment and relaunches the same agent, shown only while its harness can launch.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send back and run again"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pošalji natrag i pokreni ponovno"
           }
         }
       }
@@ -3899,6 +4457,60 @@
         }
       }
     },
+    "ctx.task.handoff": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Title of the task menu's agent hand-off submenu, replacing v1.1's “Delegate to…”.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off to…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj agentu…"
+          }
+        }
+      }
+    },
+    "ctx.task.handoff.remove": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Takes a task back from the agent it is handed off to — the “Hand off to…” submenu's own undo item.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove hand-off"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni predaju"
+          }
+        }
+      }
+    },
+    "ctx.task.handoffrun": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Title of the task menu's “hand off and launch the harness” submenu.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off and run…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj i pokreni…"
+          }
+        }
+      }
+    },
     "ctx.task.label": {
       "comment": "Spec 3.14 Context menus.",
       "extractionState": "manual",
@@ -4003,6 +4615,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stanje"
+          }
+        }
+      }
+    },
+    "ctx.task.stopagent": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Stops the task's active agent run; shown only while one is running.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop agent"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustavi agenta"
           }
         }
       }
@@ -5357,6 +5987,204 @@
         }
       }
     },
+    "detail.notelink.app.invalid": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That is not a valid link."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To nije valjana poveznica."
+          }
+        }
+      }
+    },
+    "detail.notelink.notion.add": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link Notion page…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži Notion stranicu…"
+          }
+        }
+      }
+    },
+    "detail.notelink.notion.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notion page"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notion stranica"
+          }
+        }
+      }
+    },
+    "detail.notelink.notion.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Notion"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori u Notionu"
+          }
+        }
+      }
+    },
+    "detail.notelink.notion.placeholder": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "notion.so link"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "notion.so poveznica"
+          }
+        }
+      }
+    },
+    "detail.notelink.notion.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link Notion page"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži Notion stranicu"
+          }
+        }
+      }
+    },
+    "detail.notelink.obsidian.add": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link Obsidian note…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži Obsidian bilješku…"
+          }
+        }
+      }
+    },
+    "detail.notelink.obsidian.name": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obsidian note"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obsidian bilješka"
+          }
+        }
+      }
+    },
+    "detail.notelink.obsidian.open": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Obsidian"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori u Obsidianu"
+          }
+        }
+      }
+    },
+    "detail.notelink.obsidian.placeholder": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "obsidian://open?… or a vault file path"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "obsidian://open?… ili putanja datoteke u spremištu"
+          }
+        }
+      }
+    },
+    "detail.notelink.obsidian.title": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link Obsidian note"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži Obsidian bilješku"
+          }
+        }
+      }
+    },
     "detail.notelink.open": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -6221,6 +7049,24 @@
         }
       }
     },
+    "empty.search.clear": {
+      "comment": "No-matches empty state while a search is active: clears the query.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Očisti pretragu"
+          }
+        }
+      }
+    },
     "empty.search.query": {
       "comment": "Spec 3.11 Empty states (ux-14).",
       "extractionState": "manual",
@@ -6415,6 +7261,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fizičko"
+          }
+        }
+      }
+    },
+    "hotkey.board.movecolumn.left": {
+      "comment": "Board key title (Settings, keymap): [ moves the selected card one column left, through BoardColumn.movableOrder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the card left"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomakni karticu lijevo"
+          }
+        }
+      }
+    },
+    "hotkey.board.movecolumn.right": {
+      "comment": "Board key title (Settings, keymap): ] moves the selected card one column right, through BoardColumn.movableOrder.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the card right"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pomakni karticu desno"
           }
         }
       }
@@ -6995,6 +7877,24 @@
         }
       }
     },
+    "hotkey.scope.board": {
+      "comment": "Keymap sheet / Settings > Shortcuts section header for Board's own keys.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Board"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U Ploči"
+          }
+        }
+      }
+    },
     "hotkey.scope.editor": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -7531,6 +8431,294 @@
           "stringUnit": {
             "state": "translated",
             "value": "Odaberi jedan"
+          }
+        }
+      }
+    },
+    "inspector.run.elapsed": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Inspector run section's time line while the run is still active. %@ = elapsed duration (e.g. “12m”).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running for %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U tijeku %@"
+          }
+        }
+      }
+    },
+    "inspector.run.ended": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Inspector run section's time line once the run has ended. %@ = relative time (e.g. “5 minutes ago”).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ended %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Završilo %@"
+          }
+        }
+      }
+    },
+    "inspector.run.headline": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Inspector run section's headline. %1$@ = agent display name, %2$@ = state word (inspector.run.state.*).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "inspector.run.log.hide": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Collapses the Kronos-launched run's live log tail.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide log"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sakrij log"
+          }
+        }
+      }
+    },
+    "inspector.run.log.show": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Expands the Kronos-launched run's live log tail.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show log"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži log"
+          }
+        }
+      }
+    },
+    "inspector.run.openlog": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Opens the run's raw log file in its default app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open log"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori log"
+          }
+        }
+      }
+    },
+    "inspector.run.openterminal": {
+      "comment": "handoff-ui slice. Opens a 0700 .command file that tails the run's log in the user's default terminal app; shown only for a Kronos-launched run (launchedByKronos) with a log path.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Terminal"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori u Terminalu"
+          }
+        }
+      }
+    },
+    "inspector.run.progress": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Accessibility value of the run's progress bar. %lld = whole-number percent.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% done"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% gotovo"
+          }
+        }
+      }
+    },
+    "inspector.run.runagain": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Relaunches the same agent on this task; shown once a run has ended.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run again"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokreni ponovno"
+          }
+        }
+      }
+    },
+    "inspector.run.state.done": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “done”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotovo"
+          }
+        }
+      }
+    },
+    "inspector.run.state.expired": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “expired”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped responding"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prestalo odgovarati"
+          }
+        }
+      }
+    },
+    "inspector.run.state.failed": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “failed”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nije uspjelo"
+          }
+        }
+      }
+    },
+    "inspector.run.state.handoff": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “handoff”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handed off"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predano"
+          }
+        }
+      }
+    },
+    "inspector.run.state.running": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “running”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U tijeku"
+          }
+        }
+      }
+    },
+    "inspector.run.state.stopped": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. KAgentRun.stateRaw “stopped”, shown in the run headline.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustavljeno"
+          }
+        }
+      }
+    },
+    "inspector.run.stop": {
+      "comment": "Kronos v1.2 Phase 2 slice C2. Stops the active run; same action as ctx.task.stopagent / ⌘.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustavi"
           }
         }
       }
@@ -9029,6 +10217,60 @@
         }
       }
     },
+    "list.pill.handoff.few": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Multi-select hand-off pill, CLDR-hr “few”; the agent's display name is appended after this. %lld = task count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handed off %lld tasks to"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predao %lld zadatka agentu"
+          }
+        }
+      }
+    },
+    "list.pill.handoff.many": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Multi-select hand-off pill, CLDR-hr “many”; the agent's display name is appended after this. %lld = task count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handed off %lld tasks to"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predao %lld zadataka agentu"
+          }
+        }
+      }
+    },
+    "list.pill.handoff.one": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Multi-select hand-off pill, CLDR-hr “one”; the agent's display name is appended after this. %lld = task count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handed off %lld task to"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predao %lld zadatak agentu"
+          }
+        }
+      }
+    },
     "list.pill.labeladded": {
       "comment": "Undo pill; %1$@ = label, %2$@ = task.",
       "extractionState": "manual",
@@ -9587,6 +10829,24 @@
         }
       }
     },
+    "menu.go.toggleflow": {
+      "comment": "Go menu / ⌥⌘G: toggles the CURRENT scope's layout between List and Flow (the dependency-depth graph). Kronos v1.2 owner-feedback round — replaces the old fixed destination (scope .all, layout .flow) that made \"All\" permanently show Flow after one press.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Flow"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uključi/isključi Protok"
+          }
+        }
+      }
+    },
     "menu.task.capture": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -10089,6 +11349,114 @@
         }
       }
     },
+    "menubar.popover.running": {
+      "comment": "Menu bar popover: count of agents currently running (Kronos-launched or claimed) tasks.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents running (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenti rade (%1$lld)"
+          }
+        }
+      }
+    },
+    "menubar.popover.stopall": {
+      "comment": "Menu bar popover: button stopping every running agent run.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop all"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustavi sve"
+          }
+        }
+      }
+    },
+    "menubar.popover.stopall.confirm.one": {
+      "comment": "Menu bar popover: confirm text before stopping every running agent run, CLDR-hr one (n=1, e.g. 1). %1$lld count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop %1$lld running agent?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustaviti %1$lld agenta koji radi?"
+          }
+        }
+      }
+    },
+    "menubar.popover.stopall.confirm.few": {
+      "comment": "Menu bar popover: confirm text before stopping every running agent run, CLDR-hr few (2-4, not 12-14).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop %1$lld running agents?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustaviti %1$lld agenta koji rade?"
+          }
+        }
+      }
+    },
+    "menubar.popover.stopall.confirm.many": {
+      "comment": "Menu bar popover: confirm text before stopping every running agent run, CLDR-hr many (0, 5+, 11-14).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop %1$lld running agents?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustaviti %1$lld agenata koji rade?"
+          }
+        }
+      }
+    },
+    "menubar.popover.waiting": {
+      "comment": "Menu bar popover: row opening Review next. %1$lld = items waiting on the owner's review.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for you (%1$lld)"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Čeka tvoju odluku (%1$lld)"
+          }
+        }
+      }
+    },
     "menubar.quiet.long": {
       "extractionState": "manual",
       "localizations": {
@@ -10153,6 +11521,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vremenski retci"
+          }
+        }
+      }
+    },
+    "menubar.review.suffix": {
+      "comment": "Menu bar status item suffix after the title/quiet line, shown only when something waits on review. %1$lld count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld to review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld za pregled"
           }
         }
       }
@@ -10425,13 +11811,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Three to start with."
+            "value": "Starts the first task now and plans all three for today."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tri za početak."
+            "value": "Pokreće prvi zadatak odmah i planira sva tri za danas."
           }
         }
       }
@@ -10472,20 +11858,38 @@
         }
       }
     },
-    "morning.undo.planned": {
-      "comment": "Pick one, morning plan and Now card actions.",
+    "morning.undo.started": {
+      "comment": "Pick one, morning plan and Now card actions. Toast after Let's go: %1$@ = the first task's title, %2$d = how many were planned for today.",
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Planned for today."
+            "value": "Started “%1$@” · planned %2$d for today"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Planirano za danas."
+            "value": "„%1$@” pokrenuto · planirano %2$d za danas"
+          }
+        }
+      }
+    },
+    "list.header.count.shown": {
+      "comment": "Today's header count qualifier: shown only when the sidebar badge (which also counts carried-over Earlier rows) would otherwise disagree with this number.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "shown"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "prikazano"
           }
         }
       }
@@ -16277,6 +17681,114 @@
         }
       }
     },
+    "settings.notes.noteapp": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikacija"
+          }
+        }
+      }
+    },
+    "settings.notes.noteapp.apple": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Notes"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Bilješke"
+          }
+        }
+      }
+    },
+    "settings.notes.noteapp.help": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which app the inspector's note-link button connects to."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koju aplikaciju koristi gumb za povezivanje bilješke u inspektoru."
+          }
+        }
+      }
+    },
+    "settings.notes.noteapp.notion": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notion"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notion"
+          }
+        }
+      }
+    },
+    "settings.notes.noteapp.obsidian": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obsidian"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obsidian"
+          }
+        }
+      }
+    },
+    "settings.notes.section.noteapp": {
+      "comment": "Spec 3.1 App-level, sidebar, views.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note app"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikacija za bilješke"
+          }
+        }
+      }
+    },
     "settings.notes.folder": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -17105,6 +18617,24 @@
         }
       }
     },
+    "settings.shortcuts.scope.board": {
+      "comment": "Settings > Shortcuts section header for Board's own keys (BoardScreen.swift): [ / ] move the selected card a column over.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Board"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U Ploči"
+          }
+        }
+      }
+    },
     "settings.shortcuts.scope.editor": {
       "comment": "Spec 3.1 App-level, sidebar, views.",
       "extractionState": "manual",
@@ -17749,6 +19279,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Novo područje"
+          }
+        }
+      }
+    },
+    "sidebar.flow": {
+      "comment": "Sidebar row and ⌥⌘G: opens Flow, the dependency-depth graph view, over every open task (scope All). Kronos v1.2 Phase 2 slice E.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flow"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protok"
+          }
+        }
+      }
+    },
+    "sidebar.help.flow": {
+      "comment": "Tooltip of the sidebar's Flow row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See what can start now, what's running, and what's blocked"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vidi što može sada početi, što je u tijeku i što je blokirano"
           }
         }
       }
@@ -19263,6 +20829,60 @@
         }
       }
     },
+    "today.header.reviewrunning.both": {
+      "comment": "Today header quiet line when both counts are > 0. %1$lld ready for review, %2$lld running.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld ready for review · %2$lld running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld spremno za pregled · %2$lld u tijeku"
+          }
+        }
+      }
+    },
+    "today.header.reviewrunning.reviewonly": {
+      "comment": "Today header quiet line when only the review count is > 0. %1$lld ready for review.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld ready for review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld spremno za pregled"
+          }
+        }
+      }
+    },
+    "today.header.reviewrunning.runningonly": {
+      "comment": "Today header quiet line when only the running count is > 0. %1$lld running.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld u tijeku"
+          }
+        }
+      }
+    },
     "triage.card.title": {
       "comment": "Spec 3.5 Triage.",
       "extractionState": "manual",
@@ -20645,6 +22265,78 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prikaz „%1$@” obrisan"
+          }
+        }
+      }
+    },
+    "viewoptions.layout": {
+      "comment": "View-options popover, Display section: caption above the List/Flow segmented control (Kronos v1.2 Phase 2 slice E; slice F adds a Board segment to the same control later).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layout"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izgled"
+          }
+        }
+      }
+    },
+    "viewoptions.layout.board": {
+      "comment": "View-options popover's Layout control: Board, the five-column status kanban (Kronos/Board/BoardScreen.swift).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Board"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ploča"
+          }
+        }
+      }
+    },
+    "viewoptions.layout.flow": {
+      "comment": "View-options popover's Layout control: Flow, the dependency-depth graph. Same word as the sidebar's own \"sidebar.flow\" row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flow"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protok"
+          }
+        }
+      }
+    },
+    "viewoptions.layout.list": {
+      "comment": "View-options popover's Layout control: the plain sorted/filtered row list (today's default).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Popis"
           }
         }
       }
@@ -25325,13 +27017,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Needs its own token. Press Connect all local AI tools in Settings > MCP, then this switch works."
+            "value": "Needs its own token. Press Connect all local AI tools in Settings > AI access, then this switch works."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Treba vlastiti token. Pritisni Poveži sve lokalne AI alate u Postavke > MCP, pa ovaj prekidač radi."
+            "value": "Treba vlastiti token. Pritisni Poveži sve lokalne AI alate u Postavke > AI pristup, pa ovaj prekidač radi."
           }
         }
       }
@@ -25366,6 +27058,255 @@
           "stringUnit": {
             "state": "translated",
             "value": "Puna kontrola za %@"
+          }
+        }
+      }
+    },
+    "agents.harness": {
+      "comment": "Settings > Agents row button opening that agent's pinned-command (harness) editor.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness"
+          }
+        }
+      }
+    },
+    "agents.harness.title": {
+      "comment": "Header inside the expanded Harness editor, the agent's name filled in.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@'s harness"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness za %@"
+          }
+        }
+      }
+    },
+    "agents.harness.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command Kronos runs when it launches this agent for you."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naredba koju Kronos izvršava kad pokrene ovog agenta za tebe."
+          }
+        }
+      }
+    },
+    "agents.harness.path.placeholder": {
+      "comment": "Example absolute path shown in the empty harness executable path field.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/opt/homebrew/bin/claude"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "/opt/homebrew/bin/claude"
+          }
+        }
+      }
+    },
+    "agents.harness.find": {
+      "comment": "Button: searches the usual folders for the agent's binary.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronađi"
+          }
+        }
+      }
+    },
+    "agents.harness.find.notfound": {
+      "comment": "Find found nothing; %@ is the binary name it looked for (e.g. claude).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No %@ found in the usual folders."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nije pronađen %@ u uobičajenim mapama."
+          }
+        }
+      }
+    },
+    "agents.harness.argv.label": {
+      "comment": "Prefix before the read-only argv preview in the Harness editor.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs:"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokreće:"
+          }
+        }
+      }
+    },
+    "agents.harness.unpinned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No harness pinned yet."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness još nije postavljen."
+          }
+        }
+      }
+    },
+    "agents.harness.changed": {
+      "comment": "Shown on the agent row and refuses a launch when the pinned binary is missing or a symlink at that path now resolves somewhere else.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness changed, confirm it in Settings > Agents."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Harness se promijenio, potvrdi ga u Postavke > Agenti."
+          }
+        }
+      }
+    },
+    "agents.harness.cap.title": {
+      "comment": "Settings > Agents: the global concurrency cap, 1-4, default 2.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agents at once"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agenata odjednom"
+          }
+        }
+      }
+    },
+    "agents.harness.cap.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How many agents Kronos may run for you at the same time."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koliko agenata Kronos smije pokrenuti za tebe istovremeno."
+          }
+        }
+      }
+    },
+    "agents.harness.cap.refusal.one": {
+      "comment": "KPlural.hr one-form: the cap refusal pill, e.g. '1 agent already running'.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agent already running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agent se već izvodi"
+          }
+        }
+      }
+    },
+    "agents.harness.cap.refusal.few": {
+      "comment": "KPlural.hr few-form (2-4): the cap refusal pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agents already running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agenta se već izvode"
+          }
+        }
+      }
+    },
+    "agents.harness.cap.refusal.many": {
+      "comment": "KPlural.hr many-form (0, 5+, 11-14): the cap refusal pill.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agents already running"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld agenata se već izvodi"
           }
         }
       }
@@ -26289,6 +28230,24 @@
         }
       }
     },
+    "review.agentdone.noreport": {
+      "comment": "Kronos v1.2 agent loop. Review-next byline when the agent's run exited on its own (KAgentRun.exitedWithoutReporting) instead of calling run_finish. %@ agent name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ exited without reporting"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ je završio bez izvještaja"
+          }
+        }
+      }
+    },
     "review.agentdone.says": {
       "extractionState": "manual",
       "localizations": {
@@ -26438,6 +28397,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Predložena promjena"
+          }
+        }
+      }
+    },
+    "run.launch.noharness": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Refusal pill of the NoHarnessRunLauncher stub (RunLaunching.swift) until slice B's real harness check is wired in at merge.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This agent has no harness configured yet"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovaj agent još nema postavljen harness"
+          }
+        }
+      }
+    },
+    "run.stopped.notice": {
+      "comment": "Kronos v1.2 Phase 2 slice C. Notice after ⌘. stops a run from the list. %@ = agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaustavljeno: %@"
           }
         }
       }
@@ -27957,6 +29952,60 @@
         }
       }
     },
+    "agents.digest.aging.one": {
+      "comment": "Away-digest banner second line (D3): one review item pending over a day. %1$lld = 1.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld agent item has waited over a day."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld stavka agenta čeka na pregled dulje od dana."
+          }
+        }
+      }
+    },
+    "agents.digest.aging.few": {
+      "comment": "Away-digest banner second line (D3): 2-4 review items pending over a day (CLDR-hr few).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld agent items have waited over a day."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld stavke agenata čekaju na pregled dulje od dana."
+          }
+        }
+      }
+    },
+    "agents.digest.aging.many": {
+      "comment": "Away-digest banner second line (D3): 0, 5+, or 11-14 review items pending over a day (CLDR-hr many).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld agent items have waited over a day."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld stavki agenata čeka na pregled dulje od dana."
+          }
+        }
+      }
+    },
     "agents.digest.line": {
       "comment": "Away-digest banner line: %1$lld tasks finished, %2$lld proposed while the owner was away.",
       "extractionState": "manual",
@@ -28007,42 +30056,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zatvori"
-          }
-        }
-      }
-    },
-    "list.row.working": {
-      "comment": "List row working-status glyph tooltip/accessibility label: %1$@ is the agent's display name.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ is working on this"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agent %1$@ radi na ovome"
-          }
-        }
-      }
-    },
-    "review.inspector.working": {
-      "comment": "Inspector review section: an agent is currently working on this task. %1$@ agent name, %2$@ relative start time.",
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ is working on this (started %2$@)"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agent %1$@ radi na ovome (počelo %2$@)"
           }
         }
       }
@@ -28119,6 +30132,132 @@
         }
       }
     },
+    "detail.handoff.agent.label": {
+      "comment": "Inspector hand-off section (handoff-ui slice): label of the agent picker row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent"
+          }
+        }
+      }
+    },
+    "detail.handoff.go": {
+      "comment": "Inspector hand-off section (handoff-ui slice): the delegate-only action button, no harness launch.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand off"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaj"
+          }
+        }
+      }
+    },
+    "detail.handoff.gorun.help": {
+      "comment": "Inspector hand-off section (handoff-ui slice): tooltip of \"Hand off and run\" while it is available. While disabled, the live refusal reason (agents.harness.unpinned/changed, run.launch.noharness) is shown instead.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hands this task to the agent and starts its harness with the chosen model."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaje ovaj zadatak agentu i pokreće njegov harness s odabranim modelom."
+          }
+        }
+      }
+    },
+    "detail.handoff.model.auto": {
+      "comment": "Inspector hand-off section and the list's H/⇧H model row (handoff-ui slice): placeholder of the free-text model field. Blank means the harness's own default — no --model/-m flag is added.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatski"
+          }
+        }
+      }
+    },
+    "detail.handoff.model.label": {
+      "comment": "Inspector hand-off section (handoff-ui slice): label of the model picker row.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        }
+      }
+    },
+    "detail.handoff.model.recent": {
+      "comment": "Inspector hand-off section and the list's H/⇧H model row (handoff-ui slice): accessibility label of the small menu that fills the model field with a recently used value.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent models"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nedavni modeli"
+          }
+        }
+      }
+    },
+    "detail.handoff.title": {
+      "comment": "Inspector hand-off section (handoff-ui slice): section caption above the agent and model pickers.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hand-off"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predaja"
+          }
+        }
+      }
+    },
     "detail.help.delegate": {
       "comment": "Tooltip of the inspector's delegate control when at least one agent is configured.",
       "extractionState": "manual",
@@ -28173,6 +30312,78 @@
         }
       }
     },
+    "list.row.readyforreview": {
+      "comment": "Kronos v1.2 Phase 2 slice C1. Tooltip/accessibility label of the row glyph when reviewRaw == awaitingCheck (agent-reported done, not yet checked).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready for your review"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremno za tvoj pregled"
+          }
+        }
+      }
+    },
+    "list.row.runfailed": {
+      "comment": "Kronos v1.2 Phase 2 slice C1. Tooltip/accessibility label when the task's latest run ended failed. %@ = the run's agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ could not finish"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nije uspio dovršiti"
+          }
+        }
+      }
+    },
+    "list.row.running": {
+      "comment": "Kronos v1.2 Phase 2 slice C1. Tooltip/accessibility label when the task has an active run. %@ = the run's agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is working on this"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ radi na ovome"
+          }
+        }
+      }
+    },
+    "list.row.stale": {
+      "comment": "Kronos v1.2 Phase 2 slice C1. Tooltip/accessibility label when the task's latest run expired (lease passed, no update). %@ = the run's agent display name.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ stopped responding"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ više ne odgovara"
+          }
+        }
+      }
+    },
     "undo.delegated.name": {
       "comment": "Undo pill after delegating a task to an agent. %1$@ = task title, %2$@ = agent display name.",
       "extractionState": "manual",
@@ -28205,6 +30416,348 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delegiranje „%1$@” uklonjeno"
+          }
+        }
+      }
+    },
+    "board.column.donetoday": {
+      "comment": "Board column header (Kronos v1.2 Board). Tasks completed today only, not all-time done.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done today"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gotovo danas"
+          }
+        }
+      }
+    },
+    "board.pill.reviewlocked": {
+      "comment": "Board/Flow: refusal pill when a card awaiting the owner's review (Review column) is dragged, or keyed with [ / ], out of it.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review it with A or X."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledaj to tipkama A ili X."
+          }
+        }
+      }
+    },
+    "board.pill.movedtodo": {
+      "comment": "Board: undo pill after a card is dropped on, or keyed into, the To do column. %1$@ = task title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moved “%1$@” to To do"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” premješteno u Za napraviti"
+          }
+        }
+      }
+    },
+    "board.pill.movedinprogress": {
+      "comment": "Board: undo pill after a card is dropped on, or keyed into, the In progress column. %1$@ = task title.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moved “%1$@” to In progress"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” premješteno u tijeku"
+          }
+        }
+      }
+    },
+    "flow.gate.title": {
+      "comment": "Flow (slice E) and the project header strip (slice F): marks a task that 2 or more open tasks wait on.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gate"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prekretnica"
+          }
+        }
+      }
+    },
+    "projects.header.canstart": {
+      "comment": "Project header strip (F1): caption before the up-to-three unblocked task titles.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can start"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Može početi"
+          }
+        }
+      }
+    },
+    "projects.header.progress.a11y": {
+      "comment": "Project header strip: accessibility label for the done/total progress count. %1$lld = done, %2$lld = total.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld done"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld od %2$lld gotovo"
+          }
+        }
+      }
+    },
+    "projects.header.blocked.a11y": {
+      "comment": "Project header strip: accessibility label and hover tooltip for the blocked-task count. %1$lld = count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blocked %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blokirano %1$lld"
+          }
+        }
+      }
+    },
+    "projects.header.ready.a11y": {
+      "comment": "Project header strip: accessibility label and hover tooltip for the ready-for-review count. %1$lld = count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready for review %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spremno za pregled %1$lld"
+          }
+        }
+      }
+    },
+    "projects.header.due.a11y": {
+      "comment": "Project header strip: accessibility label and hover tooltip for the nearest open deadline. %1$@ = formatted day.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearest due %1$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Najbliži rok %1$@"
+          }
+        }
+      }
+    },
+    "week.strip.title": {
+      "comment": "Today view: caption above the seven-day week strip.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Week"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tjedan"
+          }
+        }
+      }
+    },
+    "week.strip.collapse": {
+      "comment": "Today view: accessibility label for the week strip's collapse button (⌥⌘W) while expanded.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse the week strip"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sažmi tjedni prikaz"
+          }
+        }
+      }
+    },
+    "week.strip.expand": {
+      "comment": "Today view: accessibility label for the week strip's collapse button (⌥⌘W) while collapsed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand the week strip"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proširi tjedni prikaz"
+          }
+        }
+      }
+    },
+    "week.day.planned.a11y": {
+      "comment": "Today week strip: accessibility label and hover tooltip fragment for a day's planned-task count. %1$lld = count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planned %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planirano %1$lld"
+          }
+        }
+      }
+    },
+    "week.day.due.a11y": {
+      "comment": "Today week strip: accessibility label and hover tooltip fragment for a day's due-task count. %1$lld = count.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due %1$lld"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rok %1$lld"
+          }
+        }
+      }
+    },
+    "week.pill.planned": {
+      "comment": "Today week strip: undo pill after dragging a task row onto a day. %1$@ = task title, %2$@ = the day's formatted text (e.g. “Fri”).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Planned “%1$@” for %2$@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@” planirano za %2$@"
+          }
+        }
+      }
+    },
+    "settings.about.reportbug.label": {
+      "comment": "Settings > About row label for the bug-report button.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bug reports"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prijave grešaka"
+          }
+        }
+      }
+    },
+    "settings.about.reportbug.open": {
+      "comment": "Settings > About: opens a prefilled GitHub issue in the browser.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a bug"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prijavi grešku"
+          }
+        }
+      }
+    },
+    "welcome.menu.reportbug": {
+      "comment": "Help menu item: opens a prefilled GitHub issue in the browser.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report a Bug"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prijavi grešku"
           }
         }
       }
